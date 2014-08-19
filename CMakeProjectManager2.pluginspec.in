@@ -1,4 +1,4 @@
-<plugin name=\"CMakeProjectManager2\" version=\"$$QTCREATOR_VERSION\" compatVersion=\"$$QTCREATOR_VERSION\">
+<plugin name=\"CMakeProjectManager2\" version=\"$$QTCREATOR_VERSION\" compatVersion=\"$$QTCREATOR_COMPAT_VERSION\">
     <vendor>Alexander Drozdov</vendor>
     <copyright>(C) 2012 Alexander Drozdov</copyright>
     <license>
