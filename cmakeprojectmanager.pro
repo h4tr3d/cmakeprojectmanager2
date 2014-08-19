@@ -1,4 +1,12 @@
-include(../../qtcreatorplugin.pri)
+## set the QTC_SOURCE environment variable to override the setting here
+QTCREATOR_SOURCES = $$(QTC_SOURCE)
+
+## set the QTC_BUILD environment variable to override the setting here
+#IDE_BUILD_TREE = $$(QTC_BUILD)
+IDE_BUILD_TREE =
+
+include(cmakeprojectmanager_dependencies.pri)
+include($$QTCREATOR_SOURCES/src/qtcreatorplugin.pri)
 
 HEADERS = cmakebuildinfo.h \
     cmakeproject.h \
@@ -36,3 +44,5 @@ SOURCES = cmakeproject.cpp \
 
 
 RESOURCES += cmakeproject.qrc
+
+OTHER_FILES += README.txt

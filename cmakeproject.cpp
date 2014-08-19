@@ -36,6 +36,7 @@
 #include "cmakerunconfiguration.h"
 #include "makestep.h"
 #include "cmakeopenprojectwizard.h"
+#include "generatorinfo.h"
 
 #include <projectexplorer/projectexplorerconstants.h>
 #include <projectexplorer/projectexplorer.h>
@@ -62,6 +63,7 @@
 #include <coreplugin/icore.h>
 #include <coreplugin/infobar.h>
 #include <coreplugin/editormanager/editormanager.h>
+#include <coreplugin/mimedatabase.h>
 
 #include <QDebug>
 #include <QDir>
@@ -81,6 +83,54 @@ using namespace ProjectExplorer;
 // Open Questions
 // Who sets up the environment for cl.exe ? INCLUDEPATH and so on
 
+// TODO This code taken from projectnodes.cpp and it marked as HACK. Wait for more clean solution.
+static ProjectExplorer::FileType getFileType(const QFileInfo &file)
+{
+    using namespace ProjectExplorer;
+
+    const Core::MimeType mt = Core::MimeDatabase::findByFile(file);
+    if (!mt)
+        return UnknownFileType;
+
+    const QString typeName = mt.type();
+    if (typeName == QLatin1String(ProjectExplorer::Constants::CPP_SOURCE_MIMETYPE)
+        || typeName == QLatin1String(ProjectExplorer::Constants::C_SOURCE_MIMETYPE))
+        return SourceType;
+    if (typeName == QLatin1String(ProjectExplorer::Constants::CPP_HEADER_MIMETYPE)
+        || typeName == QLatin1String(ProjectExplorer::Constants::C_HEADER_MIMETYPE))
+        return HeaderType;
+    if (typeName == QLatin1String(ProjectExplorer::Constants::RESOURCE_MIMETYPE))
+        return ResourceType;
+    if (typeName == QLatin1String(ProjectExplorer::Constants::FORM_MIMETYPE))
+        return FormType;
+    if (typeName == QLatin1String(ProjectExplorer::Constants::QML_MIMETYPE))
+        return QMLType;
+    return UnknownFileType;
+}
+
+// Make file node by file name
+static ProjectExplorer::FileNode* fileToFileNode(const QString &fileName)
+{
+    // TODO
+    ProjectExplorer::FileNode *node = 0;
+    bool generated = false;
+    QString onlyFileName = QFileInfo(fileName).fileName();
+    if (   (onlyFileName.startsWith(QLatin1String("moc_")) && onlyFileName.endsWith(QLatin1String(".cxx")))
+           || (onlyFileName.startsWith(QLatin1String("ui_")) && onlyFileName.endsWith(QLatin1String(".h")))
+           || (onlyFileName.startsWith(QLatin1String("qrc_")) && onlyFileName.endsWith(QLatin1String(".cxx"))))
+        generated = true;
+
+    if (fileName.endsWith(QLatin1String("CMakeLists.txt")))
+        node = new ProjectExplorer::FileNode(fileName, ProjectExplorer::ProjectFileType, false);
+    else {
+        ProjectExplorer::FileType fileType = getFileType(QFileInfo(fileName));
+        node = new ProjectExplorer::FileNode(fileName, fileType, generated);
+    }
+
+    return node;
+}
+
+
 /*!
   \class CMakeProject
 */
@@ -88,7 +138,7 @@ CMakeProject::CMakeProject(CMakeManager *manager, const QString &fileName)
     : m_manager(manager),
       m_activeTarget(0),
       m_fileName(fileName),
-      m_rootNode(new CMakeProjectNode(fileName)),
+      m_cbpUpdateProcess(0),
       m_watcher(new QFileSystemWatcher(this))
 {
     setId(Constants::CMAKEPROJECT_ID);
@@ -98,6 +148,7 @@ CMakeProject::CMakeProject(CMakeManager *manager, const QString &fileName)
     m_projectName = QFileInfo(fileName).absoluteDir().dirName();
 
     m_file = new CMakeFile(this, fileName);
+    m_rootNode = new CMakeProjectNode(this, m_fileName);
 
     connect(this, SIGNAL(buildTargetsChanged()),
             this, SLOT(updateRunConfigurations()));
@@ -143,8 +194,11 @@ void CMakeProject::changeActiveBuildConfiguration(ProjectExplorer::BuildConfigur
     if (mode != CMakeOpenProjectWizard::Nothing) {
         CMakeBuildInfo info(cmakebc);
         CMakeOpenProjectWizard copw(Core::ICore::mainWindow(), m_manager, mode, &info);
-        if (copw.exec() == QDialog::Accepted)
+        copw.setArguments(cmakebc->cmakeParams());
+        if (copw.exec() == QDialog::Accepted) {
+            cmakebc->setCMakeParams(copw.arguments());
             cmakebc->setUseNinja(copw.useNinja()); // NeedToCreate can change the Ninja setting
+        }
     }
 
     // reparse
@@ -266,17 +320,35 @@ bool CMakeProject::parseCMakeLists()
     m_rootNode->setDisplayName(cbpparser.projectName());
 
     //qDebug()<<"Building Tree";
-    QList<ProjectExplorer::FileNode *> fileList = cbpparser.fileList();
+    QList<ProjectExplorer::FileNode *> fileList = cbpparser.fileList(); // this files must be passed to code model
+    QList<ProjectExplorer::FileNode *> treeFileList;                    // this files must be used to build source tree
     QSet<QString> projectFiles;
+
+    // Take file list from file system instead cbp project file
+    const QDir        dir(projectDirectory().toString());
+    QStringList       sources, paths;
+    getFileList(dir, projectDirectory().toString(), /*suffixes,*/ &sources, &paths);
+    foreach (const QString &source, sources) {
+        QFileInfo                  fileInfo(source);
+        QString                    fileName = fileInfo.fileName();
+        ProjectExplorer::FileNode *node     = fileToFileNode(source);
+
+        if (fileName.endsWith(QLatin1String("CMakeLists.txt"))) {
+            projectFiles.insert(source);
+        } else {
+            treeFileList.append(node);
+        }
+    }
+
     if (cbpparser.hasCMakeFiles()) {
-        fileList.append(cbpparser.cmakeFileList());
+        treeFileList.append(cbpparser.cmakeFileList());
         foreach (const ProjectExplorer::FileNode *node, cbpparser.cmakeFileList())
             projectFiles.insert(node->path());
-    } else {
+    } else /*if (projectFiles.isEmpty())*/ {
         // Manually add the CMakeLists.txt file
         QString cmakeListTxt = projectDirectory().toString() + QLatin1String("/CMakeLists.txt");
         bool generated = false;
-        fileList.append(new ProjectExplorer::FileNode(cmakeListTxt, ProjectExplorer::ProjectFileType, generated));
+        treeFileList.append(new ProjectExplorer::FileNode(cmakeListTxt, ProjectExplorer::ProjectFileType, generated));
         projectFiles.insert(cmakeListTxt);
     }
 
@@ -284,10 +356,14 @@ bool CMakeProject::parseCMakeLists()
 
     m_files.clear();
     foreach (ProjectExplorer::FileNode *fn, fileList)
+    {
         m_files.append(fn->path());
+        delete fn;
+    }
     m_files.sort();
+    m_files.removeDuplicates();
 
-    buildTree(m_rootNode, fileList);
+    buildTree(m_rootNode, treeFileList);
 
     //qDebug()<<"Adding Targets";
     m_buildTargets = cbpparser.buildTargets();
@@ -323,6 +399,7 @@ bool CMakeProject::parseCMakeLists()
             // This explicitly adds -I. to the include paths
             QStringList includePaths = cbt.includeFiles;
             includePaths += projectDirectory().toString();
+    //allIncludePaths.append(paths); // This want a lot of memory
             ppBuilder.setIncludePaths(includePaths);
             ppBuilder.setCFlags(getCXXFlagsFor(cbt));
             ppBuilder.setCxxFlags(getCXXFlagsFor(cbt));
@@ -539,10 +616,13 @@ bool CMakeProject::fromMap(const QVariantMap &map)
         if (mode != CMakeOpenProjectWizard::Nothing) {
             CMakeBuildInfo info(activeBC);
             CMakeOpenProjectWizard copw(Core::ICore::mainWindow(), m_manager, mode, &info);
+        copw.setArguments(activeBC->cmakeParams());
             if (copw.exec() != QDialog::Accepted)
                 return false;
-            else
+            else {
                 activeBC->setUseNinja(copw.useNinja());
+                activeBC->setCMakeParams(copw.arguments());
+            }
         }
     }
 
@@ -610,6 +690,19 @@ void CMakeProject::updateRunConfigurations()
         updateRunConfigurations(t);
 }
 
+void CMakeProject::cbpUpdateFinished(int /*code*/)
+{
+    if (m_cbpUpdateProcess->exitCode() != 0) {
+        cbpUpdateMessage(tr("CMake exited with error. "
+                            "Please run CMake wizard manualy and check output"));
+    } else {
+        refresh();
+    }
+
+    m_cbpUpdateProcess->deleteLater();
+    m_cbpUpdateProcess = 0;
+}
+
 // TODO Compare with updateDefaultRunConfigurations();
 void CMakeProject::updateRunConfigurations(Target *t)
 {
@@ -665,6 +758,60 @@ void CMakeProject::updateRunConfigurations(Target *t)
         // create a custom executable run configuration
         t->addRunConfiguration(new QtSupport::CustomExecutableRunConfiguration(t));
     }
+}
+
+void CMakeProject::cbpUpdateMessage(const QString &message, bool show)
+{
+    Core::IDocument *document = Core::EditorManager::currentDocument();
+
+    if (!document)
+        return;
+
+    Core::InfoBar *infoBar = document->infoBar();
+    Core::Id id = Core::Id("CMakeProject.UpdateCbp");
+
+    if (!infoBar->canInfoBeAdded(id))
+        return;
+
+    if (show) {
+        Core::InfoBarEntry info(id, message, Core::InfoBarEntry::GlobalSuppressionEnabled);
+        // TODO add custom buttor to run CMake Wizard
+        //info.setCustomButtonInfo(tr("Reload QML"), this,
+        //                         SLOT(reloadQml()));
+        infoBar->addInfo(info);
+    }
+    else {
+        infoBar->removeInfo(id);
+    }
+}
+
+void CMakeProject::updateCbp()
+{
+    if (m_cbpUpdateProcess && m_cbpUpdateProcess->state() != QProcess::NotRunning)
+        return;
+
+    cbpUpdateMessage(QLatin1String(""), false);
+
+    if (m_manager->isCMakeExecutableValid()) {
+        m_cbpUpdateProcess = new Utils::QtcProcess();
+        connect(m_cbpUpdateProcess, SIGNAL(finished(int)), this, SLOT(cbpUpdateFinished(int)));
+
+        CMakeBuildConfiguration *bc
+            = static_cast<CMakeBuildConfiguration *>(activeTarget()->activeBuildConfiguration());
+
+        CMakeProjectManager::Internal::GeneratorInfo generatorInfo(bc->target()->kit(),
+                                                                   bc->useNinja());
+
+        m_manager->createXmlFile(m_cbpUpdateProcess,
+                                 bc->cmakeParams(),
+                                 bc->target()->project()->projectDirectory().toString(),
+                                 bc->buildDirectory().toString(),
+                                 bc->environment(),
+                                 QString::fromLatin1(generatorInfo.generatorArgument()));
+    } else {
+        cbpUpdateMessage(tr("No valid cmake executable specified."));
+    }
+
 }
 
 void CMakeProject::updateApplicationAndDeploymentTargets()
@@ -829,10 +976,12 @@ void CMakeBuildSettingsWidget::openChangeBuildDirectoryDialog()
     CMakeOpenProjectWizard copw(Core::ICore::mainWindow(),
                                 project->projectManager(), CMakeOpenProjectWizard::ChangeDirectory,
                                 &info);
+    copw.setArguments(m_buildConfiguration->cmakeParams());
     if (copw.exec() == QDialog::Accepted) {
         project->changeBuildDirectory(m_buildConfiguration, copw.buildDirectory());
         m_buildConfiguration->setUseNinja(copw.useNinja());
         m_pathLineEdit->setText(m_buildConfiguration->rawBuildDirectory().toString());
+        m_buildConfiguration->setCMakeParams(copw.arguments());
     }
 }
 
@@ -845,8 +994,11 @@ void CMakeBuildSettingsWidget::runCMake()
     CMakeOpenProjectWizard copw(Core::ICore::mainWindow(),
                                 project->projectManager(),
                                 CMakeOpenProjectWizard::WantToUpdate, &info);
-    if (copw.exec() == QDialog::Accepted)
+    copw.setArguments(m_buildConfiguration->cmakeParams());
+    if (copw.exec() == QDialog::Accepted) {
         project->parseCMakeLists();
+        m_buildConfiguration->setCMakeParams(copw.arguments());
+    }
 }
 
 /////
@@ -1141,17 +1293,7 @@ void CMakeCbpParser::parseUnit()
                 if (m_parsingCmakeUnit) {
                     m_cmakeFileList.append( new ProjectExplorer::FileNode(fileName, ProjectExplorer::ProjectFileType, false));
                 } else {
-                    bool generated = false;
-                    QString onlyFileName = QFileInfo(fileName).fileName();
-                    if (   (onlyFileName.startsWith(QLatin1String("moc_")) && onlyFileName.endsWith(QLatin1String(".cxx")))
-                        || (onlyFileName.startsWith(QLatin1String("ui_")) && onlyFileName.endsWith(QLatin1String(".h")))
-                        || (onlyFileName.startsWith(QLatin1String("qrc_")) && onlyFileName.endsWith(QLatin1String(".cxx"))))
-                        generated = true;
-
-                    if (fileName.endsWith(QLatin1String(".qrc")))
-                        m_fileList.append( new ProjectExplorer::FileNode(fileName, ProjectExplorer::ResourceType, generated));
-                    else
-                        m_fileList.append( new ProjectExplorer::FileNode(fileName, ProjectExplorer::SourceType, generated));
+                    m_fileList.append(fileToFileNode(fileName));
                 }
                 m_processedUnits.insert(fileName);
             }
@@ -1232,4 +1374,71 @@ void CMakeBuildTarget::clear()
     includeFiles.clear();
     compilerOptions.clear();
     defines.clear();
+}
+
+void CMakeProject::getFileList(const QDir &dir,
+                               const QString &projectRoot,
+                               QStringList *files, QStringList *paths) const
+{
+    const QFileInfoList fileInfoList = dir.entryInfoList(QDir::Files |
+                                                         QDir::Dirs |
+                                                         QDir::NoDotAndDotDot |
+                                                         QDir::NoSymLinks);
+
+    foreach (const QFileInfo &fileInfo, fileInfoList) {
+        QString filePath = fileInfo.absoluteFilePath();
+
+        if (fileInfo.isDir() && isValidDir(fileInfo)) {
+            getFileList(QDir(fileInfo.absoluteFilePath()), projectRoot,
+                        files, paths);
+
+            if (! paths->contains(filePath))
+                paths->append(filePath);
+        } else {
+            files->append(filePath);
+        }
+    }
+}
+
+bool CMakeProject::isValidDir(const QFileInfo &fileInfo) const
+{
+    const QString fileName = fileInfo.fileName();
+    const QString suffix = fileInfo.suffix();
+
+    if (fileName.startsWith(QLatin1Char('.')))
+        return false;
+
+    else if (fileName == QLatin1String("CVS"))
+        return false;
+
+    // ### user include/exclude
+
+    return true;
+}
+
+void CMakeProject::refresh()
+{
+    parseCMakeLists();
+}
+
+bool CMakeProject::addFiles(const QStringList &filePaths)
+{
+    Q_UNUSED(filePaths);
+    updateCbp();
+    return true;
+}
+
+bool CMakeProject::eraseFiles(const QStringList &filePaths)
+{
+    Q_UNUSED(filePaths);
+    updateCbp();
+    return true;
+}
+
+bool CMakeProjectManager::Internal::CMakeProject::renameFile(const QString &filePath, const QString &newFilePath)
+{
+    Q_UNUSED(filePath);
+    Q_UNUSED(newFilePath);
+    updateCbp();
+    return true;
 }

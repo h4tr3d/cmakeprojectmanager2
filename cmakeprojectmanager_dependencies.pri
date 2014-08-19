@@ -1,4 +1,4 @@
-QTC_PLUGIN_NAME = CMakeProjectManager
+QTC_PLUGIN_NAME = CMakeProjectManager2
 QTC_LIB_DEPENDS += \
     aggregation \
     extensionsystem \

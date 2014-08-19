@@ -60,6 +60,7 @@ namespace Internal {
 
 class CMakeFile;
 class CMakeBuildSettingsWidget;
+class CMakeProjectNode;
 
 enum TargetType {
     ExecutableType = 0,
@@ -109,6 +110,11 @@ public:
     CMakeBuildTarget buildTargetForTitle(const QString &title);
 
     bool isProjectFile(const QString &fileName);
+    void refresh();
+
+    bool addFiles(const QStringList &filePaths);
+    bool eraseFiles(const QStringList &filePaths);
+    bool renameFile(const QString &filePath, const QString &newFilePath);
 
     bool parseCMakeLists();
 
@@ -123,12 +129,21 @@ protected:
     // called by CMakeBuildSettingsWidget
     void changeBuildDirectory(CMakeBuildConfiguration *bc, const QString &newBuildDirectory);
 
+    void getFileList(const QDir &dir,
+                     const QString &projectRoot,
+                     QStringList *files,
+                     QStringList *paths) const;
+
+    bool isValidDir(const QFileInfo &fileInfo) const;
+
 private slots:
     void fileChanged(const QString &fileName);
     void activeTargetWasChanged(ProjectExplorer::Target *target);
     void changeActiveBuildConfiguration(ProjectExplorer::BuildConfiguration*);
 
     void updateRunConfigurations();
+
+    void cbpUpdateFinished(int code);
 
 private:
     void buildTree(CMakeProjectNode *rootNode, QList<ProjectExplorer::FileNode *> list);
@@ -140,11 +155,16 @@ private:
     void updateApplicationAndDeploymentTargets();
     QStringList getCXXFlagsFor(const CMakeBuildTarget &buildTarget);
 
+    void cbpUpdateMessage(const QString &message, bool show = true);
+    void updateCbp();
+
     CMakeManager *m_manager;
     ProjectExplorer::Target *m_activeTarget;
     QString m_fileName;
     CMakeFile *m_file;
     QString m_projectName;
+
+    Utils::QtcProcess *m_cbpUpdateProcess;
 
     // TODO probably need a CMake specific node structure
     CMakeProjectNode *m_rootNode;

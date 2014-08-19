@@ -32,16 +32,20 @@
 #define CMAKEPROJECTNODE_H
 
 #include <projectexplorer/projectnodes.h>
+#include "cmakeproject.h"
 
 namespace CMakeProjectManager {
 namespace Internal {
+
+class CMakeProject;
 
 class CMakeProjectNode : public ProjectExplorer::ProjectNode
 {
     Q_OBJECT
     friend class CMakeProject;
+
 public:
-    CMakeProjectNode(const QString &fileName);
+    CMakeProjectNode(CMakeProject *project, const QString &fileName);
     virtual bool showInSimpleTree() const;
     virtual QList<ProjectExplorer::ProjectAction> supportedActions(Node *node) const;
 
@@ -56,6 +60,9 @@ public:
     virtual bool deleteFiles(const QStringList &filePaths);
     virtual bool renameFile(const QString &filePath,
                             const QString &newFilePath);
+
+private:
+    CMakeProject *m_project;
 };
 
 } // namespace Internal
