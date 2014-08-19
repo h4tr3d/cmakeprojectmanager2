@@ -50,6 +50,7 @@ using namespace Internal;
 
 namespace {
 const char USE_NINJA_KEY[] = "CMakeProjectManager.CMakeBuildConfiguration.UseNinja";
+const char CMAKE_PARAMS_KEY[] = "CMakeProjectManager.CMakeBuildConfiguration.CMakeParams";
 } // namespace
 
 CMakeBuildConfiguration::CMakeBuildConfiguration(ProjectExplorer::Target *parent) :
@@ -75,6 +76,7 @@ QVariantMap CMakeBuildConfiguration::toMap() const
 {
     QVariantMap map(ProjectExplorer::BuildConfiguration::toMap());
     map.insert(QLatin1String(USE_NINJA_KEY), m_useNinja);
+    map.insert(QLatin1String(CMAKE_PARAMS_KEY), m_cmakeParams);
     return map;
 }
 
@@ -84,6 +86,7 @@ bool CMakeBuildConfiguration::fromMap(const QVariantMap &map)
         return false;
 
     m_useNinja = map.value(QLatin1String(USE_NINJA_KEY), false).toBool();
+    m_cmakeParams = map.value(QLatin1String(CMAKE_PARAMS_KEY), QLatin1String("")).toString();
 
     return true;
 }
@@ -112,6 +115,21 @@ CMakeBuildConfiguration::~CMakeBuildConfiguration()
 ProjectExplorer::NamedWidget *CMakeBuildConfiguration::createConfigWidget()
 {
     return new CMakeBuildSettingsWidget(this);
+}
+
+QString CMakeBuildConfiguration::cmakeParams() const
+{
+    return m_cmakeParams;
+}
+
+void CMakeBuildConfiguration::setCMakeParams(const QString &cmakeParams)
+{
+    if (m_cmakeParams == cmakeParams)
+	return;
+    m_cmakeParams = cmakeParams;
+    // TODO: is this need?
+    emit buildDirectoryChanged();
+    emit environmentChanged();
 }
 
 /*!
@@ -197,6 +215,8 @@ ProjectExplorer::BuildConfiguration *CMakeBuildConfigurationFactory::create(Proj
     cleanMakeStep->setAdditionalArguments(QLatin1String("clean"));
     cleanMakeStep->setClean(true);
 
+    copw.setArguments(bc->cmakeParams());
+    bc->setCMakeParams(copw.arguments());
     bc->setBuildDirectory(Utils::FileName::fromString(copw.buildDirectory()));
     bc->setUseNinja(copw.useNinja());
 

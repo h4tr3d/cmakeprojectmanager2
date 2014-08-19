@@ -57,7 +57,9 @@ public:
     QVariantMap toMap() const;
 
     BuildType buildType() const;
-
+    
+    QString cmakeParams() const;
+    void    setCMakeParams(const QString &cmakeParams);
     bool useNinja() const;
     void setUseNinja(bool);
 
@@ -72,6 +74,7 @@ protected:
 
 private:
     QString m_msvcVersion;
+    QString m_cmakeParams;
     bool m_useNinja;
 
     friend class CMakeProject;

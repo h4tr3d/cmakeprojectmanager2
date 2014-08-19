@@ -525,6 +525,7 @@ void CMakeRunPage::initializePage()
         m_descriptionLabel->setText(tr("Refreshing cbp file in %1.").arg(m_buildDirectory));
     }
 
+    m_argumentsLineEdit->setText(m_cmakeWizard->arguments());
     // Build the list of generators/toolchains we want to offer
     m_generatorComboBox->clear();
 

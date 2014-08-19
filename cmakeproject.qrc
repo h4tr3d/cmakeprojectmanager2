@@ -1,5 +1,5 @@
 <RCC>
     <qresource prefix="/cmakeproject">
-        <file>CMakeProjectManager.mimetypes.xml</file>
+         <file alias="CMakeProjectManager.mimetypes.xml">CMakeProjectManager2.mimetypes.xml</file>
     </qresource>
 </RCC>

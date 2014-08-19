@@ -32,8 +32,9 @@
 using namespace CMakeProjectManager;
 using namespace CMakeProjectManager::Internal;
 
-CMakeProjectNode::CMakeProjectNode(const QString &fileName)
-    : ProjectExplorer::ProjectNode(fileName)
+CMakeProjectNode::CMakeProjectNode(CMakeProject *project, const QString &fileName)
+    : ProjectExplorer::ProjectNode(fileName),
+      m_project(project)
 {
 }
 
@@ -46,7 +47,10 @@ bool CMakeProjectNode::showInSimpleTree() const
 QList<ProjectExplorer::ProjectAction> CMakeProjectNode::supportedActions(Node *node) const
 {
     Q_UNUSED(node);
-    return QList<ProjectExplorer::ProjectAction>();
+    return QList<ProjectExplorer::ProjectAction>()
+        << ProjectExplorer::AddNewFile
+        << ProjectExplorer::EraseFile
+        << ProjectExplorer::Rename;
 }
 
 bool CMakeProjectNode::canAddSubProject(const QString &proFilePath) const
@@ -69,9 +73,9 @@ bool CMakeProjectNode::removeSubProjects(const QStringList &proFilePaths)
 
 bool CMakeProjectNode::addFiles(const QStringList &filePaths, QStringList *notAdded)
 {
-    Q_UNUSED(filePaths)
     Q_UNUSED(notAdded)
-    return false;
+
+    return m_project->addFiles(filePaths);
 }
 
 bool CMakeProjectNode::removeFiles(const QStringList &filePaths,  QStringList *notRemoved)
@@ -83,13 +87,10 @@ bool CMakeProjectNode::removeFiles(const QStringList &filePaths,  QStringList *n
 
 bool CMakeProjectNode::deleteFiles(const QStringList &filePaths)
 {
-    Q_UNUSED(filePaths)
-    return false;
+    return m_project->eraseFiles(filePaths);
 }
 
 bool CMakeProjectNode::renameFile(const QString &filePath, const QString &newFilePath)
 {
-    Q_UNUSED(filePath)
-    Q_UNUSED(newFilePath)
-    return false;
+    return m_project->renameFile(filePath, newFilePath);
 }

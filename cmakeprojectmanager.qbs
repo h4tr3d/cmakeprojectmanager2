@@ -3,7 +3,7 @@ import qbs 1.0
 import QtcPlugin
 
 QtcPlugin {
-    name: "CMakeProjectManager"
+    name: "CMakeProjectManager2"
 
     Depends { name: "Qt.widgets" }
     Depends { name: "Aggregation" }
