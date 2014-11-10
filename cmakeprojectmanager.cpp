@@ -10,16 +10,17 @@
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
 ** a written agreement between you and Digia.  For licensing terms and
-** conditions see http://qt.digia.com/licensing.  For further information
-** use the contact form at http://qt.digia.com/contact-us.
+** conditions see http://www.qt.io/licensing.  For further information
+** use the contact form at http://www.qt.io/contact-us.
 **
 ** GNU Lesser General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** General Public License version 2.1 or version 3 as published by the Free
+** Software Foundation and appearing in the file LICENSE.LGPLv21 and
+** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
+** following information to ensure the GNU Lesser General Public License
+** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
 ** In addition, as a special exception, Digia gives you certain additional
 ** rights.  These rights are described in the Digia Qt LGPL Exception
@@ -31,23 +32,16 @@
 #include "cmakeopenprojectwizard.h"
 #include "cmakeprojectconstants.h"
 #include "cmakeproject.h"
+#include "cmakesettingspage.h"
 
 #include <utils/synchronousprocess.h>
-#include <utils/qtcprocess.h>
 
 #include <coreplugin/icore.h>
-#include <coreplugin/id.h>
 #include <coreplugin/actionmanager/actionmanager.h>
 #include <coreplugin/actionmanager/command.h>
 #include <coreplugin/actionmanager/actioncontainer.h>
-#include <projectexplorer/projectexplorerconstants.h>
 #include <projectexplorer/projectexplorer.h>
-#include <projectexplorer/target.h>
-#include <utils/QtConcurrentTools>
-#include <QtConcurrentRun>
-#include <QCoreApplication>
 #include <QDateTime>
-#include <QDesktopServices>
 
 using namespace CMakeProjectManager::Internal;
 
@@ -55,8 +49,8 @@ CMakeManager::CMakeManager(CMakeSettingsPage *cmakeSettingsPage)
     : m_settingsPage(cmakeSettingsPage)
 {
     ProjectExplorer::ProjectExplorerPlugin *projectExplorer = ProjectExplorer::ProjectExplorerPlugin::instance();
-    connect(projectExplorer, SIGNAL(aboutToShowContextMenu(ProjectExplorer::Project*,ProjectExplorer::Node*)),
-            this, SLOT(updateContextMenu(ProjectExplorer::Project*,ProjectExplorer::Node*)));
+    connect(projectExplorer, &ProjectExplorer::ProjectExplorerPlugin::aboutToShowContextMenu,
+            this, &CMakeManager::updateContextMenu);
 
     Core::ActionContainer *mbuild =
             Core::ActionManager::actionContainer(ProjectExplorer::Constants::M_BUILDPROJECT);
@@ -72,7 +66,9 @@ CMakeManager::CMakeManager(CMakeSettingsPage *cmakeSettingsPage)
                                                                  Constants::RUNCMAKE, projectContext);
     command->setAttribute(Core::Command::CA_Hide);
     mbuild->addAction(command, ProjectExplorer::Constants::G_BUILD_DEPLOY);
-    connect(m_runCMakeAction, SIGNAL(triggered()), this, SLOT(runCMake()));
+    connect(m_runCMakeAction, &QAction::triggered, [this]() {
+        runCMake(ProjectExplorer::ProjectExplorerPlugin::currentProject());
+    });
 
     m_runCMakeActionContextMenu = new QAction(QIcon(), tr("Run CMake"), this);
     command = Core::ActionManager::registerAction(m_runCMakeActionContextMenu,
@@ -80,24 +76,15 @@ CMakeManager::CMakeManager(CMakeSettingsPage *cmakeSettingsPage)
     command->setAttribute(Core::Command::CA_Hide);
     mproject->addAction(command, ProjectExplorer::Constants::G_PROJECT_BUILD);
     msubproject->addAction(command, ProjectExplorer::Constants::G_PROJECT_BUILD);
-    connect(m_runCMakeActionContextMenu, SIGNAL(triggered()), this, SLOT(runCMakeContextMenu()));
+    connect(m_runCMakeActionContextMenu, &QAction::triggered, [this]() {
+        runCMake(m_contextProject);
+    });
 
 }
 
-void CMakeManager::updateContextMenu(ProjectExplorer::Project *project, ProjectExplorer::Node *node)
+void CMakeManager::updateContextMenu(ProjectExplorer::Project *project, ProjectExplorer::Node *)
 {
-    Q_UNUSED(node);
     m_contextProject = project;
-}
-
-void CMakeManager::runCMake()
-{
-    runCMake(ProjectExplorer::ProjectExplorerPlugin::currentProject());
-}
-
-void CMakeManager::runCMakeContextMenu()
-{
-    runCMake(m_contextProject);
 }
 
 void CMakeManager::runCMake(ProjectExplorer::Project *project)
@@ -108,7 +95,7 @@ void CMakeManager::runCMake(ProjectExplorer::Project *project)
     if (!cmakeProject || !cmakeProject->activeTarget() || !cmakeProject->activeTarget()->activeBuildConfiguration())
         return;
 
-    if (!ProjectExplorer::ProjectExplorerPlugin::instance()->saveModifiedFiles())
+    if (!ProjectExplorer::ProjectExplorerPlugin::saveModifiedFiles())
         return;
 
     CMakeBuildConfiguration *bc
@@ -209,29 +196,4 @@ QString CMakeManager::findCbpFile(const QDir &directory)
         }
     }
     return file;
-}
-
-// This code is duplicated from qtversionmanager
-QString CMakeManager::qtVersionForQMake(const QString &qmakePath)
-{
-    QProcess qmake;
-    qmake.start(qmakePath, QStringList(QLatin1String("--version")));
-    if (!qmake.waitForStarted()) {
-        qWarning("Cannot start '%s': %s", qPrintable(qmakePath), qPrintable(qmake.errorString()));
-        return QString();
-    }
-    if (!qmake.waitForFinished())      {
-        Utils::SynchronousProcess::stopProcess(qmake);
-        qWarning("Timeout running '%s'.", qPrintable(qmakePath));
-        return QString();
-    }
-    QString output = QString::fromLocal8Bit(qmake.readAllStandardOutput());
-    QRegExp regexp(QLatin1String("(QMake version|Qmake version:)[\\s]*([\\d.]*)"));
-    regexp.indexIn(output);
-    if (regexp.cap(2).startsWith(QLatin1String("2."))) {
-        QRegExp regexp2(QLatin1String("Using Qt version[\\s]*([\\d\\.]*)"));
-        regexp2.indexIn(output);
-        return regexp2.cap(1);
-    }
-    return QString();
 }

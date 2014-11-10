@@ -10,16 +10,17 @@
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
 ** a written agreement between you and Digia.  For licensing terms and
-** conditions see http://qt.digia.com/licensing.  For further information
-** use the contact form at http://qt.digia.com/contact-us.
+** conditions see http://www.qt.io/licensing.  For further information
+** use the contact form at http://www.qt.io/contact-us.
 **
 ** GNU Lesser General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** General Public License version 2.1 or version 3 as published by the Free
+** Software Foundation and appearing in the file LICENSE.LGPLv21 and
+** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
+** following information to ensure the GNU Lesser General Public License
+** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
 ** In addition, as a special exception, Digia gives you certain additional
 ** rights.  These rights are described in the Digia Qt LGPL Exception
@@ -34,31 +35,48 @@
 #include "cmakeproject.h"
 #include "cmakeprojectconstants.h"
 
+#include <coreplugin/documentmanager.h>
 #include <coreplugin/icore.h>
 #include <coreplugin/mimedatabase.h>
+
 #include <projectexplorer/buildsteplist.h>
 #include <projectexplorer/kit.h>
 #include <projectexplorer/projectexplorerconstants.h>
+#include <projectexplorer/projectmacroexpander.h>
 #include <projectexplorer/target.h>
 
 #include <utils/qtcassert.h>
 
 #include <QInputDialog>
 
-using namespace CMakeProjectManager;
-using namespace Internal;
+using namespace ProjectExplorer;
+using namespace Utils;
 
-namespace {
+namespace CMakeProjectManager {
+namespace Internal {
+
 const char USE_NINJA_KEY[] = "CMakeProjectManager.CMakeBuildConfiguration.UseNinja";
-} // namespace
+
+static QString shadowBuildDirectory(const QString &projectFilePath, const Kit *k, const QString &bcName)
+{
+    if (projectFilePath.isEmpty())
+        return QString();
+    QFileInfo info(projectFilePath);
+
+    const QString projectName = QFileInfo(info.absolutePath()).fileName();
+    ProjectMacroExpander expander(projectName, k, bcName);
+    QDir projectDir = QDir(Project::projectDirectory(FileName::fromString(projectFilePath)).toString());
+    QString buildPath = expander.expand(Core::DocumentManager::buildDirectory());
+    return QDir::cleanPath(projectDir.absoluteFilePath(buildPath));
+}
 
 CMakeBuildConfiguration::CMakeBuildConfiguration(ProjectExplorer::Target *parent) :
     BuildConfiguration(parent, Core::Id(Constants::CMAKE_BC_ID)), m_useNinja(false)
 {
     CMakeProject *project = static_cast<CMakeProject *>(parent->project());
-    setBuildDirectory(Utils::FileName::fromString(project->shadowBuildDirectory(project->projectFilePath().toString(),
-                                                                                parent->kit(),
-                                                                                displayName())));
+    setBuildDirectory(Utils::FileName::fromString(shadowBuildDirectory(project->projectFilePath().toString(),
+                                                                       parent->kit(),
+                                                                       displayName())));
 }
 
 CMakeBuildConfiguration::CMakeBuildConfiguration(ProjectExplorer::Target *parent,
@@ -155,9 +173,7 @@ QList<ProjectExplorer::BuildInfo *> CMakeBuildConfigurationFactory::availableSet
     CMakeBuildInfo *info = createBuildInfo(k, ProjectExplorer::Project::projectDirectory(Utils::FileName::fromString(projectPath)).toString());
     //: The name of the build configuration created by default for a cmake project.
     info->displayName = tr("Default");
-    info->buildDirectory
-            = Utils::FileName::fromString(CMakeProject::shadowBuildDirectory(projectPath, k,
-                                                                             info->displayName));
+    info->buildDirectory = FileName::fromString(shadowBuildDirectory(projectPath, k, info->displayName));
     result << info;
     return result;
 }
@@ -173,10 +189,9 @@ ProjectExplorer::BuildConfiguration *CMakeBuildConfigurationFactory::create(Proj
     CMakeProject *project = static_cast<CMakeProject *>(parent->project());
 
     if (copy.buildDirectory.isEmpty())
-        copy.buildDirectory
-                = Utils::FileName::fromString(project->shadowBuildDirectory(project->projectFilePath().toString(),
-                                                                            parent->kit(),
-                                                                            copy.displayName));
+        copy.buildDirectory = FileName::fromString(shadowBuildDirectory(project->projectFilePath().toString(),
+                                                                        parent->kit(),
+                                                                        copy.displayName));
 
     CMakeOpenProjectWizard copw(Core::ICore::mainWindow(), project->projectManager(), CMakeOpenProjectWizard::ChangeDirectory, &copy);
     if (copw.exec() != QDialog::Accepted)
@@ -294,3 +309,5 @@ ProjectExplorer::BuildConfiguration::BuildType CMakeBuildConfiguration::buildTyp
     return Unknown;
 }
 
+} // namespace Internal
+} // namespace CMakeProjectManager

@@ -10,16 +10,17 @@
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
 ** a written agreement between you and Digia.  For licensing terms and
-** conditions see http://qt.digia.com/licensing.  For further information
-** use the contact form at http://qt.digia.com/contact-us.
+** conditions see http://www.qt.io/licensing.  For further information
+** use the contact form at http://www.qt.io/contact-us.
 **
 ** GNU Lesser General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** General Public License version 2.1 or version 3 as published by the Free
+** Software Foundation and appearing in the file LICENSE.LGPLv21 and
+** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
+** following information to ensure the GNU Lesser General Public License
+** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
 ** In addition, as a special exception, Digia gives you certain additional
 ** rights.  These rights are described in the Digia Qt LGPL Exception
@@ -48,12 +49,11 @@
 #include <projectexplorer/target.h>
 #include <projectexplorer/deployconfiguration.h>
 #include <projectexplorer/deploymentdata.h>
-#include <projectexplorer/projectmacroexpander.h>
 #include <qtsupport/customexecutablerunconfiguration.h>
 #include <qtsupport/baseqtversion.h>
 #include <qtsupport/qtkitinformation.h>
 #include <qtsupport/uicodemodelsupport.h>
-#include <cpptools/cppmodelmanagerinterface.h>
+#include <cpptools/cppmodelmanager.h>
 #include <extensionsystem/pluginmanager.h>
 #include <utils/algorithm.h>
 #include <utils/qtcassert.h>
@@ -61,9 +61,7 @@
 #include <utils/hostosinfo.h>
 #include <coreplugin/icore.h>
 #include <coreplugin/infobar.h>
-#include <coreplugin/documentmanager.h>
 #include <coreplugin/editormanager/editormanager.h>
-#include <coreplugin/variablemanager.h>
 
 #include <QDebug>
 #include <QDir>
@@ -175,19 +173,6 @@ void CMakeProject::changeBuildDirectory(CMakeBuildConfiguration *bc, const QStri
 {
     bc->setBuildDirectory(Utils::FileName::fromString(newBuildDirectory));
     parseCMakeLists();
-}
-
-QString CMakeProject::shadowBuildDirectory(const QString &projectFilePath, const Kit *k, const QString &bcName)
-{
-    if (projectFilePath.isEmpty())
-        return QString();
-    QFileInfo info(projectFilePath);
-
-    const QString projectName = QFileInfo(info.absolutePath()).fileName();
-    ProjectExplorer::ProjectMacroExpander expander(projectFilePath, projectName, k, bcName);
-    QDir projectDir = QDir(projectDirectory(Utils::FileName::fromString(projectFilePath)).toString());
-    QString buildPath = Utils::expandMacros(Core::DocumentManager::buildDirectory(), &expander);
-    return QDir::cleanPath(projectDir.absoluteFilePath(buildPath));
 }
 
 QStringList CMakeProject::getCXXFlagsFor(const CMakeBuildTarget &buildTarget)
@@ -326,61 +311,32 @@ bool CMakeProject::parseCMakeLists()
         return true;
     }
 
-    CppTools::CppModelManagerInterface *modelmanager =
-            CppTools::CppModelManagerInterface::instance();
+    CppTools::CppModelManager *modelmanager =
+            CppTools::CppModelManager::instance();
     if (modelmanager) {
-        CppTools::CppModelManagerInterface::ProjectInfo pinfo = modelmanager->projectInfo(this);
+        CppTools::ProjectInfo pinfo = modelmanager->projectInfo(this);
         pinfo.clearProjectParts();
 
+        CppTools::ProjectPartBuilder ppBuilder(pinfo);
+
         foreach (const CMakeBuildTarget &cbt, m_buildTargets) {
-            typedef CppTools::ProjectPart ProjectPart;
-            ProjectPart::Ptr part(new ProjectPart);
-            part->project = this;
-            part->displayName = cbt.title;
-            part->projectFile = projectFilePath().toString();
-
             // This explicitly adds -I. to the include paths
-            part->headerPaths += ProjectPart::HeaderPath(projectDirectory().toString(),
-                                                         ProjectPart::HeaderPath::IncludePath);
+            QStringList includePaths = cbt.includeFiles;
+            includePaths += projectDirectory().toString();
+            ppBuilder.setIncludePaths(includePaths);
+            ppBuilder.setCFlags(getCXXFlagsFor(cbt));
+            ppBuilder.setCxxFlags(getCXXFlagsFor(cbt));
+            ppBuilder.setDefines(cbt.defines);
+            ppBuilder.setDisplayName(cbt.title);
 
-            foreach (const QString &includeFile, cbt.includeFiles) {
-                ProjectPart::HeaderPath hp(includeFile, ProjectPart::HeaderPath::IncludePath);
-
-                // CodeBlocks is utterly ignorant of frameworks on Mac, and won't report framework
-                // paths. The work-around is to check if the include path ends in ".framework", and
-                // if so, add the parent directory as framework path.
-                if (includeFile.endsWith(QLatin1String(".framework"))) {
-                    const int slashIdx = includeFile.lastIndexOf(QLatin1Char('/'));
-                    if (slashIdx != -1) {
-                        hp = ProjectPart::HeaderPath(includeFile.left(slashIdx),
-                                                     ProjectPart::HeaderPath::FrameworkPath);
-                        continue;
-                    }
-                }
-
-                part->headerPaths += hp;
-            }
-
-            part->projectDefines += cbt.defines;
-
-            // TODO rewrite
-            CppTools::ProjectFileAdder adder(part->files);
-            foreach (const QString &file, cbt.files)
-                adder.maybeAdd(file);
-
-            QStringList cxxflags = getCXXFlagsFor(cbt);
-
-            part->evaluateToolchain(tc,
-                                    cxxflags,
-                                    cxxflags,
-                                    SysRootKitInformation::sysRoot(k));
-
-            setProjectLanguage(ProjectExplorer::Constants::LANG_CXX, !part->files.isEmpty());
-            pinfo.appendProjectPart(part);
+            const QList<Core::Id> languages = ppBuilder.createProjectPartsForFiles(cbt.files);
+            foreach (Core::Id language, languages)
+                setProjectLanguage(language, true);
         }
-        m_codeModelFuture.cancel();
-        m_codeModelFuture = modelmanager->updateProjectInfo(pinfo);
 
+        m_codeModelFuture.cancel();
+        pinfo.finish();
+        m_codeModelFuture = modelmanager->updateProjectInfo(pinfo);
     }
 
     emit displayNameChanged();
@@ -406,7 +362,7 @@ QStringList CMakeProject::buildTargetTitles(bool runnable) const
 {
     QStringList results;
     foreach (const CMakeBuildTarget &ct, m_buildTargets) {
-        if (runnable && (ct.executable.isEmpty() || ct.library))
+        if (runnable && (ct.executable.isEmpty() || ct.targetType != ExecutableType))
             continue;
         results << ct.title;
     }
@@ -630,7 +586,7 @@ QString CMakeProject::uiHeaderFile(const QString &uiFile)
     while (baseDirectory.isChildOf(project)) {
         Utils::FileName cmakeListsTxt = baseDirectory;
         cmakeListsTxt.appendPath(QLatin1String("CMakeLists.txt"));
-        if (cmakeListsTxt.toFileInfo().exists())
+        if (cmakeListsTxt.exists())
             break;
         QDir dir(baseDirectory.toString());
         dir.cdUp();
@@ -670,7 +626,7 @@ void CMakeProject::updateRunConfigurations(Target *t)
     }
 
     foreach (const CMakeBuildTarget &ct, buildTargets()) {
-        if (ct.library)
+        if (ct.targetType != ExecutableType)
             continue;
         if (ct.executable.isEmpty())
             continue;
@@ -736,10 +692,13 @@ void CMakeProject::updateApplicationAndDeploymentTargets()
         if (ct.executable.isEmpty())
             continue;
 
-        deploymentData.addFile(ct.executable, deploymentPrefix + buildDir.relativeFilePath(QFileInfo(ct.executable).dir().path()), DeployableFile::TypeExecutable);
-        if (!ct.library) {
+        if (ct.targetType == ExecutableType || ct.targetType == DynamicLibraryType)
+            deploymentData.addFile(ct.executable, deploymentPrefix + buildDir.relativeFilePath(QFileInfo(ct.executable).dir().path()), DeployableFile::TypeExecutable);
+        if (ct.targetType == ExecutableType) {
             // TODO: Put a path to corresponding .cbp file into projectFilePath?
-            appTargetList.list << BuildTargetInfo(ct.executable, ct.executable);
+            appTargetList.list << BuildTargetInfo(ct.title,
+                                                  Utils::FileName::fromString(ct.executable),
+                                                  Utils::FileName::fromString(ct.executable));
         }
     }
 
@@ -879,7 +838,7 @@ void CMakeBuildSettingsWidget::openChangeBuildDirectoryDialog()
 
 void CMakeBuildSettingsWidget::runCMake()
 {
-    if (!ProjectExplorer::ProjectExplorerPlugin::instance()->saveModifiedFiles())
+    if (!ProjectExplorer::ProjectExplorerPlugin::saveModifiedFiles())
         return;
     CMakeProject *project = static_cast<CMakeProject *>(m_buildConfiguration->target()->project());
     CMakeBuildInfo info(m_buildConfiguration);
@@ -917,12 +876,16 @@ void CMakeCbpParser::sortFiles()
         } else {
             int bestLength = -1;
             int bestIndex = -1;
+            int bestIncludeCount = -1;
 
             for (int i = 0; i < m_buildTargets.size(); ++i) {
                 const CMakeBuildTarget &target = m_buildTargets.at(i);
-                if (fileName.isChildOf(Utils::FileName::fromString(target.sourceDirectory))
-                                       && target.sourceDirectory.size() > bestLength) {
+                if (fileName.isChildOf(Utils::FileName::fromString(target.sourceDirectory)) &&
+                    (target.sourceDirectory.size() > bestLength ||
+                     (target.sourceDirectory.size() == bestLength &&
+                      target.includeFiles.count() > bestIncludeCount))) {
                     bestLength = target.sourceDirectory.size();
+                    bestIncludeCount = target.includeFiles.count();
                     bestIndex = i;
                 }
             }
@@ -1038,7 +1001,7 @@ void CMakeCbpParser::parseBuildTargetOption()
     } else if (attributes().hasAttribute(QLatin1String("type"))) {
         const QStringRef value = attributes().value(QLatin1String("type"));
         if (value == QLatin1String("2") || value == QLatin1String("3"))
-            m_buildTarget.library = true;
+            m_buildTarget.targetType = TargetType(value.toInt());
     } else if (attributes().hasAttribute(QLatin1String("working_dir"))) {
         m_buildTarget.workingDirectory = attributes().value(QLatin1String("working_dir")).toString();
         QDir dir(m_buildDirectory);
@@ -1265,7 +1228,7 @@ void CMakeBuildTarget::clear()
     workingDirectory.clear();
     sourceDirectory.clear();
     title.clear();
-    library = false;
+    targetType = ExecutableType;
     includeFiles.clear();
     compilerOptions.clear();
     defines.clear();

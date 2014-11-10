@@ -10,16 +10,17 @@
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
 ** a written agreement between you and Digia.  For licensing terms and
-** conditions see http://qt.digia.com/licensing.  For further information
-** use the contact form at http://qt.digia.com/contact-us.
+** conditions see http://www.qt.io/licensing.  For further information
+** use the contact form at http://www.qt.io/contact-us.
 **
 ** GNU Lesser General Public License Usage
 ** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 as published by the Free Software
-** Foundation and appearing in the file LICENSE.LGPL included in the
-** packaging of this file.  Please review the following information to
-** ensure the GNU Lesser General Public License version 2.1 requirements
-** will be met: http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+** General Public License version 2.1 or version 3 as published by the Free
+** Software Foundation and appearing in the file LICENSE.LGPLv21 and
+** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
+** following information to ensure the GNU Lesser General Public License
+** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
+** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
 ** In addition, as a special exception, Digia gives you certain additional
 ** rights.  These rights are described in the Digia Qt LGPL Exception
@@ -48,6 +49,7 @@
 #include <coreplugin/find/itemviewfind.h>
 
 #include <utils/qtcprocess.h>
+#include <utils/pathchooser.h>
 
 #include <QFormLayout>
 #include <QGroupBox>
@@ -64,6 +66,7 @@ const char MS_ID[] = "CMakeProjectManager.MakeStep";
 const char CLEAN_KEY[] = "CMakeProjectManager.MakeStep.Clean";
 const char BUILD_TARGETS_KEY[] = "CMakeProjectManager.MakeStep.BuildTargets";
 const char ADDITIONAL_ARGUMENTS_KEY[] = "CMakeProjectManager.MakeStep.AdditionalArguments";
+const char MAKE_COMMAND_KEY[] = "CMakeProjectManager.MakeStep.MakeCommand";
 }
 
 MakeStep::MakeStep(BuildStepList *bsl) :
@@ -82,7 +85,8 @@ MakeStep::MakeStep(BuildStepList *bsl, MakeStep *bs) :
     AbstractProcessStep(bsl, bs),
     m_clean(bs->m_clean),
     m_buildTargets(bs->m_buildTargets),
-    m_additionalArguments(bs->m_additionalArguments)
+    m_additionalArguments(bs->m_additionalArguments),
+    m_makeCmd(bs->m_makeCmd)
 {
     ctor();
 }
@@ -98,18 +102,17 @@ void MakeStep::ctor()
     CMakeBuildConfiguration *bc = cmakeBuildConfiguration();
     if (bc) {
         m_activeConfiguration = 0;
-        connect(bc, SIGNAL(useNinjaChanged(bool)), this, SLOT(setUseNinja()));
+        connect(bc, &CMakeBuildConfiguration::useNinjaChanged, this, &MakeStep::makeCommandChanged);
     } else {
         // That means the step is in the deploylist, so we listen to the active build config
         // changed signal and react to the activeBuildConfigurationChanged() signal of the buildconfiguration
         m_activeConfiguration = targetsActiveBuildConfiguration();
-        connect (target(), SIGNAL(activeBuildConfigurationChanged(ProjectExplorer::BuildConfiguration*)),
-                 this, SLOT(activeBuildConfigurationChanged()));
+        connect(target(), &Target::activeBuildConfigurationChanged, this, &MakeStep::activeBuildConfigurationChanged);
         activeBuildConfigurationChanged();
     }
 
-    connect(static_cast<CMakeProject *>(project()), SIGNAL(buildTargetsChanged()),
-            this, SLOT(buildTargetsChanged()));
+    connect(static_cast<CMakeProject *>(project()), &CMakeProject::buildTargetsChanged,
+            this, &MakeStep::buildTargetsChanged);
 }
 
 MakeStep::~MakeStep()
@@ -129,12 +132,12 @@ CMakeBuildConfiguration *MakeStep::targetsActiveBuildConfiguration() const
 void MakeStep::activeBuildConfigurationChanged()
 {
     if (m_activeConfiguration)
-        disconnect(m_activeConfiguration, SIGNAL(useNinjaChanged(bool)), this, SLOT(setUseNinja(bool)));
+        disconnect(m_activeConfiguration, &CMakeBuildConfiguration::useNinjaChanged, this, &MakeStep::makeCommandChanged);
 
     m_activeConfiguration = targetsActiveBuildConfiguration();
 
     if (m_activeConfiguration)
-        connect(m_activeConfiguration, SIGNAL(useNinjaChanged(bool)), this, SLOT(setUseNinja(bool)));
+        connect(m_activeConfiguration, &CMakeBuildConfiguration::useNinjaChanged, this, &MakeStep::makeCommandChanged);
 
     emit makeCommandChanged();
 }
@@ -160,6 +163,7 @@ QVariantMap MakeStep::toMap() const
     map.insert(QLatin1String(CLEAN_KEY), m_clean);
     map.insert(QLatin1String(BUILD_TARGETS_KEY), m_buildTargets);
     map.insert(QLatin1String(ADDITIONAL_ARGUMENTS_KEY), m_additionalArguments);
+    map.insert(QLatin1String(MAKE_COMMAND_KEY), m_makeCmd);
     return map;
 }
 
@@ -168,6 +172,7 @@ bool MakeStep::fromMap(const QVariantMap &map)
     m_clean = map.value(QLatin1String(CLEAN_KEY)).toBool();
     m_buildTargets = map.value(QLatin1String(BUILD_TARGETS_KEY)).toStringList();
     m_additionalArguments = map.value(QLatin1String(ADDITIONAL_ARGUMENTS_KEY)).toString();
+    m_makeCmd = map.value(QLatin1String(MAKE_COMMAND_KEY)).toString();
 
     return BuildStep::fromMap(map);
 }
@@ -305,6 +310,8 @@ void MakeStep::setAdditionalArguments(const QString &list)
 
 QString MakeStep::makeCommand(ProjectExplorer::ToolChain *tc, const Utils::Environment &env) const
 {
+    if (!m_makeCmd.isEmpty())
+        return m_makeCmd;
     CMakeBuildConfiguration *bc = cmakeBuildConfiguration();
     if (!bc)
         bc = targetsActiveBuildConfiguration();
@@ -317,9 +324,14 @@ QString MakeStep::makeCommand(ProjectExplorer::ToolChain *tc, const Utils::Envir
     return QLatin1String("make");
 }
 
-void MakeStep::setUseNinja()
+void MakeStep::setUserMakeCommand(const QString &make)
 {
-    emit makeCommandChanged();
+    m_makeCmd = make;
+}
+
+QString MakeStep::userMakeCommand() const
+{
+    return m_makeCmd;
 }
 
 //
@@ -333,6 +345,14 @@ MakeStepConfigWidget::MakeStepConfigWidget(MakeStep *makeStep)
     fl->setMargin(0);
     fl->setFieldGrowthPolicy(QFormLayout::ExpandingFieldsGrow);
     setLayout(fl);
+
+    m_makePathChooser = new Utils::PathChooser(this);
+    m_makePathChooser->setExpectedKind(Utils::PathChooser::ExistingCommand);
+    m_makePathChooser->setBaseDirectory(Utils::PathChooser::homePath());
+    m_makePathChooser->setHistoryCompleter(QLatin1String("PE.MakeCommand.History"));
+    m_makePathChooser->setPath(m_makeStep->userMakeCommand());
+
+    fl->addRow(tr("Override command:"), m_makePathChooser);
 
     m_additionalArguments = new QLineEdit(this);
     fl->addRow(tr("Additional arguments:"), m_additionalArguments);
@@ -362,15 +382,22 @@ MakeStepConfigWidget::MakeStepConfigWidget(MakeStep *makeStep)
 
     updateDetails();
 
-    connect(m_additionalArguments, SIGNAL(textEdited(QString)), this, SLOT(additionalArgumentsEdited()));
-    connect(m_buildTargetsList, SIGNAL(itemChanged(QListWidgetItem*)), this, SLOT(itemChanged(QListWidgetItem*)));
-    connect(ProjectExplorer::ProjectExplorerPlugin::instance(), SIGNAL(settingsChanged()),
-            this, SLOT(updateDetails()));
+    connect(m_makePathChooser, &Utils::PathChooser::changed, this, &MakeStepConfigWidget::makeEdited);
+    connect(m_additionalArguments, &QLineEdit::textEdited, this, &MakeStepConfigWidget::additionalArgumentsEdited);
+    connect(m_buildTargetsList, &QListWidget::itemChanged, this, &MakeStepConfigWidget::itemChanged);
+    connect(ProjectExplorer::ProjectExplorerPlugin::instance(), &ProjectExplorerPlugin::settingsChanged,
+            this, &MakeStepConfigWidget::updateDetails);
 
-    connect(pro, SIGNAL(buildTargetsChanged()), this, SLOT(buildTargetsChanged()));
-    connect(m_makeStep, SIGNAL(targetsToBuildChanged()), this, SLOT(selectedBuildTargetsChanged()));
-    connect(pro, SIGNAL(environmentChanged()), this, SLOT(updateDetails()));
-    connect(m_makeStep, SIGNAL(makeCommandChanged()), this, SLOT(updateDetails()));
+    connect(pro, &CMakeProject::buildTargetsChanged, this, &MakeStepConfigWidget::buildTargetsChanged);
+    connect(m_makeStep, &MakeStep::targetsToBuildChanged, this, &MakeStepConfigWidget::selectedBuildTargetsChanged);
+    connect(pro, &CMakeProject::environmentChanged, this, &MakeStepConfigWidget::updateDetails);
+    connect(m_makeStep, &MakeStep::makeCommandChanged, this, &MakeStepConfigWidget::updateDetails);
+}
+
+void MakeStepConfigWidget::makeEdited()
+{
+    m_makeStep->setUserMakeCommand(m_makePathChooser->rawPath());
+    updateDetails();
 }
 
 void MakeStepConfigWidget::additionalArgumentsEdited()
@@ -392,7 +419,7 @@ QString MakeStepConfigWidget::displayName() const
 
 void MakeStepConfigWidget::buildTargetsChanged()
 {
-    disconnect(m_buildTargetsList, SIGNAL(itemChanged(QListWidgetItem*)), this, SLOT(itemChanged(QListWidgetItem*)));
+    disconnect(m_buildTargetsList, &QListWidget::itemChanged, this, &MakeStepConfigWidget::itemChanged);
     m_buildTargetsList->clear();
     CMakeProject *pro = static_cast<CMakeProject *>(m_makeStep->target()->project());
     foreach (const QString& buildTarget, pro->buildTargetTitles()) {
@@ -400,18 +427,18 @@ void MakeStepConfigWidget::buildTargetsChanged()
         item->setFlags(item->flags() | Qt::ItemIsUserCheckable);
         item->setCheckState(m_makeStep->buildsBuildTarget(item->text()) ? Qt::Checked : Qt::Unchecked);
     }
-    connect(m_buildTargetsList, SIGNAL(itemChanged(QListWidgetItem*)), this, SLOT(itemChanged(QListWidgetItem*)));
+    connect(m_buildTargetsList, &QListWidget::itemChanged, this, &MakeStepConfigWidget::itemChanged);
     updateSummary();
 }
 
 void MakeStepConfigWidget::selectedBuildTargetsChanged()
 {
-    disconnect(m_buildTargetsList, SIGNAL(itemChanged(QListWidgetItem*)), this, SLOT(itemChanged(QListWidgetItem*)));
+    disconnect(m_buildTargetsList, &QListWidget::itemChanged, this, &MakeStepConfigWidget::itemChanged);
     for (int y = 0; y < m_buildTargetsList->count(); ++y) {
-        QListWidgetItem *item = m_buildTargetsList->itemAt(0, y);
+        QListWidgetItem *item = m_buildTargetsList->item(y);
         item->setCheckState(m_makeStep->buildsBuildTarget(item->text()) ? Qt::Checked : Qt::Unchecked);
     }
-    connect(m_buildTargetsList, SIGNAL(itemChanged(QListWidgetItem*)), this, SLOT(itemChanged(QListWidgetItem*)));
+    connect(m_buildTargetsList, &QListWidget::itemChanged, this, &MakeStepConfigWidget::itemChanged);
     updateSummary();
 }
 
