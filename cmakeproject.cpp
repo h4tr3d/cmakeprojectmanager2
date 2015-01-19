@@ -287,7 +287,7 @@ bool CMakeProject::parseCMakeLists()
 
     CMakeBuildConfiguration *activeBC = static_cast<CMakeBuildConfiguration *>(activeTarget()->activeBuildConfiguration());
     foreach (Core::IDocument *document, Core::DocumentModel::openedDocuments())
-        if (isProjectFile(document->filePath()))
+        if (isProjectFile(document->filePath().toString()))
             document->infoBar()->removeInfo("CMakeEditor.RunCMake");
 
     // Find cbp file
@@ -390,9 +390,7 @@ bool CMakeProject::parseCMakeLists()
     CppTools::CppModelManager *modelmanager =
             CppTools::CppModelManager::instance();
     if (modelmanager) {
-        CppTools::ProjectInfo pinfo = modelmanager->projectInfo(this);
-        pinfo.clearProjectParts();
-
+        CppTools::ProjectInfo pinfo = CppTools::ProjectInfo(this);
         CppTools::ProjectPartBuilder ppBuilder(pinfo);
 
         foreach (const CMakeBuildTarget &cbt, m_buildTargets) {
@@ -821,10 +819,14 @@ void CMakeProject::updateApplicationAndDeploymentTargets()
     QFile deploymentFile;
     QTextStream deploymentStream;
     QString deploymentPrefix;
-    QDir sourceDir;
 
-    sourceDir.setPath(t->project()->projectDirectory().toString());
+    QDir sourceDir(t->project()->projectDirectory().toString());
+    QDir buildDir(t->activeBuildConfiguration()->buildDirectory().toString());
+
     deploymentFile.setFileName(sourceDir.filePath(QLatin1String("QtCreatorDeployment.txt")));
+    // If we don't have a global QtCreatorDeployment.txt check for one created by the active build configuration
+    if (!deploymentFile.exists())
+        deploymentFile.setFileName(buildDir.filePath(QLatin1String("QtCreatorDeployment.txt")));
     if (deploymentFile.open(QFile::ReadOnly | QFile::Text)) {
         deploymentStream.setDevice(&deploymentFile);
         deploymentPrefix = deploymentStream.readLine();
@@ -834,7 +836,7 @@ void CMakeProject::updateApplicationAndDeploymentTargets()
 
     BuildTargetInfoList appTargetList;
     DeploymentData deploymentData;
-    QDir buildDir(t->activeBuildConfiguration()->buildDirectory().toString());
+
     foreach (const CMakeBuildTarget &ct, m_buildTargets) {
         if (ct.executable.isEmpty())
             continue;
@@ -886,7 +888,7 @@ CMakeFile::CMakeFile(CMakeProject *parent, QString fileName)
 {
     setId("Cmake.ProjectFile");
     setMimeType(QLatin1String(Constants::CMAKEPROJECTMIMETYPE));
-    setFilePath(fileName);
+    setFilePath(Utils::FileName::fromString(fileName));
 }
 
 bool CMakeFile::save(QString *errorString, const QString &fileName, bool autoSave)
@@ -1005,12 +1007,22 @@ void CMakeBuildSettingsWidget::runCMake()
 // CMakeCbpParser
 ////
 
+namespace {
+int distance(const QString &targetDirectory, const Utils::FileName &fileName)
+{
+    const QString commonParent = Utils::commonPath(QStringList() << targetDirectory << fileName.toString());
+    return targetDirectory.mid(commonParent.size()).count(QLatin1Char('/'))
+            + fileName.toString().mid(commonParent.size()).count(QLatin1Char('/'));
+}
+}
+
 // called after everything is parsed
 // this function tries to figure out to which CMakeBuildTarget
 // each file belongs, so that it gets the appropriate defines and
 // compiler flags
 void CMakeCbpParser::sortFiles()
 {
+    QLoggingCategory log("qtc.cmakeprojectmanager.filetargetmapping");
     QList<Utils::FileName> fileNames = Utils::transform(m_fileList, [] (FileNode *node) {
         return Utils::FileName::fromString(node->path());
     });
@@ -1021,37 +1033,78 @@ void CMakeCbpParser::sortFiles()
     CMakeBuildTarget *last = 0;
     Utils::FileName parentDirectory;
 
+    qCDebug(log) << "###############";
+    qCDebug(log) << "# Pre Dump    #";
+    qCDebug(log) << "###############";
+    foreach (const CMakeBuildTarget &target, m_buildTargets)
+        qCDebug(log) << target.title << target.sourceDirectory <<
+                 target.includeFiles << target.defines << target.files << "\n";
+
+    // find a good build target to fall back
+    int fallbackIndex = 0;
+    {
+        int bestIncludeCount = -1;
+        for (int i = 0; i < m_buildTargets.size(); ++i) {
+            const CMakeBuildTarget &target = m_buildTargets.at(i);
+            if (target.includeFiles.isEmpty())
+                continue;
+            if (target.sourceDirectory == m_sourceDirectory
+                    && target.includeFiles.count() > bestIncludeCount) {
+                bestIncludeCount = target.includeFiles.count();
+                fallbackIndex = i;
+            }
+        }
+    }
+
+    qCDebug(log) << "###############";
+    qCDebug(log) << "# Sorting     #";
+    qCDebug(log) << "###############";
+
     foreach (const Utils::FileName &fileName, fileNames) {
+        qCDebug(log) << fileName;
         if (fileName.parentDir() == parentDirectory && last) {
             // easy case, same parent directory as last file
             last->files.append(fileName.toString());
+            qCDebug(log) << "  into" << last->title;
         } else {
-            int bestLength = -1;
+            int bestDistance = std::numeric_limits<int>::max();
             int bestIndex = -1;
             int bestIncludeCount = -1;
 
             for (int i = 0; i < m_buildTargets.size(); ++i) {
                 const CMakeBuildTarget &target = m_buildTargets.at(i);
-                if (fileName.isChildOf(Utils::FileName::fromString(target.sourceDirectory)) &&
-                    (target.sourceDirectory.size() > bestLength ||
-                     (target.sourceDirectory.size() == bestLength &&
-                      target.includeFiles.count() > bestIncludeCount))) {
-                    bestLength = target.sourceDirectory.size();
+                if (target.includeFiles.isEmpty())
+                    continue;
+                int dist = distance(target.sourceDirectory, fileName);
+                qCDebug(log) << "distance to target" << target.title << dist;
+                if (dist < bestDistance ||
+                     (dist == bestDistance &&
+                      target.includeFiles.count() > bestIncludeCount)) {
+                    bestDistance = dist;
                     bestIncludeCount = target.includeFiles.count();
                     bestIndex = i;
                 }
             }
 
-            if (bestIndex == -1 && !m_buildTargets.isEmpty())
-                bestIndex = 0;
+            if (bestIndex == -1 && !m_buildTargets.isEmpty()) {
+                bestIndex = fallbackIndex;
+                qCDebug(log) << "  using fallbackIndex";
+            }
 
             if (bestIndex != -1) {
                 m_buildTargets[bestIndex].files.append(fileName.toString());
                 last = &m_buildTargets[bestIndex];
                 parentDirectory = fileName.parentDir();
+                qCDebug(log) << "  into" << last->title;
             }
         }
     }
+
+    qCDebug(log) << "###############";
+    qCDebug(log) << "# After Dump  #";
+    qCDebug(log) << "###############";
+    foreach (const CMakeBuildTarget &target, m_buildTargets)
+        qCDebug(log) << target.title << target.sourceDirectory << target.includeFiles << target.defines << target.files << "\n";
 }
 
 bool CMakeCbpParser::parseCbpFile(const QString &fileName, const QString &sourceDirectory)
@@ -1156,10 +1209,28 @@ void CMakeCbpParser::parseBuildTargetOption()
             m_buildTarget.targetType = TargetType(value.toInt());
     } else if (attributes().hasAttribute(QLatin1String("working_dir"))) {
         m_buildTarget.workingDirectory = attributes().value(QLatin1String("working_dir")).toString();
-        QDir dir(m_buildDirectory);
-        QString relative = dir.relativeFilePath(m_buildTarget.workingDirectory);
-        m_buildTarget.sourceDirectory
-                = Utils::FileName::fromString(m_sourceDirectory).appendPath(relative).toString();
+
+        QFile cmakeSourceInfoFile(m_buildTarget.workingDirectory
+                                  + QStringLiteral("/CMakeFiles/CMakeDirectoryInformation.cmake"));
+        if (cmakeSourceInfoFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+            QTextStream stream(&cmakeSourceInfoFile);
+            const QLatin1String searchSource("SET(CMAKE_RELATIVE_PATH_TOP_SOURCE \"");
+            while (!stream.atEnd()) {
+                const QString lineTopSource = stream.readLine().trimmed();
+                if (lineTopSource.startsWith(searchSource)) {
+                    m_buildTarget.sourceDirectory = lineTopSource.mid(searchSource.size());
+                    m_buildTarget.sourceDirectory.chop(2); // cut off ")
+                    break;
+                }
+            }
+        }
+
+        if (m_buildTarget.sourceDirectory.isEmpty()) {
+            QDir dir(m_buildDirectory);
+            const QString relative = dir.relativeFilePath(m_buildTarget.workingDirectory);
+            m_buildTarget.sourceDirectory
+                    = Utils::FileName::fromString(m_sourceDirectory).appendPath(relative).toString();
+        }
     }
     while (!atEnd()) {
         readNext();

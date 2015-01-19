@@ -41,7 +41,6 @@ class CMakeProject;
 
 class CMakeProjectNode : public ProjectExplorer::ProjectNode
 {
-    Q_OBJECT
     friend class CMakeProject;
 
 public:

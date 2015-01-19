@@ -40,7 +40,9 @@
 #include <coreplugin/actionmanager/actionmanager.h>
 #include <coreplugin/actionmanager/command.h>
 #include <coreplugin/actionmanager/actioncontainer.h>
+#include <projectexplorer/projecttree.h>
 #include <projectexplorer/projectexplorer.h>
+#include <projectexplorer/projectexplorerconstants.h>
 #include <QDateTime>
 
 using namespace CMakeProjectManager::Internal;
@@ -48,8 +50,8 @@ using namespace CMakeProjectManager::Internal;
 CMakeManager::CMakeManager(CMakeSettingsPage *cmakeSettingsPage)
     : m_settingsPage(cmakeSettingsPage)
 {
-    ProjectExplorer::ProjectExplorerPlugin *projectExplorer = ProjectExplorer::ProjectExplorerPlugin::instance();
-    connect(projectExplorer, &ProjectExplorer::ProjectExplorerPlugin::aboutToShowContextMenu,
+    ProjectExplorer::ProjectTree *tree = ProjectExplorer::ProjectTree::instance();
+    connect(tree, &ProjectExplorer::ProjectTree::aboutToShowContextMenu,
             this, &CMakeManager::updateContextMenu);
 
     Core::ActionContainer *mbuild =
@@ -67,7 +69,7 @@ CMakeManager::CMakeManager(CMakeSettingsPage *cmakeSettingsPage)
     command->setAttribute(Core::Command::CA_Hide);
     mbuild->addAction(command, ProjectExplorer::Constants::G_BUILD_DEPLOY);
     connect(m_runCMakeAction, &QAction::triggered, [this]() {
-        runCMake(ProjectExplorer::ProjectExplorerPlugin::currentProject());
+        runCMake(ProjectExplorer::ProjectTree::currentProject());
     });
 
     m_runCMakeActionContextMenu = new QAction(QIcon(), tr("Run CMake"), this);
