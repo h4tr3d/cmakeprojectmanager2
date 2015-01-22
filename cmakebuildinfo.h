@@ -56,6 +56,8 @@ public:
         kitId = bc->target()->kit()->id();
         environment = bc->environment();
         useNinja = bc->useNinja();
+        cmakeParams = bc->cmakeParams();
+        cmakeParamsExt = bc->cmakeParamsExt();
 
         QTC_ASSERT(bc->target()->project(), return);
         sourceDirectory = bc->target()->project()->projectDirectory().toString();
@@ -64,6 +66,8 @@ public:
     Utils::Environment environment;
     QString sourceDirectory;
     bool useNinja;
+    QString cmakeParams;
+    CMakeParamsExt cmakeParamsExt;
 };
 
 } // namespace CMakeProjectManager

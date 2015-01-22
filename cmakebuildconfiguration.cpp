@@ -57,6 +57,10 @@ namespace Internal {
 
 const char USE_NINJA_KEY[] = "CMakeProjectManager.CMakeBuildConfiguration.UseNinja";
 const char CMAKE_PARAMS_KEY[] = "CMakeProjectManager.CMakeBuildConfiguration.CMakeParams";
+const char CMAKE_BUILD_TYPE_KEY[] = "CMakeProjectManaget.CMakeBuildConfiguration.CMakeBuildType";
+const char CMAKE_TOOLCHAIN_TYPE_KEY[] = "CMakeProjectManaget.CMakeBuildConfiguration.CMakeToolchainOverride";
+const char CMAKE_TOOLCHAIN_FILE_KEY[] = "CMakeProjectManaget.CMakeBuildConfiguration.CMakeToolchainFile";
+const char CMAKE_TOOLCHAIN_INLINE_KEY[] = "CMakeProjectManaget.CMakeBuildConfiguration.CMakeToolchainInline";
 
 static QString shadowBuildDirectory(const QString &projectFilePath, const Kit *k, const QString &bcName)
 {
@@ -95,6 +99,10 @@ QVariantMap CMakeBuildConfiguration::toMap() const
     QVariantMap map(ProjectExplorer::BuildConfiguration::toMap());
     map.insert(QLatin1String(USE_NINJA_KEY), m_useNinja);
     map.insert(QLatin1String(CMAKE_PARAMS_KEY), m_cmakeParams);
+    map.insert(QLatin1String(CMAKE_BUILD_TYPE_KEY), static_cast<int>(m_cmakeParamsExt.buildType));
+    map.insert(QLatin1String(CMAKE_TOOLCHAIN_TYPE_KEY), static_cast<int>(m_cmakeParamsExt.toolchainOverride));
+    map.insert(QLatin1String(CMAKE_TOOLCHAIN_FILE_KEY), m_cmakeParamsExt.toolchainFile);
+    map.insert(QLatin1String(CMAKE_TOOLCHAIN_INLINE_KEY), m_cmakeParamsExt.toolchainInline);
     return map;
 }
 
@@ -105,6 +113,17 @@ bool CMakeBuildConfiguration::fromMap(const QVariantMap &map)
 
     m_useNinja = map.value(QLatin1String(USE_NINJA_KEY), false).toBool();
     m_cmakeParams = map.value(QLatin1String(CMAKE_PARAMS_KEY), QLatin1String("")).toString();
+
+    m_cmakeParamsExt.buildType = static_cast<CMakeBuildType>(
+                                       map.value(QLatin1String(CMAKE_BUILD_TYPE_KEY),
+                                                 static_cast<int>(CMakeBuildType::Default)).toInt());
+    m_cmakeParamsExt.toolchainOverride =
+            static_cast<CMakeToolchainOverrideType>(
+                map.value(QLatin1String(CMAKE_TOOLCHAIN_TYPE_KEY), static_cast<int>(CMakeToolchainOverrideType::Disabled)).toInt());
+    m_cmakeParamsExt.toolchainFile =
+            map.value(QLatin1String(CMAKE_TOOLCHAIN_FILE_KEY), QLatin1String("")).toString();
+    m_cmakeParamsExt.toolchainInline =
+            map.value(QLatin1String(CMAKE_TOOLCHAIN_INLINE_KEY), QLatin1String("")).toString();
 
     return true;
 }
@@ -120,6 +139,21 @@ void CMakeBuildConfiguration::setUseNinja(bool useNninja)
         m_useNinja = useNninja;
         emit useNinjaChanged(m_useNinja);
     }
+}
+
+const CMakeParamsExt &CMakeBuildConfiguration::cmakeParamsExt() const
+{
+    return m_cmakeParamsExt;
+}
+
+void CMakeBuildConfiguration::setCMakeParamsExt(const CMakeParamsExt &cmakeParamsExt)
+{
+    if (m_cmakeParamsExt == cmakeParamsExt)
+        return;
+    m_cmakeParamsExt = cmakeParamsExt;
+    // TODO: is this need?
+    emit buildDirectoryChanged();
+    emit environmentChanged();
 }
 
 void CMakeBuildConfiguration::emitBuildTypeChanged()
@@ -230,10 +264,10 @@ ProjectExplorer::BuildConfiguration *CMakeBuildConfigurationFactory::create(Proj
     cleanMakeStep->setAdditionalArguments(QLatin1String("clean"));
     cleanMakeStep->setClean(true);
 
-    copw.setArguments(bc->cmakeParams());
     bc->setCMakeParams(copw.arguments());
     bc->setBuildDirectory(Utils::FileName::fromString(copw.buildDirectory()));
     bc->setUseNinja(copw.useNinja());
+    bc->setCMakeParamsExt(copw.cmakeParamsExt());
 
     // Default to all
     if (project->hasBuildTarget(QLatin1String("all")))

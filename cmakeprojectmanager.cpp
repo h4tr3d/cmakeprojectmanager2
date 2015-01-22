@@ -106,10 +106,10 @@ void CMakeManager::runCMake(ProjectExplorer::Project *project)
     CMakeBuildInfo info(bc);
 
     CMakeOpenProjectWizard copw(Core::ICore::mainWindow(), this, CMakeOpenProjectWizard::WantToUpdate, &info);
-    copw.setArguments(bc->cmakeParams());
     if (copw.exec() == QDialog::Accepted) {
         cmakeProject->parseCMakeLists();
         bc->setCMakeParams(copw.arguments());
+        bc->setCMakeParamsExt(copw.cmakeParamsExt());
     }
 }
 

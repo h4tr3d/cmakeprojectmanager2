@@ -50,6 +50,8 @@ QtcPlugin {
         "cmakesettingspage.h",
         "cmakesettingspage.cpp",
         "generatorinfo.h",
-        "generatorinfo.cpp"
+        "generatorinfo.cpp",
+        "cmakeinlineeditordialog.cpp",
+        "cmakeparamsext.cpp"
     ]
 }

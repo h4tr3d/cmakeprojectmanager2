@@ -33,6 +33,7 @@
 
 #include "cmakebuildconfiguration.h"
 #include "cmakebuildinfo.h"
+#include "cmakeparamsext.h"
 
 #include <utils/environment.h>
 #include <utils/wizard.h>
@@ -45,6 +46,8 @@
 #include <QLineEdit>
 #include <QLabel>
 #include <QPlainTextEdit>
+#include <QGroupBox>
+#include <QRadioButton>
 
 namespace Utils {
 class FancyLineEdit;
@@ -91,6 +94,8 @@ public:
     void setKit(ProjectExplorer::Kit *kit);
     bool existsUpToDateXmlFile() const;
     bool compatibleKitExist() const;
+    const CMakeParamsExt& cmakeParamsExt() const;
+    void setCMakeParamsExt(const CMakeParamsExt& cmakeParams);
 
 private:
     void init();
@@ -102,6 +107,7 @@ private:
     Utils::Environment m_environment;
     bool m_useNinja;
     ProjectExplorer::Kit *m_kit;
+    CMakeParamsExt m_cmakeParamsExt;
 };
 
 class NoKitPage : public QWizardPage
@@ -172,6 +178,8 @@ private slots:
     void cmakeFinished();
     void cmakeReadyReadStandardOutput();
     void cmakeReadyReadStandardError();
+    void toolchainEdit();
+    void toolchainRadio(bool);
 private:
     void initWidgets();
     QByteArray cachedGeneratorFromFile(const QString &cache);
@@ -182,11 +190,21 @@ private:
     Utils::FancyLineEdit *m_argumentsLineEdit;
     QComboBox *m_generatorComboBox;
     QLabel *m_generatorExtraText;
+    QComboBox *m_buildTypeComboBox;
+    QGroupBox *m_toolchainGroupbox;
+    QComboBox *m_toolchainComboBox;
+    Utils::FancyLineEdit *m_toolchainLineEdit;
+    QPushButton *m_toolchainPushButton;
+    QRadioButton *m_qtcToolchainRadioButton;
+    QRadioButton *m_fileToolchainRadioButton;
+    QRadioButton *m_inlineToolchainRadioButton;
     QLabel *m_descriptionLabel;
     QLabel *m_exitCodeLabel;
     bool m_haveCbpFile;
     Mode m_mode;
     QString m_buildDirectory;
+    CMakeParamsExt m_cmakeParamsExt;
+    QString        m_toolchainInlineCurrent;
 };
 
 }

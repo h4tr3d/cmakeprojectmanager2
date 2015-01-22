@@ -8,6 +8,9 @@ IDE_BUILD_TREE =
 include(cmakeprojectmanager_dependencies.pri)
 include($$QTCREATOR_SOURCES/src/qtcreatorplugin.pri)
 
+# For the highlighter:
+INCLUDEPATH += $$QTCREATOR_SOURCES/src/plugins/texteditor
+
 HEADERS = cmakebuildinfo.h \
     cmakeproject.h \
     cmakeprojectplugin.h \
@@ -24,7 +27,9 @@ HEADERS = cmakebuildinfo.h \
     cmaketool.h \
     cmakeparser.h \
     generatorinfo.h \
-    cmakesettingspage.h
+    cmakesettingspage.h \
+    cmakeinlineeditordialog.h \
+    cmakeparamsext.h
 
 SOURCES = cmakeproject.cpp \
     cmakeprojectplugin.cpp \
@@ -40,7 +45,9 @@ SOURCES = cmakeproject.cpp \
     cmaketool.cpp \
     cmakeparser.cpp \
     generatorinfo.cpp \
-    cmakesettingspage.cpp
+    cmakesettingspage.cpp \
+    cmakeinlineeditordialog.cpp \
+    cmakeparamsext.cpp
 
 
 RESOURCES += cmakeproject.qrc

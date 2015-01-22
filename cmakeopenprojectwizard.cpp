@@ -33,6 +33,7 @@
 #include "cmakebuildconfiguration.h"
 #include "cmakebuildinfo.h"
 #include "generatorinfo.h"
+#include "cmakeinlineeditordialog.h"
 
 #include <coreplugin/icore.h>
 #include <utils/hostosinfo.h>
@@ -56,6 +57,8 @@
 #include <QSettings>
 #include <QStringList>
 #include <QApplication>
+
+#include <stack>
 
 using namespace CMakeProjectManager;
 using namespace CMakeProjectManager::Internal;
@@ -108,9 +111,11 @@ CMakeOpenProjectWizard::CMakeOpenProjectWizard(QWidget *parent, CMakeManager *cm
     : Utils::Wizard(parent),
       m_cmakeManager(cmakeManager),
       m_sourceDirectory(info->sourceDirectory),
+      m_arguments(info->cmakeParams),
       m_environment(info->environment),
       m_useNinja(info->useNinja),
-      m_kit(0)
+      m_kit(0),
+      m_cmakeParamsExt(info->cmakeParamsExt)
 {
     m_kit = ProjectExplorer::KitManager::find(info->kitId);
 
@@ -170,6 +175,16 @@ bool CMakeOpenProjectWizard::compatibleKitExist() const
             return true;
     }
     return false;
+}
+
+const CMakeParamsExt &CMakeOpenProjectWizard::cmakeParamsExt() const
+{
+    return m_cmakeParamsExt;
+}
+
+void CMakeOpenProjectWizard::setCMakeParamsExt(const CMakeParamsExt &cmakeParams)
+{
+    m_cmakeParamsExt = cmakeParams;
 }
 
 bool CMakeOpenProjectWizard::existsUpToDateXmlFile() const
@@ -426,7 +441,63 @@ void CMakeRunPage::initWidgets()
     fl->addRow(tr("Arguments:"), m_argumentsLineEdit);
 
     m_generatorComboBox = new QComboBox(this);
-    fl->addRow(tr("Generator:"), m_generatorComboBox);
+    m_buildTypeComboBox = new QComboBox(this);
+
+    QHBoxLayout *hbox = new QHBoxLayout;
+    hbox->addWidget(new QLabel(tr("Generator:"), this));
+    hbox->addWidget(m_generatorComboBox);
+    hbox->addWidget(new QLabel(tr("Build type:"), this));
+    hbox->addWidget(m_buildTypeComboBox);
+    fl->addRow(hbox);
+    //fl->addRow(tr("Generator:"), m_generatorComboBox);
+
+    m_toolchainGroupbox = new QGroupBox(this);
+    m_toolchainGroupbox->setCheckable(true);
+    m_toolchainGroupbox->setChecked(false);
+    m_toolchainGroupbox->setTitle(tr("Override toolchain:"));
+
+    QFormLayout *toolchainLayout = new QFormLayout;
+    toolchainLayout->setFieldGrowthPolicy(QFormLayout::ExpandingFieldsGrow);
+    m_toolchainGroupbox->setLayout(toolchainLayout);
+
+    m_toolchainComboBox = new QComboBox(this);
+    m_toolchainLineEdit = new Utils::FancyLineEdit(this);
+    m_toolchainPushButton = new QPushButton(this);
+    m_toolchainPushButton->setText(tr("Edit"));
+    connect(m_toolchainPushButton, SIGNAL(clicked()), this, SLOT(toolchainEdit()));
+
+    m_qtcToolchainRadioButton = new QRadioButton(tr("Qt Creator Toolchain:"), this);
+    m_fileToolchainRadioButton = new QRadioButton(tr("Toolchain file:"), this);
+    m_inlineToolchainRadioButton = new QRadioButton(tr("Inline Toolchain:"), this);
+
+    connect(m_qtcToolchainRadioButton, SIGNAL(toggled(bool)), this, SLOT(toolchainRadio(bool)));
+    connect(m_fileToolchainRadioButton, SIGNAL(toggled(bool)), this, SLOT(toolchainRadio(bool)));
+    connect(m_inlineToolchainRadioButton, SIGNAL(toggled(bool)), this, SLOT(toolchainRadio(bool)));
+
+    hbox = new QHBoxLayout;
+    hbox->addWidget(m_qtcToolchainRadioButton);
+    hbox->addWidget(m_toolchainComboBox);
+    toolchainLayout->addRow(hbox);
+
+    hbox = new QHBoxLayout;
+    hbox->addWidget(m_fileToolchainRadioButton);
+    hbox->addWidget(m_toolchainLineEdit);
+    toolchainLayout->addRow(hbox);
+
+    hbox = new QHBoxLayout;
+    hbox->addWidget(m_inlineToolchainRadioButton);
+    hbox->addWidget(m_toolchainPushButton);
+    toolchainLayout->addRow(hbox);
+
+    // TODO: add support
+    m_qtcToolchainRadioButton->setDisabled(true);
+
+    // TODO: load state
+    m_toolchainComboBox->setDisabled(true);
+    m_toolchainLineEdit->setDisabled(true);
+    m_toolchainPushButton->setDisabled(true);
+
+    fl->addRow(m_toolchainGroupbox);
 
     m_generatorExtraText = new QLabel(this);
     fl->addRow(m_generatorExtraText);
@@ -583,6 +654,43 @@ void CMakeRunPage::initializePage()
         foreach (const GeneratorInfo &info, infos)
             m_generatorComboBox->addItem(info.displayName(), qVariantFromValue(info));
     }
+
+    // TODO: Work with new fields here
+    // Load old parametes
+    m_cmakeParamsExt = m_cmakeWizard->cmakeParamsExt();
+    m_toolchainInlineCurrent = m_cmakeParamsExt.toolchainInline;
+
+    // Fill BuildType combo
+    QList<std::pair<QString, CMakeBuildType>> buildTypes = {
+        {tr("Default"), CMakeBuildType::Default},
+        {tr("Debug"),   CMakeBuildType::Debug},
+        {tr("Release"), CMakeBuildType::Release},
+        {tr("Release with Debug symbols"), CMakeBuildType::ReleaseWithDebugInfo},
+        {tr("Release (minimal size)"), CMakeBuildType::MinSizeRelease}
+    };
+    int index = 0, selection = 0;
+    for (auto &type : buildTypes) {
+        m_buildTypeComboBox->addItem(std::get<0>(type), qVariantFromValue(std::get<1>(type)));
+        if (std::get<1>(type) == m_cmakeParamsExt.buildType) {
+            selection = index;
+        }
+        ++index;
+    }
+    m_buildTypeComboBox->setCurrentIndex(selection);
+
+    // Fill toolchain settings
+    if (m_cmakeParamsExt.toolchainOverride != CMakeToolchainOverrideType::Disabled) {
+        m_toolchainGroupbox->setChecked(true);
+        if (m_cmakeParamsExt.toolchainOverride == CMakeToolchainOverrideType::File) {
+            m_fileToolchainRadioButton->setChecked(true);
+        } else if (m_cmakeParamsExt.toolchainOverride == CMakeToolchainOverrideType::Inline) {
+            m_inlineToolchainRadioButton->setChecked(true);
+        }
+    } else {
+        m_toolchainGroupbox->setChecked(false);
+    }
+    m_toolchainLineEdit->setText(m_cmakeParamsExt.toolchainFile);
+
 }
 
 bool CMakeRunPage::validatePage()
@@ -594,6 +702,35 @@ bool CMakeRunPage::validatePage()
     m_cmakeWizard->setKit(generatorInfo.kit());
     m_cmakeWizard->setUseNinja(generatorInfo.isNinja());
     return QWizardPage::validatePage();
+}
+
+// TODO: make non-recursive
+static bool removePath(QString path)
+{
+    bool result = true;
+    QFileInfo fi(path);
+
+    if (fi.isDir()) {
+        QDir dir(path);
+        if (dir.exists(path)) {
+            for (QFileInfo &info : dir.entryInfoList(QDir::NoDotAndDotDot | QDir::System | QDir::Hidden  | QDir::AllDirs | QDir::Files, QDir::DirsFirst)) {
+                if (info.isDir()) {
+                    result = removePath(info.absoluteFilePath());
+                }
+                else {
+                    result = QFile::remove(info.absoluteFilePath());
+                }
+
+                if (!result) {
+                    return result;
+                }
+            }
+            result = dir.rmdir(path);
+        }
+    } else {
+        result = QFile::remove(path);
+    }
+    return result;
 }
 
 void CMakeRunPage::runCMake()
@@ -616,11 +753,53 @@ void CMakeRunPage::runCMake()
     if (m_mode == Initial)
         generatorInfo.kit()->addToEnvironment(env);
 
+    // Build type: Default/Debug/Release/etc
+    index = m_buildTypeComboBox->currentIndex();
+    m_cmakeParamsExt.buildType = CMakeBuildType::Default;
+    if (index >= 0) {
+        m_cmakeParamsExt.buildType = m_buildTypeComboBox->itemData(index).value<CMakeBuildType>();
+    }
+
+    // Toolchain overrides
+    CMakeParamsExt prev = m_cmakeParamsExt;
+
+    m_cmakeParamsExt.toolchainOverride = CMakeToolchainOverrideType::Disabled;
+    m_cmakeParamsExt.toolchainFile     = m_toolchainLineEdit->text();
+    m_cmakeParamsExt.toolchainInline   = m_toolchainInlineCurrent;
+    // toolchainInline already filled
+    if (m_toolchainGroupbox->isChecked()) {
+        if (m_fileToolchainRadioButton->isChecked()) {
+            m_cmakeParamsExt.toolchainOverride = CMakeToolchainOverrideType::File;
+        } else if (m_inlineToolchainRadioButton->isChecked()) {
+            m_cmakeParamsExt.toolchainOverride = CMakeToolchainOverrideType::Inline;
+        }
+    }
+
     m_runCMake->setEnabled(false);
     m_argumentsLineEdit->setEnabled(false);
     m_generatorComboBox->setEnabled(false);
+    m_buildTypeComboBox->setEnabled(false);
+    m_toolchainGroupbox->setEnabled(false);
 
     m_output->clear();
+
+    // If toolchain changed we need full tree regeneration
+    bool toolchainChanged = (prev.toolchainOverride != m_cmakeParamsExt.toolchainOverride ||
+                             prev.toolchainFile != m_cmakeParamsExt.toolchainFile ||
+                             prev.toolchainInline != m_cmakeParamsExt.toolchainInline);
+
+    if (toolchainChanged) {
+        QString cmakeCache(m_buildDirectory+ QLatin1String("/CMakeCache.txt"));
+        QString cmakeFiles(m_buildDirectory+ QLatin1String("/CMakeFiles"));
+
+        if (QFileInfo::exists(cmakeCache)) {
+            removePath(cmakeCache);
+        }
+
+        if (QFileInfo::exists(cmakeFiles)) {
+            removePath(cmakeFiles);
+        }
+    }
 
     CMakeManager *cmakeManager = m_cmakeWizard->cmakeManager();
     if (m_cmakeWizard->cmakeManager()->isCMakeExecutableValid()) {
@@ -628,12 +807,15 @@ void CMakeRunPage::runCMake()
         connect(m_cmakeProcess, SIGNAL(readyReadStandardOutput()), this, SLOT(cmakeReadyReadStandardOutput()));
         connect(m_cmakeProcess, SIGNAL(readyReadStandardError()), this, SLOT(cmakeReadyReadStandardError()));
         connect(m_cmakeProcess, SIGNAL(finished(int)), this, SLOT(cmakeFinished()));
-        cmakeManager->createXmlFile(m_cmakeProcess, m_argumentsLineEdit->text(), m_cmakeWizard->sourceDirectory(),
+        QString arguments = m_cmakeParamsExt.arguments(m_argumentsLineEdit->text(), m_buildDirectory);
+        cmakeManager->createXmlFile(m_cmakeProcess, arguments, m_cmakeWizard->sourceDirectory(),
                                     m_buildDirectory, env, QString::fromLatin1(generatorInfo.generatorArgument()));
     } else {
         m_runCMake->setEnabled(true);
         m_argumentsLineEdit->setEnabled(true);
         m_generatorComboBox->setEnabled(true);
+        m_buildTypeComboBox->setEnabled(true);
+        m_toolchainGroupbox->setEnabled(true);
         m_output->appendPlainText(tr("No valid CMake executable specified."));
     }
 }
@@ -671,11 +853,28 @@ void CMakeRunPage::cmakeReadyReadStandardError()
     cursor.insertText(QString::fromLocal8Bit(m_cmakeProcess->readAllStandardError()), tf);
 }
 
+void CMakeRunPage::toolchainEdit()
+{
+    bool ok;
+    QString content = CMakeInlineEditorDialog::getContent(this, m_toolchainInlineCurrent, &ok);
+    if (ok)
+        m_toolchainInlineCurrent = std::move(content);
+}
+
+void CMakeRunPage::toolchainRadio(bool)
+{
+    m_toolchainComboBox->setEnabled(m_qtcToolchainRadioButton->isChecked());
+    m_toolchainLineEdit->setEnabled(m_fileToolchainRadioButton->isChecked());
+    m_toolchainPushButton->setEnabled(m_inlineToolchainRadioButton->isChecked());
+}
+
 void CMakeRunPage::cmakeFinished()
 {
     m_runCMake->setEnabled(true);
     m_argumentsLineEdit->setEnabled(true);
     m_generatorComboBox->setEnabled(true);
+    m_buildTypeComboBox->setEnabled(true);
+    m_toolchainGroupbox->setEnabled(true);
 
     if (m_cmakeProcess->exitCode() != 0) {
         m_exitCodeLabel->setVisible(true);
@@ -689,6 +888,8 @@ void CMakeRunPage::cmakeFinished()
     m_cmakeProcess->deleteLater();
     m_cmakeProcess = 0;
     m_cmakeWizard->setArguments(m_argumentsLineEdit->text());
+    m_cmakeWizard->setCMakeParamsExt(m_cmakeParamsExt);
+
     emit completeChanged();
 }
 

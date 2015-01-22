@@ -194,10 +194,10 @@ void CMakeProject::changeActiveBuildConfiguration(ProjectExplorer::BuildConfigur
     if (mode != CMakeOpenProjectWizard::Nothing) {
         CMakeBuildInfo info(cmakebc);
         CMakeOpenProjectWizard copw(Core::ICore::mainWindow(), m_manager, mode, &info);
-        copw.setArguments(cmakebc->cmakeParams());
         if (copw.exec() == QDialog::Accepted) {
             cmakebc->setCMakeParams(copw.arguments());
             cmakebc->setUseNinja(copw.useNinja()); // NeedToCreate can change the Ninja setting
+            cmakebc->setCMakeParamsExt(copw.cmakeParamsExt());
         }
     }
 
@@ -614,12 +614,12 @@ bool CMakeProject::fromMap(const QVariantMap &map)
         if (mode != CMakeOpenProjectWizard::Nothing) {
             CMakeBuildInfo info(activeBC);
             CMakeOpenProjectWizard copw(Core::ICore::mainWindow(), m_manager, mode, &info);
-        copw.setArguments(activeBC->cmakeParams());
             if (copw.exec() != QDialog::Accepted)
                 return false;
             else {
                 activeBC->setUseNinja(copw.useNinja());
                 activeBC->setCMakeParams(copw.arguments());
+                activeBC->setCMakeParamsExt(copw.cmakeParamsExt());
             }
         }
     }
@@ -801,7 +801,7 @@ void CMakeProject::updateCbp()
                                                                    bc->useNinja());
 
         m_manager->createXmlFile(m_cbpUpdateProcess,
-                                 bc->cmakeParams(),
+                                 bc->cmakeParamsExt().arguments(bc->cmakeParams(), bc->buildDirectory().toString()),
                                  bc->target()->project()->projectDirectory().toString(),
                                  bc->buildDirectory().toString(),
                                  bc->environment(),
@@ -978,12 +978,12 @@ void CMakeBuildSettingsWidget::openChangeBuildDirectoryDialog()
     CMakeOpenProjectWizard copw(Core::ICore::mainWindow(),
                                 project->projectManager(), CMakeOpenProjectWizard::ChangeDirectory,
                                 &info);
-    copw.setArguments(m_buildConfiguration->cmakeParams());
     if (copw.exec() == QDialog::Accepted) {
         project->changeBuildDirectory(m_buildConfiguration, copw.buildDirectory());
         m_buildConfiguration->setUseNinja(copw.useNinja());
         m_pathLineEdit->setText(m_buildConfiguration->rawBuildDirectory().toString());
         m_buildConfiguration->setCMakeParams(copw.arguments());
+        m_buildConfiguration->setCMakeParamsExt(copw.cmakeParamsExt());
     }
 }
 
@@ -996,10 +996,10 @@ void CMakeBuildSettingsWidget::runCMake()
     CMakeOpenProjectWizard copw(Core::ICore::mainWindow(),
                                 project->projectManager(),
                                 CMakeOpenProjectWizard::WantToUpdate, &info);
-    copw.setArguments(m_buildConfiguration->cmakeParams());
     if (copw.exec() == QDialog::Accepted) {
         project->parseCMakeLists();
         m_buildConfiguration->setCMakeParams(copw.arguments());
+        m_buildConfiguration->setCMakeParamsExt(copw.cmakeParamsExt());
     }
 }
 

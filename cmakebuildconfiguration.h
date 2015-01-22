@@ -34,6 +34,8 @@
 #include <projectexplorer/buildconfiguration.h>
 #include <projectexplorer/abi.h>
 
+#include "cmakeparamsext.h"
+
 namespace ProjectExplorer { class ToolChain; }
 
 namespace CMakeProjectManager {
@@ -64,6 +66,9 @@ public:
     bool useNinja() const;
     void setUseNinja(bool);
 
+    const CMakeParamsExt& cmakeParamsExt() const;
+    void  setCMakeParamsExt(const CMakeParamsExt &cmakeParamsExt);
+
     void emitBuildTypeChanged();
 
 signals:
@@ -77,6 +82,7 @@ private:
     QString m_msvcVersion;
     QString m_cmakeParams;
     bool m_useNinja;
+    CMakeParamsExt m_cmakeParamsExt;
 
     friend class CMakeProject;
 };
