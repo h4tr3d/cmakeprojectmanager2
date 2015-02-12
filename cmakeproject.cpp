@@ -341,9 +341,14 @@ bool CMakeProject::parseCMakeLists()
     }
 
     if (cbpparser.hasCMakeFiles()) {
-        treeFileList.append(cbpparser.cmakeFileList());
-        foreach (const ProjectExplorer::FileNode *node, cbpparser.cmakeFileList())
+        foreach (ProjectExplorer::FileNode *node, cbpparser.cmakeFileList()) {
             projectFiles.insert(node->path());
+            if (!Utils::contains(treeFileList, [&node](const ProjectExplorer::FileNode *n) {
+                    return n->path() == node->path();
+                 })) {
+                treeFileList.append(node);
+            }
+        }
     } else /*if (projectFiles.isEmpty())*/ {
         // Manually add the CMakeLists.txt file
         QString cmakeListTxt = projectDirectory().toString() + QLatin1String("/CMakeLists.txt");
