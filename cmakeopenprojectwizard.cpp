@@ -494,6 +494,7 @@ void CMakeRunPage::initWidgets()
 
     hbox = new QHBoxLayout;
     hbox->addWidget(m_inlineToolchainRadioButton);
+    hbox->addStretch(10);
     hbox->addWidget(m_toolchainPushButton);
     toolchainLayout->addRow(hbox);
 
