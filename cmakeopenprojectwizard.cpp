@@ -672,7 +672,7 @@ void CMakeRunPage::initializePage()
     // Load old parametes
     m_cmakeParamsExt = m_cmakeWizard->cmakeParamsExt();
     m_toolchainInlineCurrent = m_cmakeParamsExt.toolchainInline;
-
+    
     // Fill BuildType combo
     QList<std::pair<QString, CMakeBuildType>> buildTypes = {
         {tr("Default"), CMakeBuildType::Default},
@@ -879,7 +879,16 @@ void CMakeRunPage::cmakeReadyReadStandardError()
 void CMakeRunPage::toolchainEdit()
 {
     bool ok;
-    QString content = CMakeInlineEditorDialog::getContent(this, m_toolchainInlineCurrent, &ok);
+    QString current = m_toolchainInlineCurrent;
+    
+    if (current.isEmpty()) {
+        QFile sampleToolchain(QLatin1String(":/cmakeproject/inlinetoolchainexample.cmake"));
+        sampleToolchain.open(QIODevice::ReadOnly | QIODevice::Text);
+        auto data = sampleToolchain.readAll();
+        current = QLatin1String(data);
+    }
+    
+    QString content = CMakeInlineEditorDialog::getContent(this, current, &ok);
     if (ok)
         m_toolchainInlineCurrent = std::move(content);
 }
