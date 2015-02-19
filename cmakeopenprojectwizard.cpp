@@ -57,6 +57,7 @@
 #include <QSettings>
 #include <QStringList>
 #include <QApplication>
+#include <QFileDialog>
 
 #include <stack>
 
@@ -462,6 +463,11 @@ void CMakeRunPage::initWidgets()
 
     m_toolchainComboBox = new QComboBox(this);
     m_toolchainLineEdit = new Utils::FancyLineEdit(this);
+    
+    m_toolchainFileSelectPushButton = new QPushButton(this);
+    m_toolchainFileSelectPushButton->setText(tr("Browse..."));
+    connect(m_toolchainFileSelectPushButton, SIGNAL(clicked()), this, SLOT(toolchainFileSelect()));
+    
     m_toolchainPushButton = new QPushButton(this);
     m_toolchainPushButton->setText(tr("Edit"));
     connect(m_toolchainPushButton, SIGNAL(clicked()), this, SLOT(toolchainEdit()));
@@ -482,6 +488,7 @@ void CMakeRunPage::initWidgets()
     hbox = new QHBoxLayout;
     hbox->addWidget(m_fileToolchainRadioButton);
     hbox->addWidget(m_toolchainLineEdit);
+    hbox->addWidget(m_toolchainFileSelectPushButton);
     toolchainLayout->addRow(hbox);
 
     hbox = new QHBoxLayout;
@@ -496,6 +503,7 @@ void CMakeRunPage::initWidgets()
     m_toolchainComboBox->setDisabled(true);
     m_toolchainLineEdit->setDisabled(true);
     m_toolchainPushButton->setDisabled(true);
+    m_toolchainFileSelectPushButton->setDisabled(true);
 
     fl->addRow(m_toolchainGroupbox);
 
@@ -861,10 +869,37 @@ void CMakeRunPage::toolchainEdit()
         m_toolchainInlineCurrent = std::move(content);
 }
 
+void CMakeRunPage::toolchainFileSelect()
+{
+    QFileDialog openToolchainDialog(this,
+                                    tr("Select CMake toolchain"),
+                                    m_cmakeWizard->sourceDirectory(),
+                                    QLatin1String("CMake files (*.cmake);; All (*)"));
+    
+    openToolchainDialog.setFileMode(QFileDialog::ExistingFile);
+    openToolchainDialog.setAcceptMode(QFileDialog::AcceptOpen);
+    
+    QList<QUrl> urls;
+    urls << QUrl::fromLocalFile(m_cmakeWizard->sourceDirectory());
+    openToolchainDialog.setSidebarUrls(urls);
+    
+    if (!m_toolchainLineEdit->text().isEmpty()) {
+        QFileInfo fi(m_toolchainLineEdit->text());
+        openToolchainDialog.setDirectory(fi.absolutePath());        
+    }
+
+    if (openToolchainDialog.exec()) {
+        auto files = openToolchainDialog.selectedFiles();
+        if (!files.isEmpty())
+            m_toolchainLineEdit->setText(files[0]);
+    }
+}
+
 void CMakeRunPage::toolchainRadio(bool)
 {
     m_toolchainComboBox->setEnabled(m_qtcToolchainRadioButton->isChecked());
     m_toolchainLineEdit->setEnabled(m_fileToolchainRadioButton->isChecked());
+    m_toolchainFileSelectPushButton->setEnabled(m_fileToolchainRadioButton->isChecked());
     m_toolchainPushButton->setEnabled(m_inlineToolchainRadioButton->isChecked());
 }
 

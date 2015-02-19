@@ -179,6 +179,7 @@ private slots:
     void cmakeReadyReadStandardOutput();
     void cmakeReadyReadStandardError();
     void toolchainEdit();
+    void toolchainFileSelect();
     void toolchainRadio(bool);
 private:
     void initWidgets();
@@ -194,6 +195,7 @@ private:
     QGroupBox *m_toolchainGroupbox;
     QComboBox *m_toolchainComboBox;
     Utils::FancyLineEdit *m_toolchainLineEdit;
+    QPushButton *m_toolchainFileSelectPushButton;
     QPushButton *m_toolchainPushButton;
     QRadioButton *m_qtcToolchainRadioButton;
     QRadioButton *m_fileToolchainRadioButton;
