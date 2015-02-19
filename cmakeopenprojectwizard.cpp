@@ -58,6 +58,7 @@
 #include <QStringList>
 #include <QApplication>
 #include <QFileDialog>
+#include <QMessageBox>
 
 #include <stack>
 
@@ -513,8 +514,12 @@ void CMakeRunPage::initWidgets()
     m_runCMake = new QPushButton(this);
     m_runCMake->setText(tr("Run CMake"));
     connect(m_runCMake, SIGNAL(clicked()), this, SLOT(runCMake()));
+    
+    m_discardCache = new QCheckBox(tr("Reset cache on CMake run"), this);
+    m_discardCache->setCheckState(Qt::Unchecked);
 
     QHBoxLayout *hbox2 = new QHBoxLayout;
+    hbox2->addWidget(m_discardCache);
     hbox2->addStretch(10);
     hbox2->addWidget(m_runCMake);
     fl->addRow(hbox2);
@@ -769,21 +774,35 @@ void CMakeRunPage::runCMake()
     }
 
     // Toolchain overrides
-    CMakeParamsExt prev = m_cmakeParamsExt;
+    CMakeParamsExt curr = m_cmakeParamsExt;
 
-    m_cmakeParamsExt.toolchainOverride = CMakeToolchainOverrideType::Disabled;
-    m_cmakeParamsExt.toolchainFile     = m_toolchainLineEdit->text();
-    m_cmakeParamsExt.toolchainInline   = m_toolchainInlineCurrent;
+    curr.toolchainOverride = CMakeToolchainOverrideType::Disabled;
+    curr.toolchainFile     = m_toolchainLineEdit->text();
+    curr.toolchainInline   = m_toolchainInlineCurrent;
     // toolchainInline already filled
     if (m_toolchainGroupbox->isChecked()) {
         if (m_fileToolchainRadioButton->isChecked()) {
-            m_cmakeParamsExt.toolchainOverride = CMakeToolchainOverrideType::File;
+            curr.toolchainOverride = CMakeToolchainOverrideType::File;
         } else if (m_inlineToolchainRadioButton->isChecked()) {
-            m_cmakeParamsExt.toolchainOverride = CMakeToolchainOverrideType::Inline;
+            curr.toolchainOverride = CMakeToolchainOverrideType::Inline;
         }
     }
+    
+    // If toolchain changed we need full tree regeneration
+    bool toolchainChanged = (curr.toolchainOverride != m_cmakeParamsExt.toolchainOverride ||
+                             curr.toolchainFile != m_cmakeParamsExt.toolchainFile ||
+                             curr.toolchainInline != m_cmakeParamsExt.toolchainInline);
+                             
+    if (toolchainChanged && m_discardCache->checkState() != Qt::Checked) {
+        auto button = QMessageBox::question(this, tr("Run CMake"), tr("You change toolchain. This action requires CMake cache reset. Continue?"));
+        if (button != QMessageBox::Yes)
+            return;
+    }
+    
+    m_cmakeParamsExt = curr;
 
     m_runCMake->setEnabled(false);
+    m_discardCache->setEnabled(false);
     m_argumentsLineEdit->setEnabled(false);
     m_generatorComboBox->setEnabled(false);
     m_buildTypeComboBox->setEnabled(false);
@@ -791,12 +810,7 @@ void CMakeRunPage::runCMake()
 
     m_output->clear();
 
-    // If toolchain changed we need full tree regeneration
-    bool toolchainChanged = (prev.toolchainOverride != m_cmakeParamsExt.toolchainOverride ||
-                             prev.toolchainFile != m_cmakeParamsExt.toolchainFile ||
-                             prev.toolchainInline != m_cmakeParamsExt.toolchainInline);
-
-    if (toolchainChanged) {
+    if (toolchainChanged || m_discardCache->checkState() == Qt::Checked) {
         QString cmakeCache(m_buildDirectory+ QLatin1String("/CMakeCache.txt"));
         QString cmakeFiles(m_buildDirectory+ QLatin1String("/CMakeFiles"));
 
@@ -820,6 +834,7 @@ void CMakeRunPage::runCMake()
                                     m_buildDirectory, env, QString::fromLatin1(generatorInfo.generatorArgument()));
     } else {
         m_runCMake->setEnabled(true);
+        m_discardCache->setEnabled(true);
         m_argumentsLineEdit->setEnabled(true);
         m_generatorComboBox->setEnabled(true);
         m_buildTypeComboBox->setEnabled(true);
@@ -906,6 +921,7 @@ void CMakeRunPage::toolchainRadio(bool)
 void CMakeRunPage::cmakeFinished()
 {
     m_runCMake->setEnabled(true);
+    m_discardCache->setEnabled(true);
     m_argumentsLineEdit->setEnabled(true);
     m_generatorComboBox->setEnabled(true);
     m_buildTypeComboBox->setEnabled(true);

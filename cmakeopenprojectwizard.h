@@ -48,6 +48,7 @@
 #include <QPlainTextEdit>
 #include <QGroupBox>
 #include <QRadioButton>
+#include <QCheckBox>
 
 namespace Utils {
 class FancyLineEdit;
@@ -187,6 +188,7 @@ private:
     CMakeOpenProjectWizard *m_cmakeWizard;
     QPlainTextEdit *m_output;
     QPushButton *m_runCMake;
+    QCheckBox *m_discardCache;
     Utils::QtcProcess *m_cmakeProcess;
     Utils::FancyLineEdit *m_argumentsLineEdit;
     QComboBox *m_generatorComboBox;
