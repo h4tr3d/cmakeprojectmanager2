@@ -46,11 +46,8 @@ CMakeInlineEditorWidget::CMakeInlineEditorWidget(QWidget *parent)
     QVBoxLayout *layout = new QVBoxLayout(this);
     layout->addWidget(d->m_editor);
 
-    Utils::MimeDatabase mdb;
-    const Utils::MimeType cmakeMime = mdb.mimeTypeForName(QLatin1String("CMake"));
-    //TextEditor::SyntaxHighlighter *highlighter = TextEditor::createGenericSyntaxHighlighter(cmakeMime);
-    //d->m_editor->textDocument()->setSyntaxHighlighter(highlighter);
-    //d->m_editor->textDocument()->setCompletionAssistProvider();
+    d->m_editor->textDocument()->setMimeType(QLatin1String("text/x-cmake"));
+    d->m_editor->configureGenericHighlighter();
 }
 
 CMakeInlineEditorWidget::~CMakeInlineEditorWidget()
