@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2014 Digia Plc and/or its subsidiary(-ies).
-** Contact: http://www.qt-project.org/legal
+** Copyright (C) 2015 The Qt Company Ltd.
+** Contact: http://www.qt.io/licensing
 **
 ** This file is part of Qt Creator.
 **
@@ -9,8 +9,8 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and Digia.  For licensing terms and
-** conditions see http://www.qt.io/licensing.  For further information
+** a written agreement between you and The Qt Company.  For licensing terms and
+** conditions see http://www.qt.io/terms-conditions.  For further information
 ** use the contact form at http://www.qt.io/contact-us.
 **
 ** GNU Lesser General Public License Usage
@@ -22,14 +22,15 @@
 ** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
 ** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
-** In addition, as a special exception, Digia gives you certain additional
-** rights.  These rights are described in the Digia Qt LGPL Exception
+** In addition, as a special exception, The Qt Company gives you certain additional
+** rights.  These rights are described in The Qt Company LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ****************************************************************************/
 
 #include "cmakeopenprojectwizard.h"
 #include "cmakeprojectmanager.h"
+#include "cmaketoolmanager.h"
 #include "cmakebuildconfiguration.h"
 #include "cmakebuildinfo.h"
 #include "generatorinfo.h"
@@ -304,9 +305,7 @@ bool NoKitPage::isComplete() const
 
 void NoKitPage::showOptions()
 {
-    Core::ICore::showOptionsDialog(Core::Id(ProjectExplorer::Constants::PROJECTEXPLORER_SETTINGS_CATEGORY),
-                                   Core::Id(ProjectExplorer::Constants::KITS_SETTINGS_PAGE_ID),
-                                   this);
+    Core::ICore::showOptionsDialog(ProjectExplorer::Constants::KITS_SETTINGS_PAGE_ID, this);
 }
 
 InSourceBuildPage::InSourceBuildPage(CMakeOpenProjectWizard *cmakeWizard)
@@ -401,7 +400,13 @@ void ChooseCMakePage::updateErrorText()
 
 void ChooseCMakePage::cmakeExecutableChanged()
 {
-    m_cmakeWizard->cmakeManager()->setCMakeExecutable(m_cmakeExecutable->path());
+    CMakeTool *cmake = CMakeToolManager::defaultCMakeTool();
+    if (!cmake) {
+        Core::Id id = CMakeToolManager::registerOrFindCMakeTool(m_cmakeExecutable->fileName());
+        CMakeToolManager::setDefaultCMakeTool(id);
+    } else {
+        cmake->setCMakeExecutable(m_cmakeExecutable->fileName());
+    }
     updateErrorText();
     emit completeChanged();
 }

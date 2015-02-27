@@ -5,6 +5,7 @@ QTCREATOR_SOURCES = $$(QTC_SOURCE)
 #IDE_BUILD_TREE = $$(QTC_BUILD)
 IDE_BUILD_TREE =
 
+DEFINES += CMAKEPROJECTMANAGER_LIBRARY
 include(cmakeprojectmanager_dependencies.pri)
 include($$QTCREATOR_SOURCES/src/qtcreatorplugin.pri)
 
@@ -28,6 +29,8 @@ HEADERS = cmakebuildinfo.h \
     cmakeparser.h \
     generatorinfo.h \
     cmakesettingspage.h \
+    cmaketoolmanager.h \
+    cmake_global.h \
     cmakeinlineeditordialog.h \
     cmakeparamsext.h
 
@@ -46,6 +49,7 @@ SOURCES = cmakeproject.cpp \
     cmakeparser.cpp \
     generatorinfo.cpp \
     cmakesettingspage.cpp \
+    cmaketoolmanager.cpp \
     cmakeinlineeditordialog.cpp \
     cmakeparamsext.cpp
 

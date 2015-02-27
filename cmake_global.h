@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
+** Copyright (C) 2015 Canonical Ltd.
 ** Contact: http://www.qt.io/licensing
 **
 ** This file is part of Qt Creator.
@@ -27,38 +27,15 @@
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ****************************************************************************/
-#ifndef CMAKEPROJECTMANAGER_INTERNAL_CMAKESETTINGSPAGE_H
-#define CMAKEPROJECTMANAGER_INTERNAL_CMAKESETTINGSPAGE_H
+#ifndef CMAKE_GLOBAL_H
+#define CMAKE_GLOBAL_H
 
-#include <coreplugin/dialogs/ioptionspage.h>
-#include <utils/pathchooser.h>
+#include <QtGlobal>
 
-#include <QPointer>
+#if defined(CMAKEPROJECTMANAGER_LIBRARY)
+#  define CMAKE_EXPORT Q_DECL_EXPORT
+#else
+#  define CMAKE_EXPORT Q_DECL_IMPORT
+#endif
 
-#include "cmaketool.h"
-
-namespace CMakeProjectManager {
-namespace Internal {
-
-class CMakeToolConfigWidget;
-
-class CMakeSettingsPage : public Core::IOptionsPage
-{
-    Q_OBJECT
-
-public:
-    CMakeSettingsPage();
-    ~CMakeSettingsPage();
-
-    QWidget *widget();
-    void apply();
-    void finish();
-
-private:
-    CMakeToolConfigWidget *m_widget;
-};
-
-} // namespace Internal
-} // namespace CMakeProjectManager
-
-#endif // CMAKEPROJECTMANAGER_INTERNAL_CMAKESETTINGSPAGE_H
+#endif // CMAKE_GLOBAL_H

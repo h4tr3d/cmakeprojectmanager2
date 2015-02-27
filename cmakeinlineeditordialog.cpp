@@ -23,8 +23,9 @@
 #include <texteditor/snippets/snippeteditor.h>
 #include <texteditor/texteditorsettings.h>
 
-#include <coreplugin/mimedatabase.h>
 #include <texteditor/highlighterutils.h>
+
+#include <utils/mimetypes/mimedatabase.h>
 
 #include <QVBoxLayout>
 #include <QDialogButtonBox>
@@ -45,9 +46,10 @@ CMakeInlineEditorWidget::CMakeInlineEditorWidget(QWidget *parent)
     QVBoxLayout *layout = new QVBoxLayout(this);
     layout->addWidget(d->m_editor);
 
-    Core::MimeType cmakeMime = Core::MimeDatabase::findByType(QLatin1String("CMake"));
-    TextEditor::SyntaxHighlighter *highlighter = TextEditor::createGenericSyntaxHighlighter(cmakeMime);
-    d->m_editor->textDocument()->setSyntaxHighlighter(highlighter);
+    Utils::MimeDatabase mdb;
+    const Utils::MimeType cmakeMime = mdb.mimeTypeForName(QLatin1String("CMake"));
+    //TextEditor::SyntaxHighlighter *highlighter = TextEditor::createGenericSyntaxHighlighter(cmakeMime);
+    //d->m_editor->textDocument()->setSyntaxHighlighter(highlighter);
     //d->m_editor->textDocument()->setCompletionAssistProvider();
 }
 

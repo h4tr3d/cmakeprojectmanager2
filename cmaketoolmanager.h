@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
+** Copyright (C) 2015 Canonical Ltd.
 ** Contact: http://www.qt.io/licensing
 **
 ** This file is part of Qt Creator.
@@ -27,38 +27,45 @@
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ****************************************************************************/
-#ifndef CMAKEPROJECTMANAGER_INTERNAL_CMAKESETTINGSPAGE_H
-#define CMAKEPROJECTMANAGER_INTERNAL_CMAKESETTINGSPAGE_H
 
-#include <coreplugin/dialogs/ioptionspage.h>
-#include <utils/pathchooser.h>
+#ifndef CMAKEPROJECTMANAGER_CMAKETOOLMANAGER_H
+#define CMAKEPROJECTMANAGER_CMAKETOOLMANAGER_H
 
-#include <QPointer>
-
+#include "cmake_global.h"
 #include "cmaketool.h"
 
+#include <utils/fileutils.h>
+#include <texteditor/codeassist/keywordscompletionassist.h>
+
+#include <QObject>
+
 namespace CMakeProjectManager {
-namespace Internal {
 
-class CMakeToolConfigWidget;
-
-class CMakeSettingsPage : public Core::IOptionsPage
+class CMAKE_EXPORT CMakeToolManager : public QObject
 {
     Q_OBJECT
-
 public:
-    CMakeSettingsPage();
-    ~CMakeSettingsPage();
+    CMakeToolManager(QObject *parent);
+    ~CMakeToolManager();
 
-    QWidget *widget();
-    void apply();
-    void finish();
+    static QList<CMakeTool *> cmakeTools();
+    static void setPreferNinja(bool set);
+    static bool preferNinja();
+
+    static Core::Id registerOrFindCMakeTool(const Utils::FileName &command);
+    static bool registerCMakeTool(CMakeTool *tool);
+    static void deregisterCMakeTool(const Core::Id &id);
+
+    static CMakeTool *defaultCMakeTool();
+    static void setDefaultCMakeTool(const Core::Id &id);
+    static CMakeTool *findByCommand(const Utils::FileName &command);
+    static CMakeTool *findById(const Core::Id &id);
+    static void restoreCMakeTools();
 
 private:
-    CMakeToolConfigWidget *m_widget;
+    static void saveCMakeTools();
 };
 
-} // namespace Internal
 } // namespace CMakeProjectManager
 
-#endif // CMAKEPROJECTMANAGER_INTERNAL_CMAKESETTINGSPAGE_H
+#endif // CMAKEPROJECTMANAGER_CMAKETOOLMANAGER_H

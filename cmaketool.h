@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2014 Digia Plc and/or its subsidiary(-ies).
-** Contact: http://www.qt-project.org/legal
+** Copyright (C) 2015 The Qt Company Ltd.
+** Contact: http://www.qt.io/licensing
 **
 ** This file is part of Qt Creator.
 **
@@ -9,8 +9,8 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and Digia.  For licensing terms and
-** conditions see http://www.qt.io/licensing.  For further information
+** a written agreement between you and The Qt Company.  For licensing terms and
+** conditions see http://www.qt.io/terms-conditions.  For further information
 ** use the contact form at http://www.qt.io/contact-us.
 **
 ** GNU Lesser General Public License Usage
@@ -22,8 +22,8 @@
 ** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
 ** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
-** In addition, as a special exception, Digia gives you certain additional
-** rights.  These rights are described in the Digia Qt LGPL Exception
+** In addition, as a special exception, The Qt Company gives you certain additional
+** rights.  These rights are described in The Qt Company LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ****************************************************************************/
@@ -31,21 +31,31 @@
 #ifndef CMAKEVALIDATOR_H
 #define CMAKEVALIDATOR_H
 
+#include "cmake_global.h"
+
+#include <texteditor/codeassist/keywordscompletionassist.h>
+#include <utils/fileutils.h>
+#include <coreplugin/id.h>
+
 #include <QObject>
 #include <QString>
 #include <QStringList>
-#include <texteditor/codeassist/keywordscompletionassist.h>
 
 QT_FORWARD_DECLARE_CLASS(QProcess)
 
 namespace CMakeProjectManager {
-namespace Internal {
 
-class CMakeTool : public QObject
+class CMAKE_EXPORT CMakeTool : public QObject
 {
     Q_OBJECT
 public:
-    CMakeTool();
+    enum Detection {
+        ManualDetection,
+        AutoDetection
+    };
+
+    explicit CMakeTool(Detection d, const Core::Id &id = Core::Id());
+    explicit CMakeTool(const QVariantMap &map, bool fromSdk);
     ~CMakeTool();
 
     enum State { Invalid, RunningBasic, RunningFunctionList, RunningFunctionDetails,
@@ -53,15 +63,23 @@ public:
     void cancel();
     bool isValid() const;
 
-    void setCMakeExecutable(const QString &executable);
-    QString cmakeExecutable() const;
+    Core::Id id() const { return m_id; }
+    QVariantMap toMap () const;
+
+    void setCMakeExecutable(const Utils::FileName &executable);
+    Utils::FileName cmakeExecutable() const;
     bool hasCodeBlocksMsvcGenerator() const;
     bool hasCodeBlocksNinjaGenerator() const;
     TextEditor::Keywords keywords();
+    bool isAutoDetected() const;
+    QString displayName() const;
+    void setDisplayName(const QString &displayName);
+
 private slots:
     void finished(int exitCode);
 
 private:
+    void createId();
     void finishStep();
     void startNextStep();
     bool startProcess(const QStringList &args);
@@ -73,16 +91,20 @@ private:
 
     State m_state;
     QProcess *m_process;
+    Utils::FileName m_executable;
+
+    bool m_isAutoDetected;
     bool m_hasCodeBlocksMsvcGenerator;
     bool m_hasCodeBlocksNinjaGenerator;
-    QString m_executable;
 
     QMap<QString, QStringList> m_functionArgs;
     QStringList m_variables;
     QStringList m_functions;
+
+    Core::Id m_id;
+    QString m_displayName;
 };
 
-} // namespace Internal
 } // namespace CMakeProjectManager
 
 #endif // CMAKEVALIDATOR_H

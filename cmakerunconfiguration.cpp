@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2014 Digia Plc and/or its subsidiary(-ies).
-** Contact: http://www.qt-project.org/legal
+** Copyright (C) 2015 The Qt Company Ltd.
+** Contact: http://www.qt.io/licensing
 **
 ** This file is part of Qt Creator.
 **
@@ -9,8 +9,8 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and Digia.  For licensing terms and
-** conditions see http://www.qt.io/licensing.  For further information
+** a written agreement between you and The Qt Company.  For licensing terms and
+** conditions see http://www.qt.io/terms-conditions.  For further information
 ** use the contact form at http://www.qt.io/contact-us.
 **
 ** GNU Lesser General Public License Usage
@@ -22,8 +22,8 @@
 ** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
 ** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
-** In addition, as a special exception, Digia gives you certain additional
-** rights.  These rights are described in the Digia Qt LGPL Exception
+** In addition, as a special exception, The Qt Company gives you certain additional
+** rights.  These rights are described in The Qt Company LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ****************************************************************************/
@@ -245,8 +245,7 @@ CMakeRunConfigurationWidget::CMakeRunConfigurationWidget(CMakeRunConfiguration *
     fl->setFieldGrowthPolicy(QFormLayout::ExpandingFieldsGrow);
     QLineEdit *argumentsLineEdit = new QLineEdit();
     argumentsLineEdit->setText(cmakeRunConfiguration->commandLineArguments());
-    connect(argumentsLineEdit, SIGNAL(textChanged(QString)),
-            this, SLOT(setArguments(QString)));
+    connect(argumentsLineEdit, &QLineEdit::textChanged, this, &CMakeRunConfigurationWidget::setArguments);
     fl->addRow(tr("Arguments:"), argumentsLineEdit);
 
     m_workingDirectoryEdit = new Utils::PathChooser();
@@ -257,7 +256,8 @@ CMakeRunConfigurationWidget::CMakeRunConfigurationWidget(CMakeRunConfiguration *
     EnvironmentAspect *aspect
             = m_cmakeRunConfiguration->extraAspect<EnvironmentAspect>();
     if (aspect) {
-        connect(aspect, SIGNAL(environmentChanged()), this, SLOT(environmentWasChanged()));
+        connect(aspect, &EnvironmentAspect::environmentChanged,
+                this, &CMakeRunConfigurationWidget::environmentWasChanged);
         environmentWasChanged();
     }
     m_workingDirectoryEdit->setPromptDialogTitle(tr("Select Working Directory"));
@@ -286,17 +286,17 @@ CMakeRunConfigurationWidget::CMakeRunConfigurationWidget(CMakeRunConfiguration *
     vbx->setMargin(0);
     vbx->addWidget(m_detailsContainer);
 
-    connect(m_workingDirectoryEdit, SIGNAL(changed(QString)),
-            this, SLOT(setWorkingDirectory()));
+    connect(m_workingDirectoryEdit, &Utils::PathChooser::changed,
+            this, &CMakeRunConfigurationWidget::setWorkingDirectory);
 
-    connect(resetButton, SIGNAL(clicked()),
-            this, SLOT(resetWorkingDirectory()));
+    connect(resetButton, &QToolButton::clicked,
+            this, &CMakeRunConfigurationWidget::resetWorkingDirectory);
 
-    connect(runInTerminal, SIGNAL(toggled(bool)),
-            this, SLOT(runInTerminalToggled(bool)));
+    connect(runInTerminal, &QCheckBox::toggled,
+            this, &CMakeRunConfigurationWidget::runInTerminalToggled);
 
-    connect(m_cmakeRunConfiguration, SIGNAL(baseWorkingDirectoryChanged(QString)),
-            this, SLOT(workingDirectoryChanged(QString)));
+    connect(m_cmakeRunConfiguration, &CMakeRunConfiguration::baseWorkingDirectoryChanged,
+            this, &CMakeRunConfigurationWidget::workingDirectoryChanged);
 
     setEnabled(m_cmakeRunConfiguration->isEnabled());
 }

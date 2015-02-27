@@ -3,10 +3,10 @@
     \"Version\" : \"$$QTCREATOR_VERSION\",
     \"CompatVersion\" : \"$$QTCREATOR_COMPAT_VERSION\",
     \"Vendor\" : \"Alexander Drozdov\",
-    \"Copyright\" : \"(C) 2012 Alexander Drozdov\",
+    \"Copyright\" : \"(C) 2015 Alexander Drozdov\",
     \"License\" : [ \"Commercial Usage\",
                   \"\",
-                  \"Licensees holding valid Qt Commercial licenses may use this plugin in accordance with the Qt Commercial License Agreement provided with the Software or, alternatively, in accordance with the terms contained in a written agreement between you and Digia.\",
+                  \"Licensees holding valid Qt Commercial licenses may use this plugin in accordance with the Qt Commercial License Agreement provided with the Software or, alternatively, in accordance with the terms contained in a written agreement between you and The Qt Company.\",
                   \"\",
                   \"GNU Lesser General Public License Usage\",
                   \"\",
@@ -14,6 +14,6 @@
     ],
     \"Category\" : \"Build Systems\",
     \"Description\" : \"Enhanced CMake support.\",
-    \"Url\" : \"https://www.gitorious.org/hatred-qt-creator-plugins/cmakeprojectmanager2\",
+    \"Url\" : \"https://github.com/h4tr3d/cmakeprojectmanager2\",
     $$dependencyList
 }
