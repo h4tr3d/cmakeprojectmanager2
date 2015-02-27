@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2014 Digia Plc and/or its subsidiary(-ies).
-** Contact: http://www.qt-project.org/legal
+** Copyright (C) 2015 The Qt Company Ltd.
+** Contact: http://www.qt.io/licensing
 **
 ** This file is part of Qt Creator.
 **
@@ -9,8 +9,8 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and Digia.  For licensing terms and
-** conditions see http://www.qt.io/licensing.  For further information
+** a written agreement between you and The Qt Company.  For licensing terms and
+** conditions see http://www.qt.io/terms-conditions.  For further information
 ** use the contact form at http://www.qt.io/contact-us.
 **
 ** GNU Lesser General Public License Usage
@@ -22,8 +22,8 @@
 ** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
 ** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 **
-** In addition, as a special exception, Digia gives you certain additional
-** rights.  These rights are described in the Digia Qt LGPL Exception
+** In addition, as a special exception, The Qt Company gives you certain additional
+** rights.  These rights are described in The Qt Company LGPL Exception
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ****************************************************************************/
@@ -32,17 +32,15 @@
 
 #include <coreplugin/dialogs/ioptionspage.h>
 #include <utils/pathchooser.h>
-#include <texteditor/codeassist/keywordscompletionassist.h>
 
 #include <QPointer>
 
 #include "cmaketool.h"
 
-QT_FORWARD_DECLARE_CLASS(QLabel)
-QT_FORWARD_DECLARE_CLASS(QCheckBox)
-
 namespace CMakeProjectManager {
 namespace Internal {
+
+class CMakeToolConfigWidget;
 
 class CMakeSettingsPage : public Core::IOptionsPage
 {
@@ -56,24 +54,8 @@ public:
     void apply();
     void finish();
 
-    QString cmakeExecutable() const;
-    void setCMakeExecutable(const QString &executable);
-    bool isCMakeExecutableValid() const;
-    bool hasCodeBlocksMsvcGenerator() const;
-    bool hasCodeBlocksNinjaGenerator() const;
-    bool preferNinja() const;
-
-    TextEditor::Keywords keywords();
-
 private:
-    void saveSettings() const;
-    QString findCmakeExecutable() const;
-
-    QPointer<QWidget> m_widget;
-    Utils::PathChooser *m_pathchooser;
-    QCheckBox *m_preferNinja;
-    CMakeTool m_cmakeValidatorForUser;
-    CMakeTool m_cmakeValidatorForSystem;
+    CMakeToolConfigWidget *m_widget;
 };
 
 } // namespace Internal
