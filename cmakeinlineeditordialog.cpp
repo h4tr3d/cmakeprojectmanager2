@@ -20,6 +20,7 @@
 
 #include <utils/environment.h>
 #include <utils/hostosinfo.h>
+#include <texteditor/textdocument.h>
 #include <texteditor/snippets/snippeteditor.h>
 #include <texteditor/texteditorsettings.h>
 

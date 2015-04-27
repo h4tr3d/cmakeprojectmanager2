@@ -45,6 +45,7 @@
 #include <projectexplorer/projectexplorer.h>
 #include <projectexplorer/projectexplorerconstants.h>
 #include <QDateTime>
+#include <QAction>
 
 using namespace CMakeProjectManager::Internal;
 
