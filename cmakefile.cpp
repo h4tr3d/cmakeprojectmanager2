@@ -28,33 +28,68 @@
 **
 ****************************************************************************/
 
-#ifndef CMAKEPROJECTCONSTANTS_H
-#define CMAKEPROJECTCONSTANTS_H
+#include "cmakefile.h"
+#include "cmakeproject.h"
+#include "cmakeprojectconstants.h"
+
+#include <utils/fileutils.h>
+
+using namespace Utils;
 
 namespace CMakeProjectManager {
-namespace Constants {
+namespace Internal {
 
-const char PROJECTCONTEXT[] = "CMakeProject.ProjectContext";
-const char CMAKEMIMETYPE[]  = "text/x-cmake";
-const char CMAKEPROJECTMIMETYPE[]  = "text/x-cmake-project";
-const char CMAKE_EDITOR_ID[] = "CMakeProject.CMakeEditor";
-const char CMAKE_EDITOR_DISPLAY_NAME[] = "CMake Editor";
-const char RUNCMAKE[] = "CMakeProject.RunCMake";
-const char RUNCMAKECONTEXTMENU[] = "CMakeProject.RunCMakeContextMenu";
+CMakeFile::CMakeFile(CMakeProject *parent, const FileName &fileName)
+    : Core::IDocument(parent), m_project(parent)
+{
+    setId("Cmake.ProjectFile");
+    setMimeType(QLatin1String(Constants::CMAKEPROJECTMIMETYPE));
+    setFilePath(fileName);
+}
 
-// Project
-const char CMAKEPROJECT_ID[] = "CMakeProjectManager.CMakeProject";
+bool CMakeFile::save(QString *errorString, const QString &fileName, bool autoSave)
+{
+    // Once we have an texteditor open for this file, we probably do
+    // need to implement this, don't we.
+    Q_UNUSED(errorString)
+    Q_UNUSED(fileName)
+    Q_UNUSED(autoSave)
+    return false;
+}
 
-// Buildconfiguration
-const char CMAKE_BC_ID[] = "CMakeProjectManager.CMakeBuildConfiguration";
+QString CMakeFile::defaultPath() const
+{
+    return QString();
+}
 
-// Menu
-const char M_CONTEXT[] = "CMakeEditor.ContextMenu";
+QString CMakeFile::suggestedFileName() const
+{
+    return QString();
+}
 
-// Settings page
-const char CMAKE_SETTINGSPAGE_ID[] = "Z.CMake";
+bool CMakeFile::isModified() const
+{
+    return false;
+}
 
-} // namespace Constants
+bool CMakeFile::isSaveAsAllowed() const
+{
+    return false;
+}
+
+Core::IDocument::ReloadBehavior CMakeFile::reloadBehavior(ChangeTrigger state, ChangeType type) const
+{
+    Q_UNUSED(state)
+    Q_UNUSED(type)
+    return BehaviorSilent;
+}
+
+bool CMakeFile::reload(QString *errorString, ReloadFlag flag, ChangeType type)
+{
+    Q_UNUSED(errorString)
+    Q_UNUSED(flag)
+    Q_UNUSED(type)
+    return true;
+}
+} // namespace Internal
 } // namespace CMakeProjectManager
-
-#endif // CMAKEPROJECTCONSTANTS_H

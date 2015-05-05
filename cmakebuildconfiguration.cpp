@@ -34,6 +34,9 @@
 #include "cmakeopenprojectwizard.h"
 #include "cmakeproject.h"
 #include "cmakeprojectconstants.h"
+#include "cmakebuildsettingswidget.h"
+#include "cmakeprojectmanager.h"
+#include "makestep.h"
 
 #include <coreplugin/documentmanager.h>
 #include <coreplugin/icore.h>
@@ -62,7 +65,7 @@ static FileName shadowBuildDirectory(const FileName &projectFilePath, const Kit 
     if (projectFilePath.isEmpty())
         return FileName();
 
-    const QString projectName = projectFilePath.fileName();
+    const QString projectName = projectFilePath.parentDir().fileName();
     ProjectMacroExpander expander(projectName, k, bcName);
     QDir projectDir = QDir(Project::projectDirectory(projectFilePath).toString());
     QString buildPath = expander.expand(Core::DocumentManager::buildDirectory());
@@ -189,13 +192,14 @@ ProjectExplorer::BuildConfiguration *CMakeBuildConfigurationFactory::create(Proj
 
     CMakeBuildInfo copy(*static_cast<const CMakeBuildInfo *>(info));
     CMakeProject *project = static_cast<CMakeProject *>(parent->project());
+    CMakeManager *manager = static_cast<CMakeManager *>(project->projectManager());
 
     if (copy.buildDirectory.isEmpty()) {
         copy.buildDirectory = shadowBuildDirectory(project->projectFilePath(), parent->kit(),
                                                    copy.displayName);
     }
 
-    CMakeOpenProjectWizard copw(Core::ICore::mainWindow(), project->projectManager(), CMakeOpenProjectWizard::ChangeDirectory, &copy);
+    CMakeOpenProjectWizard copw(Core::ICore::mainWindow(), manager, CMakeOpenProjectWizard::ChangeDirectory, &copy);
     if (copw.exec() != QDialog::Accepted)
         return 0;
 
@@ -275,7 +279,6 @@ CMakeBuildInfo *CMakeBuildConfigurationFactory::createBuildInfo(const ProjectExp
     k->addToEnvironment(info->environment);
     info->useNinja = false;
     info->sourceDirectory = sourceDir;
-    info->supportsShadowBuild = true;
 
     return info;
 }

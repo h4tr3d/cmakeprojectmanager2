@@ -28,33 +28,38 @@
 **
 ****************************************************************************/
 
-#ifndef CMAKEPROJECTCONSTANTS_H
-#define CMAKEPROJECTCONSTANTS_H
+#ifndef CMAKEPROJECTMANAGER_INTERNAL_CMAKEFILE_H
+#define CMAKEPROJECTMANAGER_INTERNAL_CMAKEFILE_H
+
+#include <coreplugin/idocument.h>
 
 namespace CMakeProjectManager {
-namespace Constants {
+class CMakeProject;
 
-const char PROJECTCONTEXT[] = "CMakeProject.ProjectContext";
-const char CMAKEMIMETYPE[]  = "text/x-cmake";
-const char CMAKEPROJECTMIMETYPE[]  = "text/x-cmake-project";
-const char CMAKE_EDITOR_ID[] = "CMakeProject.CMakeEditor";
-const char CMAKE_EDITOR_DISPLAY_NAME[] = "CMake Editor";
-const char RUNCMAKE[] = "CMakeProject.RunCMake";
-const char RUNCMAKECONTEXTMENU[] = "CMakeProject.RunCMakeContextMenu";
+namespace Internal {
 
-// Project
-const char CMAKEPROJECT_ID[] = "CMakeProjectManager.CMakeProject";
+class CMakeFile : public Core::IDocument
+{
+    Q_OBJECT
+public:
+    CMakeFile(CMakeProject *parent, const Utils::FileName &fileName);
 
-// Buildconfiguration
-const char CMAKE_BC_ID[] = "CMakeProjectManager.CMakeBuildConfiguration";
+    bool save(QString *errorString, const QString &fileName, bool autoSave);
 
-// Menu
-const char M_CONTEXT[] = "CMakeEditor.ContextMenu";
+    QString defaultPath() const;
+    QString suggestedFileName() const;
 
-// Settings page
-const char CMAKE_SETTINGSPAGE_ID[] = "Z.CMake";
+    bool isModified() const;
+    bool isSaveAsAllowed() const;
 
-} // namespace Constants
+    ReloadBehavior reloadBehavior(ChangeTrigger state, ChangeType type) const;
+    bool reload(QString *errorString, ReloadFlag flag, ChangeType type);
+
+private:
+    CMakeProject *m_project;
+};
+
+} // namespace Internal
 } // namespace CMakeProjectManager
 
-#endif // CMAKEPROJECTCONSTANTS_H
+#endif // CMAKEPROJECTMANAGER_INTERNAL_CMAKEFILE_H

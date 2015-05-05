@@ -4,7 +4,6 @@ QtcPlugin {
     name: "CMakeProjectManager"
 
     Depends { name: "Qt.widgets" }
-    Depends { name: "Aggregation" }
     Depends { name: "Utils" }
 
     Depends { name: "Core" }
@@ -22,10 +21,20 @@ QtcPlugin {
         "cmakebuildconfiguration.cpp",
         "cmakebuildconfiguration.h",
         "cmakebuildinfo.h",
+        "cmakebuildsettingswidget.cpp",
+        "cmakebuildsettingswidget.h",
+        "cmakecbpparser.cpp",
+        "cmakecbpparser.h",
         "cmakeeditor.cpp",
         "cmakeeditor.h",
+        "cmakefile.cpp",
+        "cmakefile.h",
         "cmakefilecompletionassist.cpp",
         "cmakefilecompletionassist.h",
+        "cmakekitconfigwidget.h",
+        "cmakekitconfigwidget.cpp",
+        "cmakekitinformation.h",
+        "cmakekitinformation.cpp",
         "cmakelocatorfilter.cpp",
         "cmakelocatorfilter.h",
         "cmakeopenprojectwizard.cpp",

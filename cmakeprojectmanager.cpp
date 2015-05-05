@@ -35,15 +35,17 @@
 #include "cmakesettingspage.h"
 #include "cmaketoolmanager.h"
 
-#include <utils/synchronousprocess.h>
-
 #include <coreplugin/icore.h>
 #include <coreplugin/actionmanager/actionmanager.h>
 #include <coreplugin/actionmanager/command.h>
 #include <coreplugin/actionmanager/actioncontainer.h>
-#include <projectexplorer/projecttree.h>
 #include <projectexplorer/projectexplorer.h>
 #include <projectexplorer/projectexplorerconstants.h>
+#include <projectexplorer/projecttree.h>
+
+#include <utils/synchronousprocess.h>
+
+#include <QAction>
 #include <QDateTime>
 
 using namespace CMakeProjectManager::Internal;
@@ -128,38 +130,6 @@ QString CMakeManager::mimeType() const
     return QLatin1String(Constants::CMAKEPROJECTMIMETYPE);
 }
 
-QString CMakeManager::cmakeExecutable() const
-{
-    CMakeTool *cmake = CMakeToolManager::defaultCMakeTool();
-    if (cmake)
-        return cmake->cmakeExecutable().toString();
-    return QString();
-}
-
-bool CMakeManager::isCMakeExecutableValid() const
-{
-    CMakeTool *cmake = CMakeToolManager::defaultCMakeTool();
-    if (cmake)
-        return cmake->isValid();
-    return false;
-}
-
-bool CMakeManager::hasCodeBlocksMsvcGenerator() const
-{
-    CMakeTool *cmake = CMakeToolManager::defaultCMakeTool();
-    if (cmake)
-        return cmake->hasCodeBlocksMsvcGenerator();
-    return false;
-}
-
-bool CMakeManager::hasCodeBlocksNinjaGenerator() const
-{
-    CMakeTool *cmake = CMakeToolManager::defaultCMakeTool();
-    if (cmake)
-        return cmake->hasCodeBlocksNinjaGenerator();
-    return false;
-}
-
 bool CMakeManager::preferNinja() const
 {
     return CMakeToolManager::preferNinja();
@@ -169,7 +139,7 @@ bool CMakeManager::preferNinja() const
 // we probably want the process instead of this function
 // cmakeproject then could even run the cmake process in the background, adding the files afterwards
 // sounds like a plan
-void CMakeManager::createXmlFile(Utils::QtcProcess *proc, const QString &arguments,
+void CMakeManager::createXmlFile(Utils::QtcProcess *proc, const QString &executable, const QString &arguments,
                                  const QString &sourceDirectory, const QDir &buildDirectory,
                                  const Utils::Environment &env, const QString &generator)
 {
@@ -184,7 +154,7 @@ void CMakeManager::createXmlFile(Utils::QtcProcess *proc, const QString &argumen
     Utils::QtcProcess::addArg(&args, srcdir);
     Utils::QtcProcess::addArgs(&args, arguments);
     Utils::QtcProcess::addArg(&args, generator);
-    proc->setCommand(cmakeExecutable(), args);
+    proc->setCommand(executable, args);
     proc->start();
 }
 
