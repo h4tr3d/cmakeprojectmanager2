@@ -32,7 +32,12 @@ HEADERS = cmakebuildinfo.h \
     cmaketoolmanager.h \
     cmake_global.h \
     cmakeinlineeditordialog.h \
-    cmakeparamsext.h
+    cmakeparamsext.h \
+    cmakekitinformation.h \
+    cmakekitconfigwidget.h \
+    cmakecbpparser.h \
+    cmakefile.h \
+    cmakebuildsettingswidget.h
 
 SOURCES = cmakeproject.cpp \
     cmakeprojectplugin.cpp \
@@ -51,7 +56,12 @@ SOURCES = cmakeproject.cpp \
     cmakesettingspage.cpp \
     cmaketoolmanager.cpp \
     cmakeinlineeditordialog.cpp \
-    cmakeparamsext.cpp
+    cmakeparamsext.cpp \
+    cmakekitinformation.cpp \
+    cmakekitconfigwidget.cpp \
+    cmakecbpparser.cpp \
+    cmakefile.cpp \
+    cmakebuildsettingswidget.cpp
 
 
 RESOURCES += cmakeproject.qrc

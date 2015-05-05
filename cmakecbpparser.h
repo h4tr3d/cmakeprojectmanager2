@@ -28,58 +28,65 @@
 **
 ****************************************************************************/
 
-#ifndef CMAKEPROJECTMANAGER_H
-#define CMAKEPROJECTMANAGER_H
+#ifndef CMAKEPROJECTMANAGER_INTERNAL_CMAKECBPPARSER_H
+#define CMAKEPROJECTMANAGER_INTERNAL_CMAKECBPPARSER_H
 
-#include <projectexplorer/iprojectmanager.h>
+#include "cmakeproject.h"
 
-QT_BEGIN_NAMESPACE
-class QAction;
-class QDir;
-QT_END_NAMESPACE
+#include <QXmlStreamReader>
 
-namespace ProjectExplorer { class Node; }
-namespace Utils {
-class Environment;
-class QtcProcess;
+
+namespace ProjectExplorer {
+class FileNode;
+class Kit;
 }
 
 namespace CMakeProjectManager {
 namespace Internal {
 
-class CMakeSettingsPage;
-
-class CMakeManager : public ProjectExplorer::IProjectManager
+class CMakeCbpParser : public QXmlStreamReader
 {
-    Q_OBJECT
 public:
-    CMakeManager();
-
-    virtual ProjectExplorer::Project *openProject(const QString &fileName, QString *errorString);
-    virtual QString mimeType() const;
-
-    void createXmlFile(Utils::QtcProcess *process,
-                       const QString &executable,
-                       const QString &arguments,
-                       const QString &sourceDirectory,
-                       const QDir &buildDirectory,
-                       const Utils::Environment &env,
-                       const QString &generator);
-    bool preferNinja() const;
-    static QString findCbpFile(const QDir &);
+    bool parseCbpFile(ProjectExplorer::Kit *kit, const QString &fileName, const QString &sourceDirectory);
+    QList<ProjectExplorer::FileNode *> fileList();
+    QList<ProjectExplorer::FileNode *> cmakeFileList();
+    QList<CMakeBuildTarget> buildTargets();
+    QString projectName() const;
+    QString compilerName() const;
+    bool hasCMakeFiles();
 
 private:
-    void updateContextMenu(ProjectExplorer::Project *project, ProjectExplorer::Node *node);
-    void runCMake(ProjectExplorer::Project *project);
+    void parseCodeBlocks_project_file();
+    void parseProject();
+    void parseBuild();
+    void parseOption();
+    void parseBuildTarget();
+    void parseBuildTargetOption();
+    void parseMakeCommands();
+    void parseBuildTargetBuild();
+    void parseBuildTargetClean();
+    void parseCompiler();
+    void parseAdd();
+    void parseUnit();
+    void parseUnitOption();
+    void parseUnknownElement();
+    void sortFiles();
 
-private:
-    CMakeSettingsPage *m_settingsPage;
-    QAction *m_runCMakeAction;
-    QAction *m_runCMakeActionContextMenu;
-    ProjectExplorer::Project *m_contextProject;
+    ProjectExplorer::Kit *m_kit;
+    QList<ProjectExplorer::FileNode *> m_fileList;
+    QList<ProjectExplorer::FileNode *> m_cmakeFileList;
+    QSet<Utils::FileName> m_processedUnits;
+    bool m_parsingCmakeUnit;
+
+    CMakeBuildTarget m_buildTarget;
+    QList<CMakeBuildTarget> m_buildTargets;
+    QString m_projectName;
+    QString m_compiler;
+    QString m_sourceDirectory;
+    QString m_buildDirectory;
 };
 
 } // namespace Internal
 } // namespace CMakeProjectManager
 
-#endif // CMAKEPROJECTMANAGER_H
+#endif // CMAKEPROJECTMANAGER_INTERNAL_CMAKECBPPARSER_H

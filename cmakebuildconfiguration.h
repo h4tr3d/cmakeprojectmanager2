@@ -40,9 +40,9 @@ namespace ProjectExplorer { class ToolChain; }
 
 namespace CMakeProjectManager {
 class CMakeBuildInfo;
+class CMakeProject;
 
 namespace Internal {
-class CMakeProject;
 
 class CMakeBuildConfigurationFactory;
 
@@ -84,7 +84,7 @@ private:
     bool m_useNinja;
     CMakeParamsExt m_cmakeParamsExt;
 
-    friend class CMakeProject;
+    friend class CMakeProjectManager::CMakeProject;
 };
 
 class CMakeBuildConfigurationFactory : public ProjectExplorer::IBuildConfigurationFactory

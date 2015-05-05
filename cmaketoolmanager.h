@@ -36,6 +36,7 @@
 
 #include <utils/fileutils.h>
 #include <texteditor/codeassist/keywordscompletionassist.h>
+#include <functional>
 
 #include <QObject>
 
@@ -45,8 +46,12 @@ class CMAKE_EXPORT CMakeToolManager : public QObject
 {
     Q_OBJECT
 public:
+    typedef std::function<QList<CMakeTool *> ()> AutodetectionHelper;
+
     CMakeToolManager(QObject *parent);
     ~CMakeToolManager();
+
+    static CMakeToolManager *instance();
 
     static QList<CMakeTool *> cmakeTools();
     static void setPreferNinja(bool set);
@@ -60,10 +65,23 @@ public:
     static void setDefaultCMakeTool(const Core::Id &id);
     static CMakeTool *findByCommand(const Utils::FileName &command);
     static CMakeTool *findById(const Core::Id &id);
+    static void registerAutodetectionHelper(AutodetectionHelper helper);
+
+    static void notifyAboutUpdate(CMakeTool *);
     static void restoreCMakeTools();
+
+signals:
+    void cmakeAdded (const Core::Id &id);
+    void cmakeRemoved (const Core::Id &id);
+    void cmakeUpdated (const Core::Id &id);
+    void cmakeToolsChanged ();
+    void cmakeToolsLoaded ();
+    void defaultCMakeChanged ();
 
 private:
     static void saveCMakeTools();
+
+    static CMakeToolManager *m_instance;
 };
 
 } // namespace CMakeProjectManager

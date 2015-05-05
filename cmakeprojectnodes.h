@@ -35,9 +35,9 @@
 #include "cmakeproject.h"
 
 namespace CMakeProjectManager {
-namespace Internal {
-
 class CMakeProject;
+
+namespace Internal {
 
 class CMakeProjectNode : public ProjectExplorer::ProjectNode
 {

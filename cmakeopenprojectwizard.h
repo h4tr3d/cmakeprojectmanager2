@@ -116,7 +116,8 @@ class NoKitPage : public QWizardPage
     Q_OBJECT
 public:
     NoKitPage(CMakeOpenProjectWizard *cmakeWizard);
-    bool isComplete() const;
+    bool isComplete() const Q_DECL_OVERRIDE;
+    void initializePage() Q_DECL_OVERRIDE;
 private slots:
     void kitsChanged();
     void showOptions();
@@ -147,20 +148,18 @@ private:
     Utils::PathChooser *m_pc;
 };
 
-class ChooseCMakePage : public QWizardPage
+class NoCMakePage : public QWizardPage
 {
     Q_OBJECT
 public:
-    ChooseCMakePage(CMakeOpenProjectWizard *cmakeWizard);
-
-    virtual bool isComplete() const;
-public slots:
-    void cmakeExecutableChanged();
+    NoCMakePage(CMakeOpenProjectWizard *cmakeWizard);
+    bool isComplete() const;
+private slots:
+    void cmakeToolsChanged();
+    void showOptions();
 private:
-    void updateErrorText();
-    QLabel *m_cmakeLabel;
-    CMakeOpenProjectWizard *m_cmakeWizard;
-    Utils::PathChooser *m_cmakeExecutable;
+    QLabel *m_descriptionLabel;
+    QPushButton *m_optionsButton;
 };
 
 class CMakeRunPage : public QWizardPage

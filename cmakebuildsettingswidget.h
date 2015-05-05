@@ -28,33 +28,35 @@
 **
 ****************************************************************************/
 
-#ifndef CMAKEPROJECTCONSTANTS_H
-#define CMAKEPROJECTCONSTANTS_H
+#ifndef CMAKEPROJECTMANAGER_INTERNAL_CMAKEBUILDSETTINGSWIDGET_H
+#define CMAKEPROJECTMANAGER_INTERNAL_CMAKEBUILDSETTINGSWIDGET_H
+
+#include <projectexplorer/namedwidget.h>
+
+QT_FORWARD_DECLARE_CLASS(QLineEdit)
+QT_FORWARD_DECLARE_CLASS(QPushButton)
 
 namespace CMakeProjectManager {
-namespace Constants {
+namespace Internal {
 
-const char PROJECTCONTEXT[] = "CMakeProject.ProjectContext";
-const char CMAKEMIMETYPE[]  = "text/x-cmake";
-const char CMAKEPROJECTMIMETYPE[]  = "text/x-cmake-project";
-const char CMAKE_EDITOR_ID[] = "CMakeProject.CMakeEditor";
-const char CMAKE_EDITOR_DISPLAY_NAME[] = "CMake Editor";
-const char RUNCMAKE[] = "CMakeProject.RunCMake";
-const char RUNCMAKECONTEXTMENU[] = "CMakeProject.RunCMakeContextMenu";
+class CMakeBuildConfiguration;
 
-// Project
-const char CMAKEPROJECT_ID[] = "CMakeProjectManager.CMakeProject";
+class CMakeBuildSettingsWidget : public ProjectExplorer::NamedWidget
+{
+    Q_OBJECT
+public:
+    CMakeBuildSettingsWidget(CMakeBuildConfiguration *bc);
 
-// Buildconfiguration
-const char CMAKE_BC_ID[] = "CMakeProjectManager.CMakeBuildConfiguration";
+private slots:
+    void openChangeBuildDirectoryDialog();
+    void runCMake();
+private:
+    QLineEdit *m_pathLineEdit;
+    QPushButton *m_changeButton;
+    CMakeBuildConfiguration *m_buildConfiguration;
+};
 
-// Menu
-const char M_CONTEXT[] = "CMakeEditor.ContextMenu";
-
-// Settings page
-const char CMAKE_SETTINGSPAGE_ID[] = "Z.CMake";
-
-} // namespace Constants
+} // namespace Internal
 } // namespace CMakeProjectManager
 
-#endif // CMAKEPROJECTCONSTANTS_H
+#endif // CMAKEPROJECTMANAGER_INTERNAL_CMAKEBUILDSETTINGSWIDGET_H

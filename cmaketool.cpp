@@ -29,6 +29,7 @@
 ****************************************************************************/
 
 #include "cmaketool.h"
+#include "cmaketoolmanager.h"
 
 #include <utils/qtcassert.h>
 
@@ -84,6 +85,10 @@ void CMakeTool::cancel()
 {
     if (m_process) {
         disconnect(m_process, SIGNAL(finished(int)));
+
+        if (m_process->state() != QProcess::NotRunning)
+            m_process->kill();
+
         m_process->waitForFinished();
         delete m_process;
         m_process = 0;
@@ -106,6 +111,8 @@ void CMakeTool::setCMakeExecutable(const Utils::FileName &executable)
     } else {
         m_state = CMakeTool::Invalid;
     }
+
+    CMakeToolManager::notifyAboutUpdate(this);
 }
 
 void CMakeTool::finished(int exitCode)
@@ -274,8 +281,20 @@ QString CMakeTool::displayName() const
 void CMakeTool::setDisplayName(const QString &displayName)
 {
     m_displayName = displayName;
+    CMakeToolManager::notifyAboutUpdate(this);
 }
 
+void CMakeTool::setPathMapper(const CMakeTool::PathMapper &pathMapper)
+{
+    m_pathMapper = pathMapper;
+}
+
+QString CMakeTool::mapAllPaths(ProjectExplorer::Kit *kit, const QString &in) const
+{
+    if (m_pathMapper)
+        return m_pathMapper(kit, in);
+    return in;
+}
 
 void CMakeTool::parseFunctionDetailsOutput(const QByteArray &output)
 {

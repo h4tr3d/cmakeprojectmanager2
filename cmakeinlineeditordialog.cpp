@@ -22,6 +22,7 @@
 #include <utils/hostosinfo.h>
 #include <texteditor/snippets/snippeteditor.h>
 #include <texteditor/texteditorsettings.h>
+#include <texteditor/textdocument.h>
 
 #include <texteditor/highlighterutils.h>
 
