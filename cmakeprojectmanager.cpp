@@ -47,6 +47,7 @@
 
 #include <QAction>
 #include <QDateTime>
+#include <QAction>
 
 using namespace CMakeProjectManager::Internal;
 
