@@ -61,7 +61,6 @@ public:
 
     QString executable() const;
     ProjectExplorer::ApplicationLauncher::Mode runMode() const;
-    void setRunMode(ProjectExplorer::ApplicationLauncher::Mode runMode);
     QString workingDirectory() const;
     QString commandLineArguments() const;
     QWidget *createConfigurationWidget();
@@ -91,7 +90,6 @@ private:
     QString baseWorkingDirectory() const;
     void ctor();
 
-    ProjectExplorer::ApplicationLauncher::Mode m_runMode;
     QString m_buildTarget;
     QString m_workingDirectory;
     QString m_userWorkingDirectory;
@@ -108,7 +106,6 @@ public:
 private slots:
     void setWorkingDirectory();
     void resetWorkingDirectory();
-    void runInTerminalToggled(bool toggled);
     void environmentWasChanged();
 
     void workingDirectoryChanged(const QString &workingDirectory);
