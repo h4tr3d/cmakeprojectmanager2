@@ -29,30 +29,30 @@ to support other stable versions. But I create branches according to QtC one but
  
 For example, all actions runs in directory `/tmp/qt-creator`
 
-   - Take full Qt Creator source tree from Git:<br />
-     ```bash 
-     git clone git://gitorious.org/qt-creator/qt-creator.git qt-creator
-     ```
-   - Create Qt Crator build tree:<br />
-     ```bash
-     mkdir qt-creator-build
-     cd qt-creator-build
-     ```
-   - Create shadow build (I use Git-version of Qt for building, but you can use Qt from official site: simple change path to `qmake`):<br />
-     ```bash
-     /opt/qt-git/bin/qmake /tmp/qt-creator/qt-creator/qtcreator.pro
-     ```
+   - Take full Qt Creator source tree from Git:
+   ```bash 
+   git clone git://gitorious.org/qt-creator/qt-creator.git qt-creator
+   ```
+   - Create Qt Crator build tree:
+   ```bash
+   mkdir qt-creator-build
+   cd qt-creator-build
+   ```
+   - Create shadow build (I use Git-version of Qt for building, but you can use Qt from official site: simple change path to `qmake`):
+   ```bash
+   /opt/qt-git/bin/qmake /tmp/qt-creator/qt-creator/qtcreator.pro
+   ```
     - *TODO: check, possible unneeded*. Don't start full build, but generating some files is requred (like ide_version.h):
-      - For Qt5 based builds (this call fails but needed files it generate):<br />
-        ```bash
-        make sub-src-clean
-        ```
-      - For Qt4 based builds:<br />
-        ```bash
-        make src/Makefile
-        make -C src plugins/Makefile
-        make -C src/plugins coreplugin/Makefile
-        ```
+      - For Qt5 based builds (this call fails but needed files it generate):
+      ```bash
+      make sub-src-clean
+      ```
+      - For Qt4 based builds:
+      ```bash
+      make src/Makefile
+      make -C src plugins/Makefile
+      make -C src/plugins coreplugin/Makefile
+      ```
 
 Ok, Qt Creator source and build tree is prepared. Note, I think, that GIT version of Qt Creator already installed, for example to /opt/qtcreator-git
 
@@ -61,52 +61,52 @@ Ok, Qt Creator source and build tree is prepared. Note, I think, that GIT versio
 - Take sources of CMakeProjectManager2 from repository
 - Export two variables
   * **QTC_SOURCE** - point to Qt Creator source tree (in out case: `/tmp/qt-creator/qt-cretor`)
-  * **QTC_BUILD**  - point to Qt Creator build tree (or installed files, like `/opt/qtcreator-git`)<br />
+  * **QTC_BUILD**  - point to Qt Creator build tree (or installed files, like `/opt/qtcreator-git`)
   ```bash
   export QTC_SOURCE=/tmp/qt-creator/qt-creator
   export QTC_BUILD=/opt/qtcreator-git
   ```
-- Create directory for shadow build:<br />
-  ```bash
-  mkdir cmakeprojectmanager2-build
-  cd cmakeprojectmanager2-build
-  ```
-- Configure plugin:<br />
-  ```bash
-  /opt/qt-git/bin/qmake QTC_PREFIX=/opt/qtcreator-git
-                        LIBS+=-L${QTC_BUILD}/lib/qtcreator \
-                        LIBS+=-L${QTC_BUILD}/lib/qtcreator/plugins \
-                        ../cmakeprojectmanager2-git/cmakeprojectmanager.pro
-  ```
+- Create directory for shadow build:
+```bash
+mkdir cmakeprojectmanager2-build
+cd cmakeprojectmanager2-build
+```
+- Configure plugin:
+```bash
+/opt/qt-git/bin/qmake QTC_PREFIX=/opt/qtcreator-git
+                      LIBS+=-L${QTC_BUILD}/lib/qtcreator \
+                      LIBS+=-L${QTC_BUILD}/lib/qtcreator/plugins \
+                      ../cmakeprojectmanager2-git/cmakeprojectmanager.pro
+```
   LIBS need for linker. QTC_PREFIX by default is `/usr/local`.
-- Build:<br />
-  ```bash
-   make -j8
-   ```
+- Build:
+```bash
+ make -j8
+ ```
 - Install
-  - to QTC_PREFIX:<br />
-    ```bash
-    sudo make install
-    ```
-  - for packagers:<br />
-    ```bash
-    make INSTALL_ROOT=/tmp/plugin install
-    ```
+  - to QTC_PREFIX:
+  ```bash
+  sudo make install
+  ```
+  - for packagers:
+  ```bash
+  make INSTALL_ROOT=/tmp/plugin install
+  ```
 
 Restart Qt Creator, go to Help -> About plugins and turn off default CMakeProjectManager plugin.
 
 ### Build plugin from Qt Creator
 - Open `cmakeprojectmanager.pro`, go to Projects layout (see left panel)
-- Look to Build Steps section and add next params for qmake:<br />
-  ```bash
-  LIBS+=-L${QTC_BUILD}/lib/qtcreator
-  LIBS+=-L${QTC_BUILD}/lib/qtcreator/plugins
-  ```
-- Look to Build Environment and define next variables:<br />
-  ```bash
-  QTC_SOURCE=/tmp/qt-creator/qt-creator
-  QTC_BUILD=/opt/qtcreator-git
-  ```
+- Look to Build Steps section and add next params for qmake:
+```bash
+LIBS+=-L${QTC_BUILD}/lib/qtcreator
+LIBS+=-L${QTC_BUILD}/lib/qtcreator/plugins
+```
+- Look to Build Environment and define next variables:
+```bash
+QTC_SOURCE=/tmp/qt-creator/qt-creator
+QTC_BUILD=/opt/qtcreator-git
+```
 
 Now you can build plugin from Qt Creator.
 
