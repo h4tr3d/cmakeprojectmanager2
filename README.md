@@ -29,30 +29,30 @@ to support other stable versions. But I create branches according to QtC one but
  
 For example, all actions runs in directory `/tmp/qt-creator`
 
-   - Take full Qt Creator source tree from Git:
-   ```bash 
-   git clone git://gitorious.org/qt-creator/qt-creator.git qt-creator
-   ```
-   - Create Qt Crator build tree:
-   ```bash
-   mkdir qt-creator-build
-   cd qt-creator-build
-   ```
-   - Create shadow build (I use Git-version of Qt for building, but you can use Qt from official site: simple change path to `qmake`):
-   ```bash
-   /opt/qt-git/bin/qmake /tmp/qt-creator/qt-creator/qtcreator.pro
-   ```
-    - *TODO: check, possible unneeded*. Don't start full build, but generating some files is requred (like ide_version.h):
-      - For Qt5 based builds (this call fails but needed files it generate):
-      ```bash
-      make sub-src-clean
-      ```
-      - For Qt4 based builds:
-      ```bash
-      make src/Makefile
-      make -C src plugins/Makefile
-      make -C src/plugins coreplugin/Makefile
-      ```
+- Take full Qt Creator source tree from Git:
+```bash 
+git clone git://gitorious.org/qt-creator/qt-creator.git qt-creator
+```
+- Create Qt Crator build tree:
+```bash
+mkdir qt-creator-build
+cd qt-creator-build
+```
+- Create shadow build (I use Git-version of Qt for building, but you can use Qt from official site: simple change path to `qmake`):
+```bash
+/opt/qt-git/bin/qmake /tmp/qt-creator/qt-creator/qtcreator.pro
+```
+- *TODO: check, possible unneeded*. Don't start full build, but generating some files is requred (like ide_version.h):
+  - For Qt5 based builds (this call fails but needed files it generate):
+  ```bash
+  make sub-src-clean
+  ```
+  - For Qt4 based builds:
+  ```bash
+  make src/Makefile
+  make -C src plugins/Makefile
+  make -C src/plugins coreplugin/Makefile
+  ```
 
 Ok, Qt Creator source and build tree is prepared. Note, I think, that GIT version of Qt Creator already installed, for example to /opt/qtcreator-git
 
