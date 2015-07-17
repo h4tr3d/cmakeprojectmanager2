@@ -19,21 +19,6 @@ Main differents from original CMakeProject plugin:
   * Set-up used toolchain: via file or inline (stored in user project data)
   * Reset CMake cache before run
 
-
-TODO
-----
-
-Currently functional is good for me, but I have some ideas for future:
-
-* Big idea: remove .cbp parsing and parse CMakeLists.txt directly (far far far future :-)
-* Display sources and other files per targets (like KDevelop4)
-* On adding new files add its to specified targets. Similar behaviour on deleting or renaming
-  files.
-* Compose toolchain using Kit
-
-So, If anybody implements this feathures it will be very good :-)
-
-
 Build plugin
 ------------
 
@@ -44,25 +29,25 @@ to support other stable versions. But I create branches according to QtC one but
  
 For example, all actions runs in directory `/tmp/qt-creator`
 
-   - Take full Qt Creator source tree from GIT:
+   - Take full Qt Creator source tree from Git:<br />
      ```bash 
      git clone git://gitorious.org/qt-creator/qt-creator.git qt-creator
      ```
-   - Create Qt Crator build tree:
+   - Create Qt Crator build tree:<br />
      ```bash
      mkdir qt-creator-build
      cd qt-creator-build
      ```
-   - Create shadow build (I use Git-version of Qt for building, but you can use Qt from official site: simple change path to `qmake`):
+   - Create shadow build (I use Git-version of Qt for building, but you can use Qt from official site: simple change path to `qmake`):<br />
      ```bash
      /opt/qt-git/bin/qmake /tmp/qt-creator/qt-creator/qtcreator.pro
      ```
     - *TODO: check, possible unneeded*. Don't start full build, but generating some files is requred (like ide_version.h):
-      - For Qt5 based builds (this call fails but needed files it generate):
+      - For Qt5 based builds (this call fails but needed files it generate):<br />
         ```bash
         make sub-src-clean
         ```
-      - For Qt4 based builds:
+      - For Qt4 based builds:<br />
         ```bash
         make src/Makefile
         make -C src plugins/Makefile
@@ -76,17 +61,17 @@ Ok, Qt Creator source and build tree is prepared. Note, I think, that GIT versio
 - Take sources of CMakeProjectManager2 from repository
 - Export two variables
   * **QTC_SOURCE** - point to Qt Creator source tree (in out case: `/tmp/qt-creator/qt-cretor`)
-  * **QTC_BUILD**  - point to Qt Creator build tree (or installed files, like `/opt/qtcreator-git`)
-    ```bash
-    export QTC_SOURCE=/tmp/qt-creator/qt-creator
-    export QTC_BUILD=/opt/qtcreator-git
-    ```
-- Create directory for shadow build:
+  * **QTC_BUILD**  - point to Qt Creator build tree (or installed files, like `/opt/qtcreator-git`)<br />
+  ```bash
+  export QTC_SOURCE=/tmp/qt-creator/qt-creator
+  export QTC_BUILD=/opt/qtcreator-git
+  ```
+- Create directory for shadow build:<br />
   ```bash
   mkdir cmakeprojectmanager2-build
   cd cmakeprojectmanager2-build
   ```
-- Configure plugin:
+- Configure plugin:<br />
   ```bash
   /opt/qt-git/bin/qmake QTC_PREFIX=/opt/qtcreator-git
                         LIBS+=-L${QTC_BUILD}/lib/qtcreator \
@@ -94,16 +79,16 @@ Ok, Qt Creator source and build tree is prepared. Note, I think, that GIT versio
                         ../cmakeprojectmanager2-git/cmakeprojectmanager.pro
   ```
   LIBS need for linker. QTC_PREFIX by default is `/usr/local`.
-- Build:
+- Build:<br />
   ```bash
    make -j8
    ```
 - Install
-  - to QTC_PREFIX:
+  - to QTC_PREFIX:<br />
     ```bash
     sudo make install
     ```
-  - for packagers:
+  - for packagers:<br />
     ```bash
     make INSTALL_ROOT=/tmp/plugin install
     ```
@@ -112,12 +97,12 @@ Restart Qt Creator, go to Help -> About plugins and turn off default CMakeProjec
 
 ### Build plugin from Qt Creator
 - Open `cmakeprojectmanager.pro`, go to Projects layout (see left panel)
-- Look to Build Steps section and add next params for qmake:
+- Look to Build Steps section and add next params for qmake:<br />
   ```bash
   LIBS+=-L${QTC_BUILD}/lib/qtcreator
   LIBS+=-L${QTC_BUILD}/lib/qtcreator/plugins
   ```
-- Look to Build Environment and define next variables:
+- Look to Build Environment and define next variables:<br />
   ```bash
   QTC_SOURCE=/tmp/qt-creator/qt-creator
   QTC_BUILD=/opt/qtcreator-git
@@ -125,10 +110,10 @@ Restart Qt Creator, go to Help -> About plugins and turn off default CMakeProjec
 
 Now you can build plugin from Qt Creator.
 
-Prebuild binaries
+Prebuilt binaries
 -----------------
 
-Now Ubuntu 14.04 / Mint 17.x PPA with master-git Qt Creator and CMakePrjectManager2 plugin:
+Now Ubuntu 14.04 / Mint 17.x PPA with master-git Qt Creator and CMakePrjectManager2 plugin:<br />
 https://launchpad.net/~adrozdoff/+archive/ubuntu/qtcreator-git
 
 This repo depdens on next Qt repository: **ppa:beineri/opt-qt55-trusty**
@@ -140,5 +125,21 @@ sudo apt-add-repository ppa:adrozdoff/qtcreator-git
 sudo apt-get update
 sudo apt-get install qtcreator-git qtcreator-git-plugin-cmake2
 ```
+
+TODO & Roadmap
+--------------
+
+No roadmap. Only needed features implemets.
+
+Next great ideas dropped as unimplementable in near and far future:
+* Big idea: remove .cbp parsing and parse CMakeLists.txt directly (far far far future :-)
+* Display sources and other files per targets (like KDevelop4)
+* On adding new files add its to specified targets. Similar behaviour on deleting or renaming
+  files.
+
+Next TODOs marked as low-priority
+* Compose toolchain using Kit
+
+Only one work doing regulary: sync codebase with QtC Master branch.
 
 Enjoy!
