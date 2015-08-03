@@ -2,8 +2,7 @@
 QTCREATOR_SOURCES = $$(QTC_SOURCE)
 
 ## set the QTC_BUILD environment variable to override the setting here
-#IDE_BUILD_TREE = $$(QTC_BUILD)
-IDE_BUILD_TREE =
+IDE_BUILD_TREE = $$(QTC_BUILD)
 
 DEFINES += CMAKEPROJECTMANAGER_LIBRARY
 include(cmakeprojectmanager_dependencies.pri)
