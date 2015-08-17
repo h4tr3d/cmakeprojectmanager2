@@ -61,7 +61,13 @@ Ok, Qt Creator source and build tree is prepared. Note, I think, that GIT versio
 - Take sources of CMakeProjectManager2 from repository
 - Export two variables
   * **QTC_SOURCE** - point to Qt Creator source tree (in out case: `/tmp/qt-creator/qt-cretor`)
-  * **QTC_BUILD**  - point to Qt Creator build tree (or installed files, like `/opt/qtcreator-git`)
+  * **QTC_BUILD**  - point to Qt Creator build tree (or installed files, like `/opt/qtcreator-git`). Use this variable only in case, when you want
+                     to put compiled files directly to the QtC tree. It fails, if QtC owned by other user but run build with sudo is a very very
+                     bad idea.
+  * **QTC_BUILD_INPLACE** - undefined by default. In most cases must be same to the **QTC_BUILD**. If defined, this location will be used as output
+                            location for compiled plugin files (.so). As a result, you can omit install step. Useful only for individual users QtC 
+                            installation at the home directory. If QtC installation does not owned by user who invoke compilation linking will be
+                            fails. Strongly recommends do not use this variable, but use QTC_PREFIX for qmake and INSTALL_ROOT for make install.
   ```bash
   export QTC_SOURCE=/tmp/qt-creator/qt-creator
   export QTC_BUILD=/opt/qtcreator-git
