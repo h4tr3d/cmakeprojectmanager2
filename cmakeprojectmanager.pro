@@ -36,7 +36,13 @@ HEADERS = cmakebuildinfo.h \
     cmakekitconfigwidget.h \
     cmakecbpparser.h \
     cmakefile.h \
-    cmakebuildsettingswidget.h
+    cmakebuildsettingswidget.h \
+    cmakelistsnode.h \
+    cmListFileLexer.h \
+    cmakelistsparser.h \
+    commandabstract.h \
+    cmakecommands.h
+
 
 SOURCES = cmakeproject.cpp \
     cmakeprojectplugin.cpp \
@@ -60,7 +66,12 @@ SOURCES = cmakeproject.cpp \
     cmakekitconfigwidget.cpp \
     cmakecbpparser.cpp \
     cmakefile.cpp \
-    cmakebuildsettingswidget.cpp
+    cmakelistsnode.cpp \
+    cmakebuildsettingswidget.cpp \
+    cmListFileLexer.c \
+    cmakelistsparser.cpp \
+    commandabstract.cpp \
+    cmakecommands.cpp
 
 
 RESOURCES += cmakeproject.qrc

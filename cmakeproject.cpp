@@ -43,6 +43,8 @@
 #include "cmaketoolmanager.h"
 #include "cmakekitinformation.h"
 
+#include "cmakelistsparser.h"
+
 #include <projectexplorer/projectexplorerconstants.h>
 #include <projectexplorer/headerpath.h>
 #include <projectexplorer/buildsteplist.h>
@@ -301,15 +303,14 @@ bool CMakeProject::parseCMakeLists()
         return false;
     }
 
-    CMakeBuildConfiguration *activeBC = static_cast<CMakeBuildConfiguration *>(activeTarget()->activeBuildConfiguration());
     foreach (Core::IDocument *document, Core::DocumentModel::openedDocuments())
         if (isProjectFile(document->filePath()))
             document->infoBar()->removeInfo("CMakeEditor.RunCMake");
 
-    // Find cbp file
-    QString cbpFile = CMakeManager::findCbpFile(activeBC->buildDirectory().toString());
+    CMakeListsParser parser;
 
-    if (cbpFile.isEmpty()) {
+    if (!parser.parseProject(projectDirectory().toString())) {
+        qDebug() << parser.errorString();
         emit buildTargetsChanged();
         return false;
     }
@@ -317,32 +318,19 @@ bool CMakeProject::parseCMakeLists()
     Kit *k = activeTarget()->kit();
 
     // setFolderName
-    m_rootNode->setDisplayName(QFileInfo(cbpFile).completeBaseName());
-    CMakeCbpParser cbpparser;
-    // Parsing
-    //qDebug()<<"Parsing file "<<cbpFile;
-    if (!cbpparser.parseCbpFile(k,cbpFile, projectDirectory().toString())) {
-        // TODO report error
-        emit buildTargetsChanged();
-        return false;
-    }
+    m_rootNode->setDisplayName(parser.projectName());
 
     foreach (const QString &file, m_watcher->files())
-        if (file != cbpFile)
-            m_watcher->removePath(file);
+        m_watcher->removePath(file);
 
-    // how can we ensure that it is completely written?
-    m_watcher->addPath(cbpFile);
+    m_projectName = parser.projectName();
+    m_rootNode->setDisplayName(parser.projectName());
 
-    m_projectName = cbpparser.projectName();
-    m_rootNode->setDisplayName(cbpparser.projectName());
+    QList<ProjectExplorer::FileNode *> fileList = parser.projectFiles();
+    // HTRD: this files must be used to build source tree
+    QList<ProjectExplorer::FileNode *> treeFileList;
 
-    //qDebug()<<"Building Tree";
-    QList<ProjectExplorer::FileNode *> fileList = cbpparser.fileList(); // this files must be passed to code model
-    QList<ProjectExplorer::FileNode *> treeFileList;                    // this files must be used to build source tree
-    QSet<FileName> projectFiles;
-
-    // Take file list from file system instead cbp project file
+    // HTRD: Take file list from file system instead cbp project file
     const QDir        dir(projectDirectory().toString());
     QStringList       sources, paths;
     getFileList(dir, projectDirectory().toString(), /*suffixes,*/ &sources, &paths);
@@ -352,30 +340,23 @@ bool CMakeProject::parseCMakeLists()
         ProjectExplorer::FileNode *node     = fileToFileNode(FileName::fromString(source));
 
         if (fileName.endsWith(QLatin1String("CMakeLists.txt"))) {
-            projectFiles.insert(FileName::fromString(source));
+            // [[ Nikita ]] -- new parser discards this line???
+            //projectFiles.insert(FileName::fromString(source));
         } else {
             treeFileList.append(node);
         }
     }
 
-    if (cbpparser.hasCMakeFiles()) {
-        foreach (ProjectExplorer::FileNode *node, cbpparser.cmakeFileList()) {
+    // HTRD: remove duplicates, if needed
+    /*foreach (ProjectExplorer::FileNode *node, cbpparser.cmakeFileList()) {
             projectFiles.insert(node->path());
             if (!Utils::contains(treeFileList, [&node](const ProjectExplorer::FileNode *n) {
                     return n->path() == node->path();
                  })) {
                 treeFileList.append(node);
             }
-        }
-    } else /*if (projectFiles.isEmpty())*/ {
-        // Manually add the CMakeLists.txt file
-        FileName cmakeListTxt = projectDirectory().appendPath(QLatin1String("CMakeLists.txt"));
-        bool generated = false;
-        treeFileList.append(new ProjectExplorer::FileNode(cmakeListTxt, ProjectExplorer::ProjectFileType, generated));
-        projectFiles.insert(cmakeListTxt);
-    }
+        }*/
 
-    m_watchedFiles = projectFiles;
 
     m_files.clear();
     foreach (ProjectExplorer::FileNode *fn, fileList)
@@ -385,18 +366,19 @@ bool CMakeProject::parseCMakeLists()
     }
     m_files.sort();
     m_files.removeDuplicates();
+    m_watchedFiles = m_files.toSet();
 
     buildTree(m_rootNode, treeFileList);
 
-    //qDebug()<<"Adding Targets";
-    m_buildTargets = cbpparser.buildTargets();
-//        qDebug()<<"Printing targets";
-//        foreach (CMakeBuildTarget ct, m_buildTargets) {
-//            qDebug()<<ct.title<<" with executable:"<<ct.executable;
-//            qDebug()<<"WD:"<<ct.workingDirectory;
-//            qDebug()<<ct.makeCommand<<ct.makeCleanCommand;
-//            qDebug()<<"";
-//        }
+    m_buildTargets.clear();
+    QStringList targets = parser.targets();
+    QStringList::ConstIterator it, end = targets.cend();
+    for (it = targets.cbegin(); it != end; ++it) {
+        CMakeBuildTarget t;
+        t.executable = *it;
+        t.library = false;
+        m_buildTargets.append(t);
+    }
 
     updateApplicationAndDeploymentTargets();
 
@@ -427,18 +409,21 @@ bool CMakeProject::parseCMakeLists()
         // This explicitly adds -I. to the include paths
         QStringList includePaths = cbt.includeFiles;
         includePaths += projectDirectory().toString();
-    //allIncludePaths.append(paths); // This want a lot of memory
+        includePaths += parser.includeDirectories();
+        // [[ Nikita ]] -- begin, to RESOLVE
+        //QtSupport::BaseQtVersion *qtVer = QtSupport::QtKitInformation::qtVersion(activeTarget()->kit());
+        //part->includePaths += qtVer->sourcePath().toString() + QLatin1String("/include");
+        //part->projectDefines += parser.defines();
+        // [[ Nikita ]] -- end
         ppBuilder.setIncludePaths(includePaths);
         ppBuilder.setCFlags(getCXXFlagsFor(cbt));
         ppBuilder.setCxxFlags(getCXXFlagsFor(cbt));
         ppBuilder.setDefines(cbt.defines);
         ppBuilder.setDisplayName(cbt.title);
-
         const QList<Core::Id> languages = ppBuilder.createProjectPartsForFiles(cbt.files);
         foreach (Core::Id language, languages)
             setProjectLanguage(language, true);
     }
-
     m_codeModelFuture.cancel();
     pinfo.finish();
     m_codeModelFuture = modelmanager->updateProjectInfo(pinfo);
