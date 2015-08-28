@@ -303,6 +303,7 @@ bool CMakeProject::parseCMakeLists()
         return false;
     }
 
+    CMakeBuildConfiguration *activeBC = static_cast<CMakeBuildConfiguration *>(activeTarget()->activeBuildConfiguration());
     foreach (Core::IDocument *document, Core::DocumentModel::openedDocuments())
         if (isProjectFile(document->filePath()))
             document->infoBar()->removeInfo("CMakeEditor.RunCMake");
@@ -327,10 +328,15 @@ bool CMakeProject::parseCMakeLists()
     m_rootNode->setDisplayName(parser.projectName());
 
     QList<ProjectExplorer::FileNode *> fileList = parser.projectFiles();
-    // HTRD: this files must be used to build source tree
+    QSet<FileName> projectFiles;
+
+#define TREE_FROM_FILE_SYSTEM 0
+
+#if TREE_FROM_FILE_SYSTEM
+    // HTRD: this files must be used to display source tree
     QList<ProjectExplorer::FileNode *> treeFileList;
 
-    // HTRD: Take file list from file system instead cbp project file
+    // HTRD: Take file list from file system instead project file
     const QDir        dir(projectDirectory().toString());
     QStringList       sources, paths;
     getFileList(dir, projectDirectory().toString(), /*suffixes,*/ &sources, &paths);
@@ -346,29 +352,36 @@ bool CMakeProject::parseCMakeLists()
             treeFileList.append(node);
         }
     }
-
-    // HTRD: remove duplicates, if needed
-    /*foreach (ProjectExplorer::FileNode *node, cbpparser.cmakeFileList()) {
-            projectFiles.insert(node->path());
-            if (!Utils::contains(treeFileList, [&node](const ProjectExplorer::FileNode *n) {
-                    return n->path() == node->path();
-                 })) {
-                treeFileList.append(node);
-            }
-        }*/
+#endif
 
 
     m_files.clear();
     foreach (ProjectExplorer::FileNode *fn, fileList)
     {
         m_files.append(fn->path().toString());
-        delete fn;
+#if TREE_FROM_FILE_SYSTEM
+        // HTRD: parser and display source tree: two different instances,
+        //       add some missing files from CMake model to the display tree,
+        //       duplicated items - remove
+        projectFiles.insert(fn->path());
+        if (!Utils::contains(treeFileList, [fn](const ProjectExplorer::FileNode *node) {
+                return node->path() == fn->path();
+             }))
+        {
+            treeFileList.append(fn);
+        } else
+            delete  fn;
+#endif
     }
     m_files.sort();
     m_files.removeDuplicates();
-    m_watchedFiles = m_files.toSet();
+    m_watchedFiles = projectFiles;
 
+#if TREE_FROM_FILE_SYSTEM
     buildTree(m_rootNode, treeFileList);
+#else
+    buildTree(m_rootNode, fileList);
+#endif
 
     m_buildTargets.clear();
     QStringList targets = parser.targets();
@@ -376,7 +389,7 @@ bool CMakeProject::parseCMakeLists()
     for (it = targets.cbegin(); it != end; ++it) {
         CMakeBuildTarget t;
         t.executable = *it;
-        t.library = false;
+        t.targetType = ExecutableType;
         m_buildTargets.append(t);
     }
 

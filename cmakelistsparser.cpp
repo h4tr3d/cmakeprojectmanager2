@@ -11,6 +11,8 @@
 
 using namespace CMakeProjectManager;
 using namespace CMakeProjectManager::Internal;
+using namespace ProjectExplorer;
+using namespace Utils;
 
 namespace CMakeProjectManager {
 namespace Internal {
@@ -89,7 +91,7 @@ QList<ProjectExplorer::FileNode *> CMakeListsParser::projectFiles() const
                 l.append(tmp);
         }
 
-        t.append(new ProjectExplorer::FileNode(location + QLatin1String(CMAKE_PROJECT_FILE),
+        t.append(new ProjectExplorer::FileNode(FileName::fromString(location + QLatin1String(CMAKE_PROJECT_FILE)),
                                                ProjectExplorer::ProjectFileType, false));
 
         l.sort();
@@ -98,7 +100,7 @@ QList<ProjectExplorer::FileNode *> CMakeListsParser::projectFiles() const
         for (int j = 0; j < l.count(); ++j) {
             const QString &it = l.at(j);
             if (!it.isEmpty())
-                t.append(new ProjectExplorer::FileNode(location + it, ProjectExplorer::SourceType,
+                t.append(new ProjectExplorer::FileNode(FileName::fromString(location + it), ProjectExplorer::SourceType,
                                                        false));
         }
     }
