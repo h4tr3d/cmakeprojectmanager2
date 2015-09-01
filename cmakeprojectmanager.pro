@@ -66,3 +66,12 @@ SOURCES = cmakeproject.cpp \
 RESOURCES += cmakeproject.qrc
 
 OTHER_FILES += README.txt
+
+WIZARD_FILES = wizard/cmake2/*
+
+wizardfiles.files = $$WIZARD_FILES
+wizardfiles.path = $$QTC_PREFIX/share/qtcreator/templates/wizards/projects/cmake2/
+wizardfiles.CONFIG += no_check_exist
+INSTALLS += wizardfiles
+
+

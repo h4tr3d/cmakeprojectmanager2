@@ -1,0 +1,33 @@
+project(%{ProjectName})
+cmake_minimum_required(VERSION 2.8)
+
+# Qt5
+#set(QT_ROOT /opt/Qt5.3.2/5.3/gcc_64)
+#set(CMAKE_PREFIX_PATH ${QT_ROOT})
+
+set(CMAKE_AUTOMOC ON)
+set(CMAKE_INCLUDE_CURRENT_DIR ON)
+
+# Modules
+find_package(Qt5Widgets REQUIRED)
+find_package(Qt5Core REQUIRED)
+set(QT_MODULES Widgets)
+
+include_directories(${QT_INCLUDES})
+
+# Remove comments if needed
+#set(UI_SRC dialog.ui)
+#set(RC_DATA resource.qrc)
+#qt5_wrap_ui(UI_HDR ${UI_SRC})
+#qt5_add_resources(RC_SRC ${RC_DATA})
+
+# C++11
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
+
+# Warnings
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra")
+
+aux_source_directory(. SRC_LIST)
+
+add_executable(${PROJECT_NAME} ${SRC_LIST})
+qt5_use_modules(${PROJECT_NAME} ${QT_MODULES})

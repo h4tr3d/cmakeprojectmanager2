@@ -1,0 +1,147 @@
+{
+    "version": 1,
+    "kind": "project",
+    "id": "S.Plain CXX (CMake)",
+    "category": "I.Projects",
+    "trDescription": "Creates a plain C/C++ project using CMake (with optional Qt 4/5 library)",
+    "trDisplayName": "Plain C/C++ Project (CMake Build)",
+    "trDisplayCategory": "Non-Qt Project",
+    "icon": "../../global/consoleapplication.png",
+    "enabled": "%{JS: [ %{Plugins} ].indexOf('CMakeProjectManager2') >= 0}",
+
+    "options":
+    [
+        { "key": "ProjectFile", "value": "%{CMakeFile}" },
+        { "key": "CMakeFile", "value": "%{ProjectDirectory}/CMakeLists.txt" },
+        { "key": "CFileName", "value": "%{JS: 'main.' + Util.preferredSuffix('text/x-csrc')}" },
+        { "key": "CppFileName", "value": "%{JS: 'main.' + Util.preferredSuffix('text/x-c++src')}" },
+        { "key": "IsTopLevelProject", "value": "%{JS: !'%{Exists:ProjectExplorer.Profile.Ids}'}" }
+    ],
+
+    "pages":
+    [
+        {
+            "trDisplayName": "Project Location",
+            "trShortTitle": "Location",
+            "typeId": "Project"
+        },
+        {
+            "trDisplayName": "Define Project Language",
+            "trShortTitle": "Project Language",
+            "typeId": "Fields",
+            "data":
+            [
+                {
+                    "name": "ProjectLanguage",
+                    "trDisplayName": "Project Language:",
+                    "type": "ComboBox",
+                    "data":
+                    {
+                        "index": 0,
+                        "items":
+                        [
+                            {
+                                "trKey": "C++",
+                                "value": "cpp"
+                            },
+                            {
+                                "trKey": "C",
+                                "value": "plainc"
+                            }
+                        ]
+                    }
+                }
+            ]
+        },
+        {
+            "trDisplayName": "CMake Qt Support",
+            "trShortName": "CMake Qt Support",
+            "typeId": "Fields",
+            "data":
+            [
+                {
+                    "name": "QtVersion",
+                    "trDisplayName": "Qt version support:",
+                    "type": "ComboBox",
+                    "data":
+                    {
+                        "index": 0,
+                        "items":
+                        [
+                            {
+                                "trKey": "None",
+                                "value": "none"
+                            },
+                            {
+                                "trKey": "Qt 4",
+                                "value": "qt4",
+                                "condition": "%{JS: '%{ProjectLanguage}' === 'cpp'}"
+                            },
+                            {
+                                "trKey": "Qt 5",
+                                "value": "qt5",
+                                "condition": "%{JS: '%{ProjectLanguage}' === 'cpp'}"
+                            }
+                        ]
+                    }
+                }
+            ]
+        },
+        {
+            "trDisplayName": "Kit Selection",
+            "trShortTitle": "Kits",
+            "typeId": "Kits",
+            "enabled": "%{IsTopLevelProject}",
+            "data": { "projectFilePath": "%{ProjectFile}" }
+        },
+        {
+            "trDisplayName": "Project Management",
+            "trShortTitle": "Summary",
+            "typeId": "Summary"
+        }
+    ],
+    "generators":
+    [
+        {
+            "typeId": "File",
+            "data":
+            [
+                {
+                    "source": "CMakeLists.txt",
+                    "target": "%{CMakeFile}",
+                    "openAsProject": true,
+                    "condition": "%{JS: '%{QtVersion}' === 'none' || '%{ProjectLanguage}' === 'plainc'}"
+                },
+                {
+                    "source": "CMakeLists_qt4.txt",
+                    "target": "%{CMakeFile}",
+                    "openAsProject": true,
+                    "condition": "%{JS: '%{QtVersion}' === 'qt4'}"
+                },
+                {
+                    "source": "CMakeLists_qt5.txt",
+                    "target": "%{CMakeFile}",
+                    "openAsProject": true,
+                    "condition": "%{JS: '%{QtVersion}' === 'qt5'}"
+                },
+                {
+                    "source": "main.c",
+                    "target": "%{CFileName}",
+                    "openInEditor": true,
+                    "condition": "%{JS: '%{ProjectLanguage}' === 'plainc'}"
+                },
+                {
+                    "source": "main.cpp",
+                    "target": "%{CppFileName}",
+                    "openInEditor": true,
+                    "condition": "%{JS: '%{ProjectLanguage}' === 'cpp'}"
+                },
+                {
+                    "source": "../git.ignore",
+                    "target": "%{ProjectDirectory}/.gitignore",
+                    "condition": "%{JS: ! %{IsSubproject} && '%{VersionControl}' === 'G.Git'}"
+                }
+            ]
+        }
+    ]
+}
