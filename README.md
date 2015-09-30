@@ -148,4 +148,19 @@ Next TODOs marked as low-priority
 
 Only one work doing regulary: sync codebase with QtC Master branch.
 
-Enjoy!
+Sync with Qt Creator upstream plugin
+------------------------------------
+
+1. Update Qt Creator git repository, moves to the master branch
+2. Create patches for new changes
+```
+git format-patch <REVISION_SINCE> -- src/plugins/cmakeprojectmanager
+```
+REVISION_SINCE can be found via 'git log' by comments or Change-Id.
+3. Go to CMakeProjectManager2 source tree and change branch to the `qtc-master`
+4. Copy patches from the step 2 to the CMakeProjectManager2 source tree root
+5. Apply patches:
+```
+git am -p4 *.patch
+```
+6. Change branch to the `master`, merge new changes and resolve conflicts
