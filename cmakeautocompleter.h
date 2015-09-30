@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
+** Copyright (C) 2015 Jan Dalheimer <jan@dalheimer.de>
 ** Contact: http://www.qt.io/licensing
 **
 ** This file is part of Qt Creator.
@@ -28,57 +28,31 @@
 **
 ****************************************************************************/
 
-#ifndef CMAKEPROJECTMANAGER_H
-#define CMAKEPROJECTMANAGER_H
+#ifndef CMAKEAUTOCOMPLETER_H
+#define CMAKEAUTOCOMPLETER_H
 
-#include <projectexplorer/iprojectmanager.h>
+#include "cmake_global.h"
 
-QT_BEGIN_NAMESPACE
-class QAction;
-class QDir;
-QT_END_NAMESPACE
-
-namespace ProjectExplorer { class Node; }
-namespace Utils {
-class Environment;
-class QtcProcess;
-}
+#include <texteditor/autocompleter.h>
 
 namespace CMakeProjectManager {
 namespace Internal {
 
-class CMakeSettingsPage;
-
-class CMakeManager : public ProjectExplorer::IProjectManager
+class CMAKE_EXPORT CMakeAutoCompleter : public TextEditor::AutoCompleter
 {
-    Q_OBJECT
 public:
-    CMakeManager();
+    CMakeAutoCompleter();
+    virtual ~CMakeAutoCompleter() {}
 
-    virtual ProjectExplorer::Project *openProject(const QString &fileName, QString *errorString);
-    virtual QString mimeType() const;
-
-    void createXmlFile(Utils::QtcProcess *process,
-                       const QString &executable,
-                       const QString &arguments,
-                       const QString &sourceDirectory,
-                       const QDir &buildDirectory,
-                       const Utils::Environment &env,
-                       const QString &generator);
-    bool preferNinja() const;
-    static QString findCbpFile(const QDir &);
-
-private:
-    void updateRunCmakeAction();
-    void runCMake(ProjectExplorer::Project *project);
-
-private:
-    CMakeSettingsPage *m_settingsPage;
-    QAction *m_runCMakeAction;
-    QAction *m_runCMakeActionContextMenu;
+    bool isInComment(const QTextCursor &cursor) const override;
+    bool isInString(const QTextCursor &cursor) const override;
+    QString insertMatchingBrace(const QTextCursor &cursor, const QString &text, QChar la, int *skippedChars) const override;
+    int paragraphSeparatorAboutToBeInserted(QTextCursor &cursor, const TextEditor::TabSettings &tabSettings) override;
+    bool contextAllowsAutoParentheses(const QTextCursor &cursor, const QString &textToInsert) const override;
+    bool contextAllowsElectricCharacters(const QTextCursor &cursor) const override;
 };
 
 } // namespace Internal
 } // namespace CMakeProjectManager
 
-#endif // CMAKEPROJECTMANAGER_H
+#endif // CMAKEAUTOCOMPLETER_H

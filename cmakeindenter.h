@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
+** Copyright (C) 2015 Jan Dalheimer <jan@dalheimer.de>
 ** Contact: http://www.qt.io/licensing
 **
 ** This file is part of Qt Creator.
@@ -28,57 +28,27 @@
 **
 ****************************************************************************/
 
-#ifndef CMAKEPROJECTMANAGER_H
-#define CMAKEPROJECTMANAGER_H
+#ifndef CMAKEINDENTER_H
+#define CMAKEINDENTER_H
 
-#include <projectexplorer/iprojectmanager.h>
+#include "cmake_global.h"
 
-QT_BEGIN_NAMESPACE
-class QAction;
-class QDir;
-QT_END_NAMESPACE
-
-namespace ProjectExplorer { class Node; }
-namespace Utils {
-class Environment;
-class QtcProcess;
-}
+#include <texteditor/indenter.h>
 
 namespace CMakeProjectManager {
 namespace Internal {
 
-class CMakeSettingsPage;
-
-class CMakeManager : public ProjectExplorer::IProjectManager
+class CMAKE_EXPORT CMakeIndenter : public TextEditor::Indenter
 {
-    Q_OBJECT
 public:
-    CMakeManager();
+    CMakeIndenter();
+    virtual ~CMakeIndenter() {}
 
-    virtual ProjectExplorer::Project *openProject(const QString &fileName, QString *errorString);
-    virtual QString mimeType() const;
-
-    void createXmlFile(Utils::QtcProcess *process,
-                       const QString &executable,
-                       const QString &arguments,
-                       const QString &sourceDirectory,
-                       const QDir &buildDirectory,
-                       const Utils::Environment &env,
-                       const QString &generator);
-    bool preferNinja() const;
-    static QString findCbpFile(const QDir &);
-
-private:
-    void updateRunCmakeAction();
-    void runCMake(ProjectExplorer::Project *project);
-
-private:
-    CMakeSettingsPage *m_settingsPage;
-    QAction *m_runCMakeAction;
-    QAction *m_runCMakeActionContextMenu;
+    bool isElectricCharacter(const QChar &ch) const override;
+    void indentBlock(QTextDocument *doc, const QTextBlock &block, const QChar &typedChar, const TextEditor::TabSettings &tabSettings) override;
 };
 
 } // namespace Internal
 } // namespace CMakeProjectManager
 
-#endif // CMAKEPROJECTMANAGER_H
+#endif // CMAKEINDENTER_H

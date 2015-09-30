@@ -54,36 +54,11 @@ QList<ProjectExplorer::ProjectAction> CMakeProjectNode::supportedActions(Node *n
         << ProjectExplorer::Rename;
 }
 
-bool CMakeProjectNode::canAddSubProject(const QString &proFilePath) const
-{
-    Q_UNUSED(proFilePath)
-    return false;
-}
-
-bool CMakeProjectNode::addSubProjects(const QStringList &proFilePaths)
-{
-    Q_UNUSED(proFilePaths)
-    return false;
-}
-
-bool CMakeProjectNode::removeSubProjects(const QStringList &proFilePaths)
-{
-    Q_UNUSED(proFilePaths)
-    return false;
-}
-
 bool CMakeProjectNode::addFiles(const QStringList &filePaths, QStringList *notAdded)
 {
     Q_UNUSED(notAdded)
 
     return m_project->addFiles(filePaths);
-}
-
-bool CMakeProjectNode::removeFiles(const QStringList &filePaths,  QStringList *notRemoved)
-{
-    Q_UNUSED(filePaths)
-    Q_UNUSED(notRemoved)
-    return false;
 }
 
 bool CMakeProjectNode::deleteFiles(const QStringList &filePaths)
@@ -95,3 +70,4 @@ bool CMakeProjectNode::renameFile(const QString &filePath, const QString &newFil
 {
     return m_project->renameFile(filePath, newFilePath);
 }
+

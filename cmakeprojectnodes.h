@@ -47,18 +47,10 @@ public:
     CMakeProjectNode(CMakeProject *project, const Utils::FileName &fileName);
     virtual bool showInSimpleTree() const;
     virtual QList<ProjectExplorer::ProjectAction> supportedActions(Node *node) const;
-
-    virtual bool canAddSubProject(const QString &proFilePath) const;
-
-    virtual bool addSubProjects(const QStringList &proFilePaths);
-    virtual bool removeSubProjects(const QStringList &proFilePaths);
-    virtual bool addFiles( const QStringList &filePaths,
-                          QStringList *notAdded = 0);
-    virtual bool removeFiles(const QStringList &filePaths,
-                             QStringList *notRemoved = 0);
-    virtual bool deleteFiles(const QStringList &filePaths);
-    virtual bool renameFile(const QString &filePath,
-                            const QString &newFilePath);
+    
+    virtual bool CMakeProjectNode::addFiles(const QStringList &filePaths, QStringList *notAdded) override;
+    virtual bool CMakeProjectNode::deleteFiles(const QStringList &filePaths) override;
+    virtual bool CMakeProjectNode::renameFile(const QString &filePath, const QString &newFilePath) override;
 
 private:
     CMakeProject *m_project;

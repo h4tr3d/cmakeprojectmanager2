@@ -120,6 +120,10 @@ public:
 
     bool parseCMakeLists();
 
+    bool needsConfiguration() const;
+
+    bool requiresTargetPanel() const;
+
 signals:
     /// emitted after parsing
     void buildTargetsChanged();
@@ -155,7 +159,7 @@ private:
     QString uiHeaderFile(const QString &uiFile);
     void updateRunConfigurations(ProjectExplorer::Target *t);
     void updateApplicationAndDeploymentTargets();
-    QStringList getCXXFlagsFor(const CMakeBuildTarget &buildTarget);
+    QStringList getCXXFlagsFor(const CMakeBuildTarget &buildTarget, QByteArray *cachedBuildNinja);
 
     void cbpUpdateMessage(const QString &message, bool show = true);
     void updateCbp();

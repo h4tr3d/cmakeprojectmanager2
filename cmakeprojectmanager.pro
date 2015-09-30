@@ -36,7 +36,9 @@ HEADERS = cmakebuildinfo.h \
     cmakekitconfigwidget.h \
     cmakecbpparser.h \
     cmakefile.h \
-    cmakebuildsettingswidget.h
+    cmakebuildsettingswidget.h \
+    cmakeindenter.h \
+    cmakeautocompleter.h
 
 SOURCES = cmakeproject.cpp \
     cmakeprojectplugin.cpp \
@@ -60,7 +62,9 @@ SOURCES = cmakeproject.cpp \
     cmakekitconfigwidget.cpp \
     cmakecbpparser.cpp \
     cmakefile.cpp \
-    cmakebuildsettingswidget.cpp
+    cmakebuildsettingswidget.cpp \
+    cmakeindenter.cpp \
+    cmakeautocompleter.cpp
 
 
 RESOURCES += cmakeproject.qrc

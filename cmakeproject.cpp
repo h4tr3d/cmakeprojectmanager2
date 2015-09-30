@@ -199,10 +199,12 @@ void CMakeProject::changeActiveBuildConfiguration(ProjectExplorer::BuildConfigur
 
     if (mode != CMakeOpenProjectWizard::Nothing) {
         CMakeBuildInfo info(cmakebc);
-        CMakeOpenProjectWizard copw(Core::ICore::mainWindow(), m_manager, mode, &info);
+        CMakeOpenProjectWizard copw(Core::ICore::mainWindow(), m_manager, mode, &info,
+                                    bc->target()->displayName(), bc->displayName());
         if (copw.exec() == QDialog::Accepted) {
             cmakebc->setCMakeParams(copw.arguments());
             cmakebc->setUseNinja(copw.useNinja()); // NeedToCreate can change the Ninja setting
+            cmakebc->setInitialArguments(QString());
             cmakebc->setCMakeParamsExt(copw.cmakeParamsExt());
         }
     }
@@ -235,7 +237,7 @@ void CMakeProject::changeBuildDirectory(CMakeBuildConfiguration *bc, const QStri
     parseCMakeLists();
 }
 
-QStringList CMakeProject::getCXXFlagsFor(const CMakeBuildTarget &buildTarget)
+QStringList CMakeProject::getCXXFlagsFor(const CMakeBuildTarget &buildTarget, QByteArray *cachedBuildNinja)
 {
     QString makeCommand = QDir::fromNativeSeparators(buildTarget.makeCommand);
     int startIndex = makeCommand.indexOf(QLatin1Char('\"'));
@@ -264,32 +266,43 @@ QStringList CMakeProject::getCXXFlagsFor(const CMakeBuildTarget &buildTarget)
     // found
     // Get "all" target's working directory
     if (!buildTargets().empty()) {
-        QString buildNinjaFile = QDir::fromNativeSeparators(buildTargets().at(0).workingDirectory);
-        buildNinjaFile += QLatin1String("/build.ninja");
-        QFile buildNinja(buildNinjaFile);
-        if (buildNinja.exists()) {
-            buildNinja.open(QIODevice::ReadOnly | QIODevice::Text);
-            QTextStream stream(&buildNinja);
-            bool targetFound = false;
-            bool cxxFound = false;
-            QString targetSearchPattern = QString::fromLatin1("target %1").arg(buildTarget.title);
-
-            while (!stream.atEnd()) {
-                // 1. Look for a block that refers to the current target
-                // 2. Look for a build rule which invokes CXX_COMPILER
-                // 3. Return the FLAGS definition
-                QString line = stream.readLine().trimmed();
-                if (line.startsWith(QLatin1String("#"))) {
-                    if (!line.startsWith(QLatin1String("# Object build statements for"))) continue;
-                    targetFound = line.endsWith(targetSearchPattern);
-                } else if (targetFound && line.startsWith(QLatin1String("build"))) {
-                    cxxFound = line.indexOf(QLatin1String("CXX_COMPILER")) != -1;
-                } else if (cxxFound && line.startsWith(QLatin1String("FLAGS ="))) {
-                    // Skip past =
-                    return line.mid(7).trimmed().split(QLatin1Char(' '), QString::SkipEmptyParts);
-                }
+        if (cachedBuildNinja->isNull()) {
+            QString buildNinjaFile = QDir::fromNativeSeparators(buildTargets().at(0).workingDirectory);
+            buildNinjaFile += QLatin1String("/build.ninja");
+            QFile buildNinja(buildNinjaFile);
+            if (buildNinja.exists()) {
+                buildNinja.open(QIODevice::ReadOnly | QIODevice::Text);
+                *cachedBuildNinja = buildNinja.readAll();
+                buildNinja.close();
+            } else {
+                *cachedBuildNinja = QByteArray();
             }
         }
+
+        if (cachedBuildNinja->isEmpty())
+            return QStringList();
+
+        QTextStream stream(cachedBuildNinja);
+        bool targetFound = false;
+        bool cxxFound = false;
+        QString targetSearchPattern = QString::fromLatin1("target %1").arg(buildTarget.title);
+
+        while (!stream.atEnd()) {
+            // 1. Look for a block that refers to the current target
+            // 2. Look for a build rule which invokes CXX_COMPILER
+            // 3. Return the FLAGS definition
+            QString line = stream.readLine().trimmed();
+            if (line.startsWith(QLatin1String("#"))) {
+                if (!line.startsWith(QLatin1String("# Object build statements for"))) continue;
+                targetFound = line.endsWith(targetSearchPattern);
+            } else if (targetFound && line.startsWith(QLatin1String("build"))) {
+                cxxFound = line.indexOf(QLatin1String("CXX_COMPILER")) != -1;
+            } else if (cxxFound && line.startsWith(QLatin1String("FLAGS ="))) {
+                // Skip past =
+                return line.mid(7).trimmed().split(QLatin1Char(' '), QString::SkipEmptyParts);
+            }
+        }
+
     }
     return QStringList();
 }
@@ -423,14 +436,16 @@ bool CMakeProject::parseCMakeLists()
 
     ppBuilder.setQtVersion(activeQtVersion);
 
+    QByteArray cachedBuildNinja;
     foreach (const CMakeBuildTarget &cbt, m_buildTargets) {
         // This explicitly adds -I. to the include paths
         QStringList includePaths = cbt.includeFiles;
         includePaths += projectDirectory().toString();
     //allIncludePaths.append(paths); // This want a lot of memory
         ppBuilder.setIncludePaths(includePaths);
-        ppBuilder.setCFlags(getCXXFlagsFor(cbt));
-        ppBuilder.setCxxFlags(getCXXFlagsFor(cbt));
+        QStringList cxxflags = getCXXFlagsFor(cbt, &cachedBuildNinja);
+        ppBuilder.setCFlags(cxxflags);
+        ppBuilder.setCxxFlags(cxxflags);
         ppBuilder.setDefines(cbt.defines);
         ppBuilder.setDisplayName(cbt.title);
 
@@ -450,6 +465,16 @@ bool CMakeProject::parseCMakeLists()
     emit activeBC->emitBuildTypeChanged();
 
     return true;
+}
+
+bool CMakeProject::needsConfiguration() const
+{
+    return targets().isEmpty();
+}
+
+bool CMakeProject::requiresTargetPanel() const
+{
+    return !targets().isEmpty();
 }
 
 bool CMakeProject::isProjectFile(const FileName &fileName)
@@ -540,6 +565,8 @@ ProjectExplorer::FolderNode *CMakeProject::findOrCreateFolder(CMakeProjectNode *
     FileName path = rootNode->path().parentDir();
     QDir rootParentDir(path.toString());
     QString relativePath = rootParentDir.relativeFilePath(directory);
+    if (relativePath == QLatin1String("."))
+        relativePath.clear();
     QStringList parts = relativePath.split(QLatin1Char('/'), QString::SkipEmptyParts);
     ProjectExplorer::FolderNode *parent = rootNode;
     foreach (const QString &part, parts) {
@@ -600,31 +627,7 @@ Project::RestoreResult CMakeProject::fromMap(const QVariantMap &map, QString *er
 
     bool hasUserFile = activeTarget();
     if (!hasUserFile) {
-        CMakeOpenProjectWizard copw(Core::ICore::mainWindow(), m_manager, projectDirectory().toString(), Environment::systemEnvironment());
-        if (copw.exec() != QDialog::Accepted)
-            return RestoreResult::UserAbort;
-        Kit *k = copw.kit();
-        Target *t = new Target(this, k);
-        CMakeBuildConfiguration *bc(new CMakeBuildConfiguration(t));
-        bc->setDefaultDisplayName(QLatin1String("all"));
-        bc->setUseNinja(copw.useNinja());
-        bc->setBuildDirectory(FileName::fromString(copw.buildDirectory()));
-        ProjectExplorer::BuildStepList *buildSteps = bc->stepList(ProjectExplorer::Constants::BUILDSTEPS_BUILD);
-        ProjectExplorer::BuildStepList *cleanSteps = bc->stepList(ProjectExplorer::Constants::BUILDSTEPS_CLEAN);
-
-        // Now create a standard build configuration
-        buildSteps->insertStep(0, new MakeStep(buildSteps));
-
-        MakeStep *cleanMakeStep = new MakeStep(cleanSteps);
-        cleanSteps->insertStep(0, cleanMakeStep);
-        cleanMakeStep->setAdditionalArguments(QLatin1String("clean"));
-        cleanMakeStep->setClean(true);
-
-        t->addBuildConfiguration(bc);
-
-        t->updateDefaultDeployConfigurations();
-
-        addTarget(t);
+        // Nothing to do, the target setup page will show up
     } else {
         // We have a user file, but we could still be missing the cbp file
         // or simply run createXml with the saved settings
@@ -644,11 +647,13 @@ Project::RestoreResult CMakeProject::fromMap(const QVariantMap &map, QString *er
 
         if (mode != CMakeOpenProjectWizard::Nothing) {
             CMakeBuildInfo info(activeBC);
-            CMakeOpenProjectWizard copw(Core::ICore::mainWindow(), m_manager, mode, &info);
-            if (copw.exec() != QDialog::Accepted)
+            CMakeOpenProjectWizard copw(Core::ICore::mainWindow(), m_manager, mode, &info,
+                                        activeBC->target()->displayName(), activeBC->displayName());
+            if (copw.exec() != QDialog::Accepted) {
                 return RestoreResult::UserAbort;
-            else {
+            } else {
                 activeBC->setUseNinja(copw.useNinja());
+                activeBC->setInitialArguments(QString());
                 activeBC->setCMakeParams(copw.arguments());
                 activeBC->setCMakeParamsExt(copw.cmakeParamsExt());
             }
@@ -688,6 +693,8 @@ CMakeBuildTarget CMakeProject::buildTargetForTitle(const QString &title)
 
 QString CMakeProject::uiHeaderFile(const QString &uiFile)
 {
+    if (!activeTarget())
+        return QString();
     QFileInfo fi(uiFile);
     FileName project = projectDirectory();
     FileName baseDirectory = FileName::fromString(fi.absolutePath());
@@ -735,16 +742,14 @@ void CMakeProject::cbpUpdateFinished(int /*code*/)
 // TODO Compare with updateDefaultRunConfigurations();
 void CMakeProject::updateRunConfigurations(Target *t)
 {
+    // create new and remove obsolete RCs using the factories
+    t->updateDefaultRunConfigurations();
+
     // *Update* runconfigurations:
     QMultiMap<QString, CMakeRunConfiguration*> existingRunConfigurations;
-    QList<ProjectExplorer::RunConfiguration *> toRemove;
     foreach (ProjectExplorer::RunConfiguration *rc, t->runConfigurations()) {
         if (CMakeRunConfiguration* cmakeRC = qobject_cast<CMakeRunConfiguration *>(rc))
             existingRunConfigurations.insert(cmakeRC->title(), cmakeRC);
-        QtSupport::CustomExecutableRunConfiguration *ceRC =
-                qobject_cast<QtSupport::CustomExecutableRunConfiguration *>(rc);
-        if (ceRC && !ceRC->isConfigured())
-            toRemove << rc;
     }
 
     foreach (const CMakeBuildTarget &ct, buildTargets()) {
@@ -760,27 +765,8 @@ void CMakeProject::updateRunConfigurations(Target *t)
                 rc->setBaseWorkingDirectory(ct.workingDirectory);
                 rc->setEnabled(true);
             }
-            existingRunConfigurations.remove(ct.title);
-        } else {
-            // Does not exist yet
-            Core::Id id = CMakeRunConfigurationFactory::idFromBuildTarget(ct.title);
-            CMakeRunConfiguration *rc = new CMakeRunConfiguration(t, id, ct.executable,
-                                                                  ct.workingDirectory, ct.title);
-            t->addRunConfiguration(rc);
         }
     }
-    QMultiMap<QString, CMakeRunConfiguration *>::const_iterator it =
-            existingRunConfigurations.constBegin();
-    for ( ; it != existingRunConfigurations.constEnd(); ++it) {
-        CMakeRunConfiguration *rc = it.value();
-        // The executables for those runconfigurations aren't build by the current buildconfiguration
-        // We just set a disable flag and show that in the display name
-        rc->setEnabled(false);
-        // removeRunConfiguration(rc);
-    }
-
-    foreach (ProjectExplorer::RunConfiguration *rc, toRemove)
-        t->removeRunConfiguration(rc);
 
     if (t->runConfigurations().isEmpty()) {
         // Oh no, no run configuration,
@@ -848,6 +834,8 @@ void CMakeProject::updateCbp()
 void CMakeProject::updateApplicationAndDeploymentTargets()
 {
     Target *t = activeTarget();
+    if (!t)
+        return;
 
     QFile deploymentFile;
     QTextStream deploymentStream;

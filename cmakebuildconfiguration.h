@@ -71,6 +71,9 @@ public:
 
     void emitBuildTypeChanged();
 
+    void setInitialArguments(const QString &arguments);
+    QString initialArguments() const;
+
 signals:
     void useNinjaChanged(bool);
 
@@ -82,6 +85,7 @@ private:
     QString m_msvcVersion;
     QString m_cmakeParams;
     bool m_useNinja;
+    QString m_initialArguments;
     CMakeParamsExt m_cmakeParamsExt;
 
     friend class CMakeProjectManager::CMakeProject;
@@ -110,7 +114,17 @@ public:
 
 private:
     bool canHandle(const ProjectExplorer::Target *t) const;
-    CMakeBuildInfo *createBuildInfo(const ProjectExplorer::Kit *k, const QString &sourceDir) const;
+
+    enum BuildType { BuildTypeNone = 0,
+                     BuildTypeDebug = 1,
+                     BuildTypeRelease = 2,
+                     BuildTypeRelWithDebInfo = 3,
+                     BuildTypeMinSizeRel = 4,
+                     BuildTypeLast = 5 };
+
+    CMakeBuildInfo *createBuildInfo(const ProjectExplorer::Kit *k,
+                                    const QString &sourceDir,
+                                    BuildType buildType) const;
 };
 
 } // namespace Internal
