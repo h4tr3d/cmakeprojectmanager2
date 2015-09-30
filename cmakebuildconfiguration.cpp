@@ -291,9 +291,9 @@ ProjectExplorer::BuildConfiguration *CMakeBuildConfigurationFactory::create(Proj
     cleanMakeStep->setClean(true);
 
     bc->setBuildDirectory(copy.buildDirectory);
-    bc->setCMakeParams(copw.arguments());
     bc->setInitialArguments(copy.arguments);
-    bc->setCMakeParamsExt(copw.cmakeParamsExt());
+    bc->setCMakeParams(copy.cmakeParams);
+    bc->setCMakeParamsExt(copy.cmakeParamsExt);
 
     // Default to all
     if (project->hasBuildTarget(QLatin1String("all")))
