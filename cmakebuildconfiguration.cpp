@@ -66,13 +66,14 @@ const char CMAKE_TOOLCHAIN_TYPE_KEY[] = "CMakeProjectManaget.CMakeBuildConfigura
 const char CMAKE_TOOLCHAIN_FILE_KEY[] = "CMakeProjectManaget.CMakeBuildConfiguration.CMakeToolchainFile";
 const char CMAKE_TOOLCHAIN_INLINE_KEY[] = "CMakeProjectManaget.CMakeBuildConfiguration.CMakeToolchainInline";
 
-static FileName shadowBuildDirectory(const FileName &projectFilePath, const Kit *k, const QString &bcName)
+static FileName shadowBuildDirectory(const FileName &projectFilePath, const Kit *k,
+                                     const QString &bcName, BuildConfiguration::BuildType buildType)
 {
     if (projectFilePath.isEmpty())
         return FileName();
 
     const QString projectName = projectFilePath.parentDir().fileName();
-    ProjectMacroExpander expander(projectName, k, bcName);
+    ProjectMacroExpander expander(projectName, k, bcName, buildType);
     QDir projectDir = QDir(Project::projectDirectory(projectFilePath).toString());
     QString buildPath = expander.expand(Core::DocumentManager::buildDirectory());
     return FileName::fromUserInput(projectDir.absoluteFilePath(buildPath));
@@ -84,7 +85,7 @@ CMakeBuildConfiguration::CMakeBuildConfiguration(ProjectExplorer::Target *parent
     CMakeProject *project = static_cast<CMakeProject *>(parent->project());
     setBuildDirectory(shadowBuildDirectory(project->projectFilePath(),
                                            parent->kit(),
-                                           displayName()));
+                                           displayName(), BuildConfiguration::Unknown));
 }
 
 CMakeBuildConfiguration::CMakeBuildConfiguration(ProjectExplorer::Target *parent,
@@ -254,7 +255,8 @@ QList<ProjectExplorer::BuildInfo *> CMakeBuildConfigurationFactory::availableSet
         } else {
             info->displayName = info->typeName;
         }
-        info->buildDirectory = shadowBuildDirectory(projectPathName, k, info->displayName);
+        info->buildDirectory
+                = shadowBuildDirectory(projectPathName, k, info->displayName, info->buildType);
         result << info;
     }
     return result;
@@ -272,7 +274,7 @@ ProjectExplorer::BuildConfiguration *CMakeBuildConfigurationFactory::create(Proj
 
     if (copy.buildDirectory.isEmpty()) {
         copy.buildDirectory = shadowBuildDirectory(project->projectFilePath(), parent->kit(),
-                                                   copy.displayName);
+                                                   copy.displayName, info->buildType);
     }
 
     CMakeBuildConfiguration *bc = new CMakeBuildConfiguration(parent);
@@ -360,18 +362,22 @@ CMakeBuildInfo *CMakeBuildConfigurationFactory::createBuildInfo(const ProjectExp
     case BuildTypeDebug:
         info->arguments = QLatin1String("-DCMAKE_BUILD_TYPE=Debug");
         info->typeName = tr("Debug");
+        info->buildType = BuildConfiguration::Debug;
         break;
     case BuildTypeRelease:
         info->arguments = QLatin1String("-DCMAKE_BUILD_TYPE=Release");
         info->typeName = tr("Release");
+        info->buildType = BuildConfiguration::Release;
         break;
     case BuildTypeMinSizeRel:
         info->arguments = QLatin1String("-DCMAKE_BUILD_TYPE=MinSizeRel");
         info->typeName = tr("Minimum Size Release");
+        info->buildType = BuildConfiguration::Release;
         break;
     case BuildTypeRelWithDebInfo:
         info->arguments = QLatin1String("-DCMAKE_BUILD_TYPE=RelWithDebInfo");
         info->typeName = tr("Release with Debug Information");
+        info->buildType = BuildConfiguration::Profile;
         break;
     default:
         QTC_CHECK(false);
@@ -399,14 +405,13 @@ ProjectExplorer::BuildConfiguration::BuildType CMakeBuildConfiguration::buildTyp
 
     // Cover all common CMake build types
     if (cmakeBuildType.compare(QLatin1String("Release"), Qt::CaseInsensitive) == 0
-        || cmakeBuildType.compare(QLatin1String("MinSizeRel"), Qt::CaseInsensitive) == 0)
-    {
+        || cmakeBuildType.compare(QLatin1String("MinSizeRel"), Qt::CaseInsensitive) == 0) {
         return Release;
     } else if (cmakeBuildType.compare(QLatin1String("Debug"), Qt::CaseInsensitive) == 0
-               || cmakeBuildType.compare(QLatin1String("DebugFull"), Qt::CaseInsensitive) == 0
-               || cmakeBuildType.compare(QLatin1String("RelWithDebInfo"), Qt::CaseInsensitive) == 0)
-    {
+               || cmakeBuildType.compare(QLatin1String("DebugFull"), Qt::CaseInsensitive) == 0) {
         return Debug;
+    } else if (cmakeBuildType.compare(QLatin1String("RelWithDebInfo"), Qt::CaseInsensitive) == 0) {
+        return Profile;
     }
 
     return Unknown;

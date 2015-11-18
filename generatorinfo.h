@@ -56,6 +56,7 @@ public:
     QString displayName() const;
     QByteArray generatorArgument() const;
     QByteArray generator() const;
+    QString preLoadCacheFileArgument() const;
 
 private:
     ProjectExplorer::Kit *m_kit;

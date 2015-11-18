@@ -41,12 +41,11 @@ namespace Internal {
 
 class CMakeProjectNode : public ProjectExplorer::ProjectNode
 {
-    friend class CMakeProject;
 
 public:
     CMakeProjectNode(CMakeProject *project, const Utils::FileName &fileName);
-    virtual bool showInSimpleTree() const;
-    virtual QList<ProjectExplorer::ProjectAction> supportedActions(Node *node) const;
+    bool showInSimpleTree() const override;
+    QList<ProjectExplorer::ProjectAction> supportedActions(Node *node) const override;
     
     virtual bool addFiles(const QStringList &filePaths, QStringList *notAdded) override;
     virtual bool deleteFiles(const QStringList &filePaths) override;

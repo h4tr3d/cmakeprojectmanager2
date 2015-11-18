@@ -28,58 +28,42 @@
 **
 ****************************************************************************/
 
-#ifndef CMAKEPROJECTMANAGER_H
-#define CMAKEPROJECTMANAGER_H
+#ifndef CMAKEPRELOADCACHEKITCONFIGWIDGET_H
+#define CMAKEPRELOADCACHEKITCONFIGWIDGET_H
 
-#include <projectexplorer/iprojectmanager.h>
+#include <projectexplorer/kitconfigwidget.h>
 
 QT_BEGIN_NAMESPACE
-class QAction;
-class QDir;
+class QLineEdit;
 QT_END_NAMESPACE
-
-namespace ProjectExplorer { class Node; }
-namespace Utils {
-class Environment;
-class QtcProcess;
-}
 
 namespace CMakeProjectManager {
 namespace Internal {
 
-class CMakeSettingsPage;
-
-class CMakeManager : public ProjectExplorer::IProjectManager
+class CMakePreloadCacheKitConfigWidget : public ProjectExplorer::KitConfigWidget
 {
     Q_OBJECT
+
 public:
-    CMakeManager();
+    CMakePreloadCacheKitConfigWidget(ProjectExplorer::Kit *k, const ProjectExplorer::KitInformation *ki);
+    ~CMakePreloadCacheKitConfigWidget();
 
-    virtual ProjectExplorer::Project *openProject(const QString &fileName, QString *errorString);
-    virtual QString mimeType() const;
+    QWidget *mainWidget() const;
+    QString displayName() const;
+    QString toolTip() const;
 
-    void createXmlFile(Utils::QtcProcess *process,
-                       const QString &executable,
-                       const QString &arguments,
-                       const QString &sourceDirectory,
-                       const QDir &buildDirectory,
-                       const Utils::Environment &env,
-                       const QString &generator,
-                       const QString &preloadCache);
-    bool preferNinja() const;
-    static QString findCbpFile(const QDir &);
+    void makeReadOnly();
+    void refresh();
+
+private slots:
+    void preloadFileWasChanged(const QString &text);
 
 private:
-    void updateRunCmakeAction();
-    void runCMake(ProjectExplorer::Project *project);
-
-private:
-    CMakeSettingsPage *m_settingsPage;
-    QAction *m_runCMakeAction;
-    QAction *m_runCMakeActionContextMenu;
+    QLineEdit *m_lineEdit = nullptr;
+    bool m_ignoreChange = false;
 };
 
 } // namespace Internal
 } // namespace CMakeProjectManager
 
-#endif // CMAKEPROJECTMANAGER_H
+#endif // CMAKEPRELOADCACHEKITCONFIGWIDGET_H

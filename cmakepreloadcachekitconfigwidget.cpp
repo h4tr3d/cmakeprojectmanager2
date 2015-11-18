@@ -28,58 +28,64 @@
 **
 ****************************************************************************/
 
-#ifndef CMAKEPROJECTMANAGER_H
-#define CMAKEPROJECTMANAGER_H
+#include "cmakepreloadcachekitconfigwidget.h"
+#include "cmakepreloadcachekitinformation.h"
 
-#include <projectexplorer/iprojectmanager.h>
+#include <projectexplorer/kit.h>
 
-QT_BEGIN_NAMESPACE
-class QAction;
-class QDir;
-QT_END_NAMESPACE
-
-namespace ProjectExplorer { class Node; }
-namespace Utils {
-class Environment;
-class QtcProcess;
-}
+#include <QLineEdit>
 
 namespace CMakeProjectManager {
 namespace Internal {
 
-class CMakeSettingsPage;
-
-class CMakeManager : public ProjectExplorer::IProjectManager
+CMakePreloadCacheKitConfigWidget::CMakePreloadCacheKitConfigWidget(ProjectExplorer::Kit *k, const ProjectExplorer::KitInformation *ki) :
+    ProjectExplorer::KitConfigWidget(k, ki),
+    m_lineEdit(new QLineEdit)
 {
-    Q_OBJECT
-public:
-    CMakeManager();
+    refresh();
+    m_lineEdit->setToolTip(toolTip());
+    connect(m_lineEdit, &QLineEdit::textEdited,
+            this, &CMakePreloadCacheKitConfigWidget::preloadFileWasChanged);
+}
 
-    virtual ProjectExplorer::Project *openProject(const QString &fileName, QString *errorString);
-    virtual QString mimeType() const;
+CMakePreloadCacheKitConfigWidget::~CMakePreloadCacheKitConfigWidget()
+{
+    delete m_lineEdit;
+}
 
-    void createXmlFile(Utils::QtcProcess *process,
-                       const QString &executable,
-                       const QString &arguments,
-                       const QString &sourceDirectory,
-                       const QDir &buildDirectory,
-                       const Utils::Environment &env,
-                       const QString &generator,
-                       const QString &preloadCache);
-    bool preferNinja() const;
-    static QString findCbpFile(const QDir &);
+QWidget *CMakePreloadCacheKitConfigWidget::mainWidget() const
+{
+    return m_lineEdit;
+}
 
-private:
-    void updateRunCmakeAction();
-    void runCMake(ProjectExplorer::Project *project);
+QString CMakePreloadCacheKitConfigWidget::displayName() const
+{
+    return tr("CMake preload file:");
+}
 
-private:
-    CMakeSettingsPage *m_settingsPage;
-    QAction *m_runCMakeAction;
-    QAction *m_runCMakeActionContextMenu;
-};
+QString CMakePreloadCacheKitConfigWidget::toolTip() const
+{
+    return tr("The preload cache file to use when running cmake on the project.<br>"
+              "This setting is ignored when using other build systems.");
+}
+
+void CMakePreloadCacheKitConfigWidget::makeReadOnly()
+{
+    m_lineEdit->setEnabled(false);
+}
+
+void CMakePreloadCacheKitConfigWidget::refresh()
+{
+    if (!m_ignoreChange)
+        m_lineEdit->setText(CMakePreloadCacheKitInformation::preloadCacheFile(m_kit));
+}
+
+void CMakePreloadCacheKitConfigWidget::preloadFileWasChanged(const QString &text)
+{
+    m_ignoreChange = true;
+    m_kit->setValue(CMakePreloadCacheKitInformation::id(), text);
+    m_ignoreChange = false;
+}
 
 } // namespace Internal
 } // namespace CMakeProjectManager
-
-#endif // CMAKEPROJECTMANAGER_H

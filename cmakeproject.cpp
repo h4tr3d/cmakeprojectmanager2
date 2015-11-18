@@ -373,7 +373,7 @@ bool CMakeProject::parseCMakeLists()
 
     if (cbpparser.hasCMakeFiles()) {
         foreach (ProjectExplorer::FileNode *node, cbpparser.cmakeFileList()) {
-            projectFiles.insert(node->path());
+            projectFiles.insert(node->filePath());
             if (!Utils::contains(treeFileList, [&node](const ProjectExplorer::FileNode *n) {
                     return n->path() == node->path();
                  })) {
@@ -393,7 +393,7 @@ bool CMakeProject::parseCMakeLists()
     m_files.clear();
     foreach (ProjectExplorer::FileNode *fn, fileList)
     {
-        m_files.append(fn->path().toString());
+        m_files.append(fn->filePath().toString());
         delete fn;
     }
     m_files.sort();
@@ -517,7 +517,7 @@ void CMakeProject::gatherFileNodes(ProjectExplorer::FolderNode *parent, QList<Pr
 
 bool sortNodesByPath(Node *a, Node *b)
 {
-    return a->path() < b->path();
+    return a->filePath() < b->filePath();
 }
 
 void CMakeProject::buildTree(CMakeProjectNode *rootNode, QList<ProjectExplorer::FileNode *> newList)
@@ -539,7 +539,7 @@ void CMakeProject::buildTree(CMakeProjectNode *rootNode, QList<ProjectExplorer::
     foreach (ProjectExplorer::FileNode *fn, added) {
 //        qDebug()<<"added"<<fn->path();
         // Get relative path to rootNode
-        QString parentDir = fn->path().toFileInfo().absolutePath();
+        QString parentDir = fn->filePath().toFileInfo().absolutePath();
         ProjectExplorer::FolderNode *folder = findOrCreateFolder(rootNode, parentDir);
         folder->addFileNodes(QList<ProjectExplorer::FileNode *>()<< fn);
     }
@@ -562,7 +562,7 @@ void CMakeProject::buildTree(CMakeProjectNode *rootNode, QList<ProjectExplorer::
 
 ProjectExplorer::FolderNode *CMakeProject::findOrCreateFolder(CMakeProjectNode *rootNode, QString directory)
 {
-    FileName path = rootNode->path().parentDir();
+    FileName path = rootNode->filePath().parentDir();
     QDir rootParentDir(path.toString());
     QString relativePath = rootParentDir.relativeFilePath(directory);
     if (relativePath == QLatin1String("."))
@@ -574,7 +574,7 @@ ProjectExplorer::FolderNode *CMakeProject::findOrCreateFolder(CMakeProjectNode *
         // Find folder in subFolders
         bool found = false;
         foreach (ProjectExplorer::FolderNode *folder, parent->subFolderNodes()) {
-            if (folder->path() == path) {
+            if (folder->filePath() == path) {
                 // yeah found something :)
                 parent = folder;
                 found = true;

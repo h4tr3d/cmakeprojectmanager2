@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
+** Copyright (C) 2015 Canonical Ltd.
 ** Contact: http://www.qt.io/licensing
 **
 ** This file is part of Qt Creator.
@@ -27,59 +27,35 @@
 ** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
 **
 ****************************************************************************/
+#ifndef CMAKEPROJECTMANAGER_CMAKEPRELOADCACHEKITINFORMATION_H
+#define CMAKEPROJECTMANAGER_CMAKEPRELOADCACHEKITINFORMATION_H
 
-#ifndef CMAKEPROJECTMANAGER_H
-#define CMAKEPROJECTMANAGER_H
+#include "cmake_global.h"
 
-#include <projectexplorer/iprojectmanager.h>
-
-QT_BEGIN_NAMESPACE
-class QAction;
-class QDir;
-QT_END_NAMESPACE
-
-namespace ProjectExplorer { class Node; }
-namespace Utils {
-class Environment;
-class QtcProcess;
-}
+#include <projectexplorer/kitmanager.h>
 
 namespace CMakeProjectManager {
-namespace Internal {
 
-class CMakeSettingsPage;
-
-class CMakeManager : public ProjectExplorer::IProjectManager
+class CMAKE_EXPORT CMakePreloadCacheKitInformation : public ProjectExplorer::KitInformation
 {
     Q_OBJECT
 public:
-    CMakeManager();
+    CMakePreloadCacheKitInformation();
 
-    virtual ProjectExplorer::Project *openProject(const QString &fileName, QString *errorString);
-    virtual QString mimeType() const;
+    static Core::Id id();
 
-    void createXmlFile(Utils::QtcProcess *process,
-                       const QString &executable,
-                       const QString &arguments,
-                       const QString &sourceDirectory,
-                       const QDir &buildDirectory,
-                       const Utils::Environment &env,
-                       const QString &generator,
-                       const QString &preloadCache);
-    bool preferNinja() const;
-    static QString findCbpFile(const QDir &);
+    // KitInformation interface
+    QVariant defaultValue(ProjectExplorer::Kit *) const override;
+    QList<ProjectExplorer::Task> validate(const ProjectExplorer::Kit *k) const override;
+    void setup(ProjectExplorer::Kit *k) override;
+    void fix(ProjectExplorer::Kit *k) override;
+    ItemList toUserOutput(const ProjectExplorer::Kit *k) const override;
+    ProjectExplorer::KitConfigWidget *createConfigWidget(ProjectExplorer::Kit *k) const override;
 
-private:
-    void updateRunCmakeAction();
-    void runCMake(ProjectExplorer::Project *project);
-
-private:
-    CMakeSettingsPage *m_settingsPage;
-    QAction *m_runCMakeAction;
-    QAction *m_runCMakeActionContextMenu;
+    static void setPreloadCacheFile(ProjectExplorer::Kit *k, const QString &preload);
+    static QString preloadCacheFile(const ProjectExplorer::Kit *k);
 };
 
-} // namespace Internal
 } // namespace CMakeProjectManager
 
-#endif // CMAKEPROJECTMANAGER_H
+#endif // CMAKEPROJECTMANAGER_CMAKEPRELOADCACHEKITINFORMATION_H

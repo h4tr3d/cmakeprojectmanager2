@@ -62,6 +62,7 @@
 #include <QStringList>
 #include <QApplication>
 #include <QCheckBox>
+#include <QDir>
 #include <QFileDialog>
 #include <QMessageBox>
 
@@ -574,23 +575,23 @@ QByteArray CMakeRunPage::cachedGeneratorFromFile(const QString &cache)
 void CMakeRunPage::initializePage()
 {
     if (m_mode == CMakeRunPage::NeedToUpdate) {
-        m_descriptionLabel->setText(tr("The build directory \"%1\" for the buildconfiguration \"%2\" "
+        m_descriptionLabel->setText(tr("The build directory \"%1\" for build configuration \"%2\" "
                                        "for target \"%3\" contains an outdated .cbp file. Qt "
                                        "Creator needs to update this file by running CMake. "
-                                       "If you want to add additional command line arguments, "
-                                       "add them below. Note that CMake remembers command "
-                                       "line arguments from the previous runs.")
-                                    .arg(m_buildDirectory)
+                                       "You can add command line arguments below. Note that "
+                                       "CMake remembers command line arguments from the "
+                                       "previous runs.")
+                                    .arg(QDir::toNativeSeparators(m_buildDirectory))
                                     .arg(m_buildConfigurationName)
                                     .arg(m_kitName));
     } else if (m_mode == CMakeRunPage::Recreate) {
-        m_descriptionLabel->setText(tr("The directory \"%1\" specified in the build-configuration \"%2\", "
-                                       "for target \"%3\" does not contain a cbp file. "
-                                       "Qt Creator needs to recreate this file, by running CMake. "
+        m_descriptionLabel->setText(tr("The directory \"%1\" specified in build configuration \"%2\", "
+                                       "for target \"%3\" does not contain a .cbp file. "
+                                       "Qt Creator needs to recreate this file by running CMake. "
                                        "Some projects require command line arguments to "
                                        "the initial CMake call. Note that CMake remembers command "
                                        "line arguments from the previous runs.")
-                                    .arg(m_buildDirectory)
+                                    .arg(QDir::toNativeSeparators(m_buildDirectory))
                                     .arg(m_buildConfigurationName)
                                     .arg(m_kitName));
     } else if (m_mode == CMakeRunPage::ChangeDirectory) {
@@ -599,9 +600,9 @@ void CMakeRunPage::initializePage()
                                        "Some projects require command line arguments to the "
                                        "initial CMake call."));
     } else if (m_mode == CMakeRunPage::WantToUpdate) {
-        m_descriptionLabel->setText(tr("Refreshing cbp file in \"%1\" for buildconfiguration \"%2\" "
+        m_descriptionLabel->setText(tr("Refreshing the .cbp file in \"%1\" for build configuration \"%2\" "
                                        "for target \"%3\".")
-                                    .arg(m_buildDirectory)
+                                    .arg(QDir::toNativeSeparators(m_buildDirectory))
                                     .arg(m_buildConfigurationName)
                                     .arg(m_kitName));
     }
@@ -791,21 +792,26 @@ void CMakeRunPage::runCMake()
     CMakeManager *cmakeManager = m_cmakeWizard->cmakeManager();
     if (cmake && cmake->isValid()) {
         m_cmakeProcess = new Utils::QtcProcess();
-        connect(m_cmakeProcess, SIGNAL(readyReadStandardOutput()), this, SLOT(cmakeReadyReadStandardOutput()));
-        connect(m_cmakeProcess, SIGNAL(readyReadStandardError()), this, SLOT(cmakeReadyReadStandardError()));
-        connect(m_cmakeProcess, SIGNAL(finished(int)), this, SLOT(cmakeFinished()));
+        connect(m_cmakeProcess, &QProcess::readyReadStandardOutput,
+                this, &CMakeRunPage::cmakeReadyReadStandardOutput);
+        connect(m_cmakeProcess, &QProcess::readyReadStandardError,
+                this, &CMakeRunPage::cmakeReadyReadStandardError);
+        connect(m_cmakeProcess, static_cast<void(QProcess::*)(int)>(&QProcess::finished),
+                this, &CMakeRunPage::cmakeFinished);
         QString arguments = m_cmakeParamsExt.arguments(m_argumentsLineEdit->text(), m_buildDirectory);
-        cmakeManager->createXmlFile(m_cmakeProcess, cmake->cmakeExecutable().toString(), arguments,
-                                    m_cmakeWizard->sourceDirectory(), m_buildDirectory, env,
-                                    QString::fromLatin1(generatorInfo.generatorArgument()));
+        cmakeManager->createXmlFile(m_cmakeProcess, cmake->cmakeExecutable().toString(),
+                                    arguments, m_cmakeWizard->sourceDirectory(),
+                                    m_buildDirectory, env,
+                                    QString::fromLatin1(generatorInfo.generatorArgument()),
+                                    generatorInfo.preLoadCacheFileArgument());
     } else {
         m_runCMake->setEnabled(true);
         m_discardCache->setEnabled(true);
         m_argumentsLineEdit->setEnabled(true);
         m_generatorComboBox->setEnabled(true);
         m_buildTypeComboBox->setEnabled(true);
-        m_output->appendPlainText(tr("Selected Kit has no valid CMake executable specified."));
         m_toolchainGroupbox->setEnabled(true);
+        m_output->appendPlainText(tr("Selected kit has no valid CMake executable specified."));
     }
 }
 
