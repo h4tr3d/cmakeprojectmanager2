@@ -135,18 +135,10 @@ sudo apt-get install qtcreator-git qtcreator-git-plugin-cmake2
 TODO & Roadmap
 --------------
 
-No roadmap. Only needed features implemets.
+No roadmap. Only needed features implemets. Code syncs regularry.
 
-Next great ideas dropped as unimplementable in near and far future:
-* Big idea: remove .cbp parsing and parse CMakeLists.txt directly (far far far future :-)
-* Display sources and other files per targets (like KDevelop4)
-* On adding new files add its to specified targets. Similar behaviour on deleting or renaming
-  files.
+Actual tasks and todo can be looks at the Issue page: https://github.com/h4tr3d/cmakeprojectmanager2/issues
 
-Next TODOs marked as low-priority
-* Compose toolchain using Kit
-
-Only one work doing regulary: sync codebase with QtC Master branch.
 
 Sync with Qt Creator upstream plugin
 ------------------------------------
