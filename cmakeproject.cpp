@@ -375,7 +375,7 @@ bool CMakeProject::parseCMakeLists()
         foreach (ProjectExplorer::FileNode *node, cbpparser.cmakeFileList()) {
             projectFiles.insert(node->filePath());
             if (!Utils::contains(treeFileList, [&node](const ProjectExplorer::FileNode *n) {
-                    return n->path() == node->path();
+                    return n->filePath() == node->filePath();
                  })) {
                 treeFileList.append(node);
             }
@@ -818,13 +818,14 @@ void CMakeProject::updateCbp()
     if (cmake && cmake->isValid()) {
         m_cbpUpdateProcess = new Utils::QtcProcess();
         connect(m_cbpUpdateProcess, SIGNAL(finished(int)), this, SLOT(cbpUpdateFinished(int)));
-
+        QString arguments = bc->cmakeParamsExt().arguments(bc->cmakeParams(), bc->buildDirectory().toString());
         m_manager->createXmlFile(m_cbpUpdateProcess, cmake->cmakeExecutable().toString(),
-                                 bc->cmakeParamsExt().arguments(bc->cmakeParams(), bc->buildDirectory().toString()),
+                                 arguments,
                                  bc->target()->project()->projectDirectory().toString(),
                                  bc->buildDirectory().toString(),
                                  bc->environment(),
-                                 QString::fromLatin1(generatorInfo.generatorArgument()));
+                                 QString::fromLatin1(generatorInfo.generatorArgument()),
+                                 generatorInfo.preLoadCacheFileArgument());
     } else {
         cbpUpdateMessage(tr("Selected Kit has no valid CMake executable specified."));
     }
