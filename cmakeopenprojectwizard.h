@@ -203,11 +203,9 @@ private:
     QLabel *m_generatorExtraText;
     QComboBox *m_buildTypeComboBox;
     QGroupBox *m_toolchainGroupbox;
-    QComboBox *m_toolchainComboBox;
     Utils::FancyLineEdit *m_toolchainLineEdit;
     QPushButton *m_toolchainFileSelectPushButton;
     QPushButton *m_toolchainPushButton;
-    QRadioButton *m_qtcToolchainRadioButton;
     QRadioButton *m_fileToolchainRadioButton;
     QRadioButton *m_inlineToolchainRadioButton;
     QLabel *m_descriptionLabel;

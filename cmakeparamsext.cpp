@@ -48,9 +48,6 @@ QString CMakeParamsExt::arguments(const QString &userArguments, const QString &b
             } else {
                 // TODO: notify error
             }
-
-        } else if (toolchainOverride == CMakeToolchainOverrideType::QtcKit) {
-            // TODO:
         }
 
         if (fileName.isEmpty() == false)

@@ -457,7 +457,6 @@ void CMakeRunPage::initWidgets()
     toolchainLayout->setFieldGrowthPolicy(QFormLayout::ExpandingFieldsGrow);
     m_toolchainGroupbox->setLayout(toolchainLayout);
 
-    m_toolchainComboBox = new QComboBox(this);
     m_toolchainLineEdit = new Utils::FancyLineEdit(this);
     
     m_toolchainFileSelectPushButton = new QPushButton(this);
@@ -468,18 +467,11 @@ void CMakeRunPage::initWidgets()
     m_toolchainPushButton->setText(tr("Edit"));
     connect(m_toolchainPushButton, SIGNAL(clicked()), this, SLOT(toolchainEdit()));
 
-    m_qtcToolchainRadioButton = new QRadioButton(tr("Qt Creator Toolchain:"), this);
     m_fileToolchainRadioButton = new QRadioButton(tr("Toolchain file:"), this);
     m_inlineToolchainRadioButton = new QRadioButton(tr("Inline Toolchain:"), this);
 
-    connect(m_qtcToolchainRadioButton, SIGNAL(toggled(bool)), this, SLOT(toolchainRadio(bool)));
     connect(m_fileToolchainRadioButton, SIGNAL(toggled(bool)), this, SLOT(toolchainRadio(bool)));
     connect(m_inlineToolchainRadioButton, SIGNAL(toggled(bool)), this, SLOT(toolchainRadio(bool)));
-
-    hbox = new QHBoxLayout;
-    hbox->addWidget(m_qtcToolchainRadioButton);
-    hbox->addWidget(m_toolchainComboBox);
-    toolchainLayout->addRow(hbox);
 
     hbox = new QHBoxLayout;
     hbox->addWidget(m_fileToolchainRadioButton);
@@ -493,11 +485,7 @@ void CMakeRunPage::initWidgets()
     hbox->addWidget(m_toolchainPushButton);
     toolchainLayout->addRow(hbox);
 
-    // TODO: add support
-    m_qtcToolchainRadioButton->setDisabled(true);
-
     // TODO: load state
-    m_toolchainComboBox->setDisabled(true);
     m_toolchainLineEdit->setDisabled(true);
     m_toolchainPushButton->setDisabled(true);
     m_toolchainFileSelectPushButton->setDisabled(true);
@@ -799,6 +787,26 @@ void CMakeRunPage::runCMake()
         connect(m_cmakeProcess, static_cast<void(QProcess::*)(int)>(&QProcess::finished),
                 this, &CMakeRunPage::cmakeFinished);
         QString arguments = m_cmakeParamsExt.arguments(m_argumentsLineEdit->text(), m_buildDirectory);
+
+        if (curr.toolchainOverride == CMakeToolchainOverrideType::Disabled) {
+            ProjectExplorer::ToolChain *tc = ProjectExplorer::ToolChainKitInformation::toolChain(generatorInfo.kit());
+            auto cxxcompiler = tc->compilerCommand().toString();
+            auto ccompiler = cxxcompiler;
+
+            if (cxxcompiler.contains(QLatin1String("g++")))
+                ccompiler.replace(QLatin1String("g++"), QLatin1String("gcc"));
+            else if (cxxcompiler.contains(QLatin1String("clang++")))
+                ccompiler.replace(QLatin1String("clang++"), QLatin1String("clang"));
+
+            if (!env.hasKey(QLatin1String("CXX")))
+                env.set(QLatin1String("CXX"), cxxcompiler);
+            if (!env.hasKey(QLatin1String("CC")))
+                env.set(QLatin1String("CC"), ccompiler);
+
+            qDebug() << "[CXX] kit" << cxxcompiler << "env" << env.value(QLatin1String("CXX"));
+            qDebug() << "[CC ] kit" << ccompiler   << "env" << env.value(QLatin1String("CC"));
+        }
+
         cmakeManager->createXmlFile(m_cmakeProcess, cmake->cmakeExecutable().toString(),
                                     arguments, m_cmakeWizard->sourceDirectory(),
                                     m_buildDirectory, env,
@@ -894,7 +902,6 @@ void CMakeRunPage::toolchainFileSelect()
 
 void CMakeRunPage::toolchainRadio(bool)
 {
-    m_toolchainComboBox->setEnabled(m_qtcToolchainRadioButton->isChecked());
     m_toolchainLineEdit->setEnabled(m_fileToolchainRadioButton->isChecked());
     m_toolchainFileSelectPushButton->setEnabled(m_fileToolchainRadioButton->isChecked());
     m_toolchainPushButton->setEnabled(m_inlineToolchainRadioButton->isChecked());

@@ -20,7 +20,6 @@ enum class CMakeBuildType
 enum class CMakeToolchainOverrideType
 {
     Disabled,
-    QtcKit,
     File,
     Inline
 };
