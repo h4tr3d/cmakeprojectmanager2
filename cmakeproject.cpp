@@ -145,7 +145,7 @@ CMakeProject::CMakeProject(CMakeManager *manager, const FileName &fileName) :
     setId(Constants::CMAKEPROJECT_ID);
     setProjectManager(manager);
     setDocument(new CMakeFile(fileName));
-    setRootProjectNode(new CMakeProjectNode(fileName));
+    setRootProjectNode(new CMakeProjectNode(this, fileName));
     setProjectContext(Core::Context(CMakeProjectManager::Constants::PROJECTCONTEXT));
     setProjectLanguages(Core::Context(ProjectExplorer::Constants::LANG_CXX));
 
@@ -780,26 +780,21 @@ void CMakeProject::updateCbp()
     CMakeBuildConfiguration *bc
             = static_cast<CMakeBuildConfiguration *>(activeTarget()->activeBuildConfiguration());
 
-    CMakeProjectManager::Internal::GeneratorInfo generatorInfo(bc->target()->kit(),
-                                                               bc->useNinja());
-    
-    CMakeTool *cmake = CMakeKitInformation::cmakeTool(generatorInfo.kit());
+    CMakeTool *cmake = CMakeKitInformation::cmakeTool(bc->target()->kit());
 
     if (cmake && cmake->isValid()) {
         m_cbpUpdateProcess = new Utils::QtcProcess();
         connect(m_cbpUpdateProcess, SIGNAL(finished(int)), this, SLOT(cbpUpdateFinished(int)));
         QString arguments = bc->cmakeParamsExt().arguments(bc->cmakeParams(), bc->buildDirectory().toString());
-        m_manager->createXmlFile(m_cbpUpdateProcess, cmake->cmakeExecutable().toString(),
-                                 arguments,
-                                 bc->target()->project()->projectDirectory().toString(),
-                                 bc->buildDirectory().toString(),
-                                 bc->environment(),
-                                 QString::fromLatin1(generatorInfo.generatorArgument()),
-                                 generatorInfo.preLoadCacheFileArgument());
+        CMakeManager::createXmlFile(m_cbpUpdateProcess,
+                                    cmake->cmakeExecutable().toString(),
+                                    arguments,
+                                    bc->target()->project()->projectDirectory().toString(),
+                                    bc->buildDirectory().toString(),
+                                    bc->environment());
     } else {
         cbpUpdateMessage(tr("Selected Kit has no valid CMake executable specified."));
     }
-
 }
 
 void CMakeProject::updateApplicationAndDeploymentTargets()
