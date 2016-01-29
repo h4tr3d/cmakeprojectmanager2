@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -50,9 +45,12 @@
 #include <QAction>
 #include <QDateTime>
 
+using namespace ProjectExplorer;
 using namespace CMakeProjectManager::Internal;
 
-CMakeManager::CMakeManager()
+CMakeManager::CMakeManager() :
+    m_runCMakeAction(new QAction(QIcon(), tr("Run CMake"), this)),
+    m_runCMakeActionContextMenu(new QAction(QIcon(), tr("Run CMake"), this))
 {
     Core::ActionContainer *mbuild =
             Core::ActionManager::actionContainer(ProjectExplorer::Constants::M_BUILDPROJECT);
@@ -64,39 +62,37 @@ CMakeManager::CMakeManager()
     const Core::Context projectContext(CMakeProjectManager::Constants::PROJECTCONTEXT);
     const Core::Context globalcontext(Core::Constants::C_GLOBAL);
 
-    m_runCMakeAction = new QAction(QIcon(), tr("Run CMake"), this);
     Core::Command *command = Core::ActionManager::registerAction(m_runCMakeAction,
                                                                  Constants::RUNCMAKE, globalcontext);
     command->setAttribute(Core::Command::CA_Hide);
     mbuild->addAction(command, ProjectExplorer::Constants::G_BUILD_DEPLOY);
     connect(m_runCMakeAction, &QAction::triggered, [this]() {
-        runCMake(ProjectExplorer::SessionManager::startupProject());
+        runCMake(SessionManager::startupProject());
     });
 
-    m_runCMakeActionContextMenu = new QAction(QIcon(), tr("Run CMake"), this);
     command = Core::ActionManager::registerAction(m_runCMakeActionContextMenu,
                                                   Constants::RUNCMAKECONTEXTMENU, projectContext);
     command->setAttribute(Core::Command::CA_Hide);
     mproject->addAction(command, ProjectExplorer::Constants::G_PROJECT_BUILD);
     msubproject->addAction(command, ProjectExplorer::Constants::G_PROJECT_BUILD);
     connect(m_runCMakeActionContextMenu, &QAction::triggered, [this]() {
-        runCMake(ProjectExplorer::ProjectTree::currentProject());
+        runCMake(ProjectTree::currentProject());
     });
 
-    connect(ProjectExplorer::SessionManager::instance(), &ProjectExplorer::SessionManager::startupProjectChanged,
+    connect(SessionManager::instance(), &SessionManager::startupProjectChanged,
             this, &CMakeManager::updateRunCmakeAction);
-    connect(ProjectExplorer::BuildManager::instance(), &ProjectExplorer::BuildManager::buildStateChanged,
+    connect(BuildManager::instance(), &BuildManager::buildStateChanged,
             this, &CMakeManager::updateRunCmakeAction);
 
 }
 
 void CMakeManager::updateRunCmakeAction()
 {
-    auto project = qobject_cast<CMakeProject *>(ProjectExplorer::SessionManager::startupProject());
-    m_runCMakeAction->setVisible(project && !ProjectExplorer::BuildManager::isBuilding(project));
+    auto project = qobject_cast<CMakeProject *>(SessionManager::startupProject());
+    m_runCMakeAction->setVisible(project && !BuildManager::isBuilding(project));
 }
 
-void CMakeManager::runCMake(ProjectExplorer::Project *project)
+void CMakeManager::runCMake(Project *project)
 {
     if (!project)
         return;
@@ -104,7 +100,7 @@ void CMakeManager::runCMake(ProjectExplorer::Project *project)
     if (!cmakeProject || !cmakeProject->activeTarget() || !cmakeProject->activeTarget()->activeBuildConfiguration())
         return;
 
-    if (!ProjectExplorer::ProjectExplorerPlugin::saveModifiedFiles())
+    if (!ProjectExplorerPlugin::saveModifiedFiles())
         return;
 
     CMakeBuildConfiguration *bc
@@ -112,8 +108,7 @@ void CMakeManager::runCMake(ProjectExplorer::Project *project)
 
     CMakeBuildInfo info(bc);
 
-    CMakeOpenProjectWizard copw(Core::ICore::mainWindow(), this, CMakeOpenProjectWizard::WantToUpdate,
-                                &info, project->activeTarget()->displayName(), bc->displayName());
+    CMakeOpenProjectWizard copw(Core::ICore::mainWindow(), CMakeOpenProjectWizard::WantToUpdate, &info);
     if (copw.exec() == QDialog::Accepted) {
         cmakeProject->parseCMakeLists();
         bc->setCMakeParams(copw.arguments());
@@ -121,7 +116,7 @@ void CMakeManager::runCMake(ProjectExplorer::Project *project)
     }
 }
 
-ProjectExplorer::Project *CMakeManager::openProject(const QString &fileName, QString *errorString)
+Project *CMakeManager::openProject(const QString &fileName, QString *errorString)
 {
     Utils::FileName file = Utils::FileName::fromString(fileName);
     if (!file.toFileInfo().isFile()) {
@@ -139,7 +134,7 @@ QString CMakeManager::mimeType() const
     return QLatin1String(Constants::CMAKEPROJECTMIMETYPE);
 }
 
-bool CMakeManager::preferNinja() const
+bool CMakeManager::preferNinja()
 {
     return CMakeToolManager::preferNinja();
 }
@@ -148,9 +143,9 @@ bool CMakeManager::preferNinja() const
 // we probably want the process instead of this function
 // cmakeproject then could even run the cmake process in the background, adding the files afterwards
 // sounds like a plan
-void CMakeManager::createXmlFile(Utils::QtcProcess *proc, const QString &executable, const QString &arguments,
-                                 const QString &sourceDirectory, const QDir &buildDirectory,
-                                 const Utils::Environment &env, const QString &generator, const QString &preloadCache)
+void CMakeManager::createXmlFile(Utils::QtcProcess *proc, const QString &executable,
+                                 const QString &arguments, const QString &sourceDirectory,
+                                 const QDir &buildDirectory, const Utils::Environment &env)
 {
     QString buildDirectoryPath = buildDirectory.absolutePath();
     buildDirectory.mkpath(buildDirectoryPath);
@@ -162,9 +157,7 @@ void CMakeManager::createXmlFile(Utils::QtcProcess *proc, const QString &executa
     QString args;
     Utils::QtcProcess::addArg(&args, srcdir);
     Utils::QtcProcess::addArgs(&args, arguments);
-    Utils::QtcProcess::addArg(&args, generator);
-    if (!preloadCache.isEmpty())
-        Utils::QtcProcess::addArg(&args, preloadCache);
+
     proc->setCommand(executable, args);
     proc->start();
 }

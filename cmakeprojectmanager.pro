@@ -12,12 +12,12 @@ include($$QTCREATOR_SOURCES/src/qtcreatorplugin.pri)
 INCLUDEPATH += $$QTCREATOR_SOURCES/src/plugins/texteditor
 
 HEADERS = cmakebuildinfo.h \
+    cmakebuildstep.h \
     cmakeproject.h \
     cmakeprojectplugin.h \
     cmakeprojectmanager.h \
     cmakeprojectconstants.h \
     cmakeprojectnodes.h \
-    makestep.h \
     cmakerunconfiguration.h \
     cmakeopenprojectwizard.h \
     cmakebuildconfiguration.h \
@@ -42,11 +42,11 @@ HEADERS = cmakebuildinfo.h \
     cmakepreloadcachekitinformation.h \
     cmakepreloadcachekitconfigwidget.h
 
-SOURCES = cmakeproject.cpp \
+SOURCES = cmakebuildstep.cpp \
+    cmakeproject.cpp \
     cmakeprojectplugin.cpp \
     cmakeprojectmanager.cpp \
     cmakeprojectnodes.cpp \
-    makestep.cpp \
     cmakerunconfiguration.cpp \
     cmakeopenprojectwizard.cpp \
     cmakebuildconfiguration.cpp \

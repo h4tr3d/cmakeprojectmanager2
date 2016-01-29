@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -70,6 +65,7 @@
 
 using namespace CMakeProjectManager;
 using namespace CMakeProjectManager::Internal;
+using namespace ProjectExplorer;
 
 ///////
 //  Page Flow:
@@ -86,22 +82,16 @@ using namespace CMakeProjectManager::Internal;
 //////////////
 /// CMakeOpenProjectWizard
 //////////////
-CMakeOpenProjectWizard::CMakeOpenProjectWizard(QWidget *parent, CMakeManager *cmakeManager,
+CMakeOpenProjectWizard::CMakeOpenProjectWizard(QWidget *parent,
                                                CMakeOpenProjectWizard::Mode mode,
-                                               const CMakeBuildInfo *info,
-                                               const QString &kitName,
-                                               const QString &buildConfigurationName)
-    : Utils::Wizard(parent),
-      m_cmakeManager(cmakeManager),
-      m_sourceDirectory(info->sourceDirectory),
-      m_arguments(info->cmakeParams),
-      m_environment(info->environment),
-      m_useNinja(info->useNinja),
-      m_kit(0),
-      m_cmakeParamsExt(info->cmakeParamsExt)
+                                               const CMakeBuildInfo *info) :
+    Utils::Wizard(parent),
+    m_sourceDirectory(info->sourceDirectory),
+    m_arguments(info->cmakeParams),
+    m_environment(info->environment),
+    m_kit(KitManager::find(info->kitId)),
+    m_cmakeParamsExt(info->cmakeParamsExt)
 {
-    m_kit = ProjectExplorer::KitManager::find(info->kitId);
-
     CMakeRunPage::Mode rmode;
     if (mode == CMakeOpenProjectWizard::NeedToCreate)
         rmode = CMakeRunPage::Recreate;
@@ -121,18 +111,9 @@ CMakeOpenProjectWizard::CMakeOpenProjectWizard(QWidget *parent, CMakeManager *cm
         addPage(new NoCMakePage(this));
 
     addPage(new CMakeRunPage(this, rmode, info->buildDirectory.toString(), info->arguments,
-                             kitName, buildConfigurationName));
-    init();
-}
+                             m_kit->displayName(), info->displayName));
 
-void CMakeOpenProjectWizard::init()
-{
     setWindowTitle(tr("CMake Wizard"));
-}
-
-CMakeManager *CMakeOpenProjectWizard::cmakeManager() const
-{
-    return m_cmakeManager;
 }
 
 bool CMakeOpenProjectWizard::hasInSourceBuild() const
@@ -142,10 +123,10 @@ bool CMakeOpenProjectWizard::hasInSourceBuild() const
 
 bool CMakeOpenProjectWizard::compatibleKitExist() const
 {
-    bool preferNinja = m_cmakeManager->preferNinja();
-    QList<ProjectExplorer::Kit *> kitList = ProjectExplorer::KitManager::kits();
+    bool preferNinja = CMakeManager::preferNinja();
+    const QList<Kit *> kitList = KitManager::kits();
 
-    foreach (ProjectExplorer::Kit *k, kitList) {
+    foreach (Kit *k, kitList) {
         CMakeTool *cmake = CMakeKitInformation::cmakeTool(k);
         if (!cmake)
             continue;
@@ -156,8 +137,7 @@ bool CMakeOpenProjectWizard::compatibleKitExist() const
         // OfferNinja and ForceNinja differ in what they return
         // but not whether the list is empty or not, which is what we
         // are interested in here
-        QList<GeneratorInfo> infos = GeneratorInfo::generatorInfosFor(k,
-                                                                      hasNinjaGenerator ? GeneratorInfo::OfferNinja : GeneratorInfo::NoNinja,
+        QList<GeneratorInfo> infos = GeneratorInfo::generatorInfosFor(k, hasNinjaGenerator,
                                                                       preferNinja,
                                                                       hasCodeBlocksGenerator);
         if (!infos.isEmpty())
@@ -205,16 +185,6 @@ void CMakeOpenProjectWizard::setBuildDirectory(const QString &directory)
     m_buildDirectory = directory;
 }
 
-bool CMakeOpenProjectWizard::useNinja() const
-{
-    return m_useNinja;
-}
-
-void CMakeOpenProjectWizard::setUseNinja(bool b)
-{
-    m_useNinja = b;
-}
-
 QString CMakeOpenProjectWizard::arguments() const
 {
     return m_arguments;
@@ -230,12 +200,12 @@ Utils::Environment CMakeOpenProjectWizard::environment() const
     return m_environment;
 }
 
-ProjectExplorer::Kit *CMakeOpenProjectWizard::kit() const
+Kit *CMakeOpenProjectWizard::kit() const
 {
     return m_kit;
 }
 
-void CMakeOpenProjectWizard::setKit(ProjectExplorer::Kit *kit)
+void CMakeOpenProjectWizard::setKit(Kit *kit)
 {
     m_kit = kit;
 }
@@ -247,7 +217,7 @@ void CMakeOpenProjectWizard::setKit(ProjectExplorer::Kit *kit)
 NoKitPage::NoKitPage(CMakeOpenProjectWizard *cmakeWizard)
     : QWizardPage(cmakeWizard), m_cmakeWizard(cmakeWizard)
 {
-    QVBoxLayout *layout = new QVBoxLayout;
+    auto layout = new QVBoxLayout;
     setLayout(layout);
 
     m_descriptionLabel = new QLabel(this);
@@ -257,10 +227,9 @@ NoKitPage::NoKitPage(CMakeOpenProjectWizard *cmakeWizard)
     m_optionsButton = new QPushButton;
     m_optionsButton->setText(Core::ICore::msgShowOptionsDialog());
 
-    connect(m_optionsButton, SIGNAL(clicked()),
-            this, SLOT(showOptions()));
+    connect(m_optionsButton, &QAbstractButton::clicked, this, &NoKitPage::showOptions);
 
-    QHBoxLayout *hbox = new QHBoxLayout;
+    auto hbox = new QHBoxLayout;
     hbox->addWidget(m_optionsButton);
     hbox->addStretch();
 
@@ -268,8 +237,7 @@ NoKitPage::NoKitPage(CMakeOpenProjectWizard *cmakeWizard)
 
     setTitle(tr("Check Kits"));
 
-    connect(ProjectExplorer::KitManager::instance(), SIGNAL(kitsChanged()),
-            this, SLOT(kitsChanged()));
+    connect(KitManager::instance(), &KitManager::kitsChanged, this, &NoKitPage::kitsChanged);
 
     kitsChanged();
 }
@@ -306,7 +274,7 @@ InSourceBuildPage::InSourceBuildPage(CMakeOpenProjectWizard *cmakeWizard)
     : QWizardPage(cmakeWizard), m_cmakeWizard(cmakeWizard)
 {
     setLayout(new QVBoxLayout);
-    QLabel *label = new QLabel(this);
+    auto label = new QLabel(this);
     label->setWordWrap(true);
     label->setText(tr("Qt Creator has detected an <b>in-source-build in %1</b> "
                    "which prevents shadow builds. Qt Creator will not allow you to change the build directory. "
@@ -319,10 +287,10 @@ InSourceBuildPage::InSourceBuildPage(CMakeOpenProjectWizard *cmakeWizard)
 ShadowBuildPage::ShadowBuildPage(CMakeOpenProjectWizard *cmakeWizard, bool change)
     : QWizardPage(cmakeWizard), m_cmakeWizard(cmakeWizard)
 {
-    QFormLayout *fl = new QFormLayout;
+    auto fl = new QFormLayout;
     this->setLayout(fl);
 
-    QLabel *label = new QLabel(this);
+    auto label = new QLabel(this);
     label->setWordWrap(true);
     if (change)
         label->setText(tr("Please enter the directory in which you want to build your project.") + QLatin1Char(' '));
@@ -337,7 +305,7 @@ ShadowBuildPage::ShadowBuildPage(CMakeOpenProjectWizard *cmakeWizard, bool chang
     m_pc->setPath(m_cmakeWizard->buildDirectory());
     m_pc->setExpectedKind(Utils::PathChooser::Directory);
     m_pc->setHistoryCompleter(QLatin1String("Cmake.BuildDir.History"));
-    connect(m_pc, SIGNAL(rawPathChanged(QString)), this, SLOT(buildDirectoryChanged()));
+    connect(m_pc, &Utils::PathChooser::rawPathChanged, this, &ShadowBuildPage::buildDirectoryChanged);
     fl->addRow(tr("Build directory:"), m_pc);
     setTitle(tr("Build Location"));
 }
@@ -351,10 +319,9 @@ void ShadowBuildPage::buildDirectoryChanged()
 // NoCMakePage
 /////
 
-NoCMakePage::NoCMakePage(CMakeOpenProjectWizard *cmakeWizard)
-    : QWizardPage(cmakeWizard)
+NoCMakePage::NoCMakePage(CMakeOpenProjectWizard *cmakeWizard) : QWizardPage(cmakeWizard)
 {
-    QVBoxLayout *layout = new QVBoxLayout;
+    auto layout = new QVBoxLayout;
     setLayout(layout);
 
     m_descriptionLabel = new QLabel(this);
@@ -364,10 +331,9 @@ NoCMakePage::NoCMakePage(CMakeOpenProjectWizard *cmakeWizard)
     m_optionsButton = new QPushButton;
     m_optionsButton->setText(Core::ICore::msgShowOptionsDialog());
 
-    connect(m_optionsButton, SIGNAL(clicked()),
-            this, SLOT(showOptions()));
+    connect(m_optionsButton, &QAbstractButton::clicked, this, &NoCMakePage::showOptions);
 
-    QHBoxLayout *hbox = new QHBoxLayout;
+    auto hbox = new QHBoxLayout;
     hbox->addWidget(m_optionsButton);
     hbox->addStretch();
 
@@ -405,39 +371,36 @@ void NoCMakePage::showOptions()
 
 CMakeRunPage::CMakeRunPage(CMakeOpenProjectWizard *cmakeWizard, Mode mode,
                            const QString &buildDirectory, const QString &initialArguments,
-                           const QString &kitName, const QString &buildConfigurationName)
-    : QWizardPage(cmakeWizard),
-      m_cmakeWizard(cmakeWizard),
-      m_haveCbpFile(false),
-      m_mode(mode),
-      m_buildDirectory(buildDirectory),
-      m_kitName(kitName),
-      m_buildConfigurationName(buildConfigurationName)
+                           const QString &kitName, const QString &buildConfigurationName) :
+    QWizardPage(cmakeWizard),
+    m_cmakeWizard(cmakeWizard),
+    m_descriptionLabel(new QLabel(this)),
+    m_argumentsLineEdit(new Utils::FancyLineEdit(this)),
+    m_generatorComboBox(new QComboBox(this)),
+    m_generatorExtraText(new QLabel(this)),
+    m_runCMake(new QPushButton(this)),
+    m_output(new QPlainTextEdit(this)),
+    m_exitCodeLabel(new QLabel(this)),
+    m_continueCheckBox(new QCheckBox(this)),
+    m_mode(mode),
+    m_buildDirectory(buildDirectory),
+    m_kitName(kitName),
+    m_buildConfigurationName(buildConfigurationName)
 {
-    initWidgets();
-    m_argumentsLineEdit->setText(initialArguments);
-}
-
-void CMakeRunPage::initWidgets()
-{
-    QFormLayout *fl = new QFormLayout;
+    auto fl = new QFormLayout;
     fl->setFieldGrowthPolicy(QFormLayout::ExpandingFieldsGrow);
     setLayout(fl);
     // Description Label
-    m_descriptionLabel = new QLabel(this);
     m_descriptionLabel->setWordWrap(true);
 
     fl->addRow(m_descriptionLabel);
 
     // Run CMake Line (with arguments)
-    m_argumentsLineEdit = new Utils::FancyLineEdit(this);
     m_argumentsLineEdit->setHistoryCompleter(QLatin1String("CMakeArgumentsLineEdit"));
     m_argumentsLineEdit->selectAll();
 
-    connect(m_argumentsLineEdit,SIGNAL(returnPressed()), this, SLOT(runCMake()));
+    connect(m_argumentsLineEdit, &QLineEdit::returnPressed, this, &CMakeRunPage::runCMake);
     fl->addRow(tr("Arguments:"), m_argumentsLineEdit);
-
-    m_generatorComboBox = new QComboBox(this);
     m_buildTypeComboBox = new QComboBox(this);
 
     QHBoxLayout *hbox = new QHBoxLayout;
@@ -491,25 +454,21 @@ void CMakeRunPage::initWidgets()
     m_toolchainFileSelectPushButton->setDisabled(true);
 
     fl->addRow(m_toolchainGroupbox);
-
-    m_generatorExtraText = new QLabel(this);
     fl->addRow(m_generatorExtraText);
 
-    m_runCMake = new QPushButton(this);
     m_runCMake->setText(tr("Run CMake"));
-    connect(m_runCMake, SIGNAL(clicked()), this, SLOT(runCMake()));
+    connect(m_runCMake, &QAbstractButton::clicked, this, &CMakeRunPage::runCMake);
     
     m_discardCache = new QCheckBox(tr("Reset cache on CMake run"), this);
     m_discardCache->setCheckState(Qt::Unchecked);
 
-    QHBoxLayout *hbox2 = new QHBoxLayout;
+    auto hbox2 = new QHBoxLayout;
     hbox2->addWidget(m_discardCache);
     hbox2->addStretch(10);
     hbox2->addWidget(m_runCMake);
     fl->addRow(hbox2);
 
     // Bottom output window
-    m_output = new QPlainTextEdit(this);
     m_output->setReadOnly(true);
     // set smaller minimum size to avoid vanishing descriptions if all of the
     // above is shown and the dialog not vertically resizing to fit stuff in (Mac)
@@ -522,20 +481,18 @@ void CMakeRunPage::initWidgets()
     m_output->setSizePolicy(pl);
     fl->addRow(m_output);
 
-    m_exitCodeLabel = new QLabel(this);
     m_exitCodeLabel->setVisible(false);
     fl->addRow(m_exitCodeLabel);
 
-    m_continueCheckBox = new QCheckBox(this);
     m_continueCheckBox->setVisible(false);
     m_continueCheckBox->setText(tr("Open project with errors."));
+    connect(m_continueCheckBox, &QCheckBox::toggled, this, &CMakeRunPage::completeChanged);
     fl->addRow(m_continueCheckBox);
-
-    connect(m_continueCheckBox, &QCheckBox::toggled,
-            this, &CMakeRunPage::completeChanged);
 
     setTitle(tr("Run CMake"));
     setMinimumSize(600, 400);
+
+    m_argumentsLineEdit->setText(initialArguments);
 }
 
 QByteArray CMakeRunPage::cachedGeneratorFromFile(const QString &cache)
@@ -599,27 +556,14 @@ void CMakeRunPage::initializePage()
     // Build the list of generators/toolchains we want to offer
     m_generatorComboBox->clear();
 
-    bool preferNinja = m_cmakeWizard->cmakeManager()->preferNinja();
+    bool preferNinja = CMakeManager::preferNinja();
 
     QList<GeneratorInfo> infos;
     CMakeTool *cmake = CMakeKitInformation::cmakeTool(m_cmakeWizard->kit());
     if (cmake) {
         // Note: We don't compare the actually cached generator to what is set in the buildconfiguration
         // We assume that the buildconfiguration is correct
-        GeneratorInfo::Ninja ninja;
-        if (m_mode == CMakeRunPage::NeedToUpdate || m_mode == CMakeRunPage::WantToUpdate) {
-            ninja = m_cmakeWizard->useNinja() ? GeneratorInfo::ForceNinja : GeneratorInfo::NoNinja;
-        } else { // Recreate, ChangeDirectory
-            // Note: ReCreate is technically just a removed .cbp file, we assume the cache
-            // got removed too. If the cache still exists the error message from cmake should
-            // be a good hint to change the generator
-            ninja = cmake->hasCodeBlocksNinjaGenerator() ? GeneratorInfo::OfferNinja : GeneratorInfo::NoNinja;
-        }
-
-        infos = GeneratorInfo::generatorInfosFor(m_cmakeWizard->kit(),
-                                                 ninja,
-                                                 preferNinja,
-                                                 true);
+        infos = GeneratorInfo::generatorInfosFor(m_cmakeWizard->kit(), true, preferNinja, true);
     }
     foreach (const GeneratorInfo &info, infos)
         m_generatorComboBox->addItem(info.displayName(), qVariantFromValue(info));
@@ -670,7 +614,6 @@ bool CMakeRunPage::validatePage()
         return false;
     GeneratorInfo generatorInfo = m_generatorComboBox->itemData(index).value<GeneratorInfo>();
     m_cmakeWizard->setKit(generatorInfo.kit());
-    m_cmakeWizard->setUseNinja(generatorInfo.isNinja());
     return QWizardPage::validatePage();
 }
 
@@ -705,6 +648,7 @@ static bool removePath(QString path)
 
 void CMakeRunPage::runCMake()
 {
+    QTC_ASSERT(!m_cmakeProcess, return);
     m_haveCbpFile = false;
 
     Utils::Environment env = m_cmakeWizard->environment();
@@ -716,7 +660,6 @@ void CMakeRunPage::runCMake()
     }
     GeneratorInfo generatorInfo = m_generatorComboBox->itemData(index).value<GeneratorInfo>();
     m_cmakeWizard->setKit(generatorInfo.kit());
-    m_cmakeWizard->setUseNinja(generatorInfo.isNinja());
 
     // Build type: Default/Debug/Release/etc
     index = m_buildTypeComboBox->currentIndex();
@@ -777,7 +720,6 @@ void CMakeRunPage::runCMake()
         }
     }
 
-    CMakeManager *cmakeManager = m_cmakeWizard->cmakeManager();
     if (cmake && cmake->isValid()) {
         m_cmakeProcess = new Utils::QtcProcess();
         connect(m_cmakeProcess, &QProcess::readyReadStandardOutput,
@@ -786,7 +728,6 @@ void CMakeRunPage::runCMake()
                 this, &CMakeRunPage::cmakeReadyReadStandardError);
         connect(m_cmakeProcess, static_cast<void(QProcess::*)(int)>(&QProcess::finished),
                 this, &CMakeRunPage::cmakeFinished);
-        QString arguments = m_cmakeParamsExt.arguments(m_argumentsLineEdit->text(), m_buildDirectory);
 
         if (curr.toolchainOverride == CMakeToolchainOverrideType::Disabled) {
             ProjectExplorer::ToolChain *tc = ProjectExplorer::ToolChainKitInformation::toolChain(generatorInfo.kit());
@@ -807,11 +748,19 @@ void CMakeRunPage::runCMake()
             qDebug() << "[CC ] kit" << ccompiler   << "env" << env.value(QLatin1String("CC"));
         }
 
-        cmakeManager->createXmlFile(m_cmakeProcess, cmake->cmakeExecutable().toString(),
+        QString arguments = m_cmakeParamsExt.arguments(m_argumentsLineEdit->text(), m_buildDirectory);
+
+        Utils::QtcProcess::addArg(&arguments, QString::fromLatin1(generatorInfo.generatorArgument()));
+        const QString preloadCache = generatorInfo.preLoadCacheFileArgument();
+        if (!preloadCache.isEmpty())
+            Utils::QtcProcess::addArg(&arguments, preloadCache);
+        m_output->appendHtml(tr("<b>Running: '%1' with arguments '%2' in '%3'.</b><br>")
+                             .arg(cmake->cmakeExecutable().toUserOutput())
+                             .arg(arguments)
+                             .arg(QDir::toNativeSeparators(m_buildDirectory)));
+        CMakeManager::createXmlFile(m_cmakeProcess, cmake->cmakeExecutable().toString(),
                                     arguments, m_cmakeWizard->sourceDirectory(),
-                                    m_buildDirectory, env,
-                                    QString::fromLatin1(generatorInfo.generatorArgument()),
-                                    generatorInfo.preLoadCacheFileArgument());
+                                    m_buildDirectory, env);
     } else {
         m_runCMake->setEnabled(true);
         m_discardCache->setEnabled(true);

@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 Canonical Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 Canonical Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,22 +9,17 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
@@ -56,12 +51,9 @@ const char CMAKETOOL_FILENAME[] = "/qtcreator/cmaketools.xml";
 
 class CMakeToolManagerPrivate
 {
-
 public:
-    CMakeToolManagerPrivate() :
-        m_preferNinja(false),
-        m_writer(0)
-    {}
+    CMakeToolManagerPrivate() : m_preferNinja(false), m_writer(0)
+    { }
 
     bool m_preferNinja;
     Id m_defaultCMake;
@@ -110,7 +102,7 @@ static QList<CMakeTool *> readCMakeTools(const FileName &fileName, Core::Id *def
             continue;
 
         const QVariantMap dbMap = data.value(key).toMap();
-        CMakeTool *item = new CMakeTool(dbMap,fromSDK);
+        auto item = new CMakeTool(dbMap,fromSDK);
         if (item->isAutoDetected()) {
             if (!item->cmakeExecutable().toFileInfo().isExecutable()) {
                 qWarning() << QString::fromLatin1("CMakeTool \"%1\" (%2) read from \"%3\" dropped since the command is not executable.")
@@ -190,7 +182,7 @@ static QList<CMakeTool *> autoDetectCMakeTools()
 
     QList<CMakeTool *> found;
     foreach (const FileName &command, suspects) {
-        CMakeTool *item = new CMakeTool(CMakeTool::AutoDetection);
+        auto item = new CMakeTool(CMakeTool::AutoDetection);
         item->setCMakeExecutable(command);
         item->setDisplayName(CMakeToolManager::tr("System CMake at %1").arg(command.toUserOutput()));
 
@@ -206,8 +198,7 @@ static QList<CMakeTool *> autoDetectCMakeTools()
 
 CMakeToolManager *CMakeToolManager::m_instance = 0;
 
-CMakeToolManager::CMakeToolManager(QObject *parent) :
-    QObject(parent)
+CMakeToolManager::CMakeToolManager(QObject *parent) : QObject(parent)
 {
     QTC_ASSERT(!m_instance, return);
     m_instance = this;

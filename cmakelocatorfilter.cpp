@@ -1,6 +1,6 @@
-/**************************************************************************
+/****************************************************************************
 **
-** Copyright (C) 2015 Kläralvdalens Datakonsult AB, a KDAB Group company.
+** Copyright (C) 2016 Kläralvdalens Datakonsult AB, a KDAB Group company.
 ** Contact: Kläralvdalens Datakonsult AB (info@kdab.com)
 **
 ** This file is part of Qt Creator.
@@ -9,36 +9,32 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
 #include "cmakelocatorfilter.h"
+#include "cmakebuildstep.h"
 #include "cmakeproject.h"
-#include "makestep.h"
 
 #include <projectexplorer/projectexplorer.h>
 #include <projectexplorer/session.h>
 #include <projectexplorer/target.h>
 #include <projectexplorer/projectexplorerconstants.h>
 #include <projectexplorer/buildsteplist.h>
-#include <utils/fileutils.h>
 
+#include <utils/algorithm.h>
+#include <utils/fileutils.h>
 
 using namespace CMakeProjectManager;
 using namespace CMakeProjectManager::Internal;
@@ -52,18 +48,13 @@ CMakeLocatorFilter::CMakeLocatorFilter()
     setShortcutString(QLatin1String("cm"));
     setPriority(High);
 
-    connect(SessionManager::instance(), SIGNAL(projectAdded(ProjectExplorer::Project*)),
-            this, SLOT(slotProjectListUpdated()));
-    connect(SessionManager::instance(), SIGNAL(projectRemoved(ProjectExplorer::Project*)),
-            this, SLOT(slotProjectListUpdated()));
+    connect(SessionManager::instance(), &SessionManager::projectAdded,
+            this, &CMakeLocatorFilter::slotProjectListUpdated);
+    connect(SessionManager::instance(), &SessionManager::projectRemoved,
+            this, &CMakeLocatorFilter::slotProjectListUpdated);
 
     // Initialize the filter
     slotProjectListUpdated();
-}
-
-CMakeLocatorFilter::~CMakeLocatorFilter()
-{
-
 }
 
 void CMakeLocatorFilter::prepareSearch(const QString &entry)
@@ -111,26 +102,22 @@ void CMakeLocatorFilter::accept(Core::LocatorFilterEntry selection) const
         return;
 
     // Find the make step
-    MakeStep *makeStep = 0;
     ProjectExplorer::BuildStepList *buildStepList = cmakeProject->activeTarget()->activeBuildConfiguration()
             ->stepList(ProjectExplorer::Constants::BUILDSTEPS_BUILD);
-    for (int i = 0; i < buildStepList->count(); ++i) {
-        makeStep = qobject_cast<MakeStep *>(buildStepList->at(i));
-        if (makeStep)
-            break;
-    }
-    if (!makeStep)
+    auto buildStep
+            = qobject_cast<CMakeBuildStep *>(findOrDefault(buildStepList->steps(),
+                                                           [](BuildStep *s) -> bool { return qobject_cast<CMakeBuildStep *>(s); }));
+    if (!buildStep)
         return;
 
     // Change the make step to build only the given target
-    QStringList oldTargets = makeStep->buildTargets();
-    makeStep->setClean(false);
-    makeStep->clearBuildTargets();
-    makeStep->setBuildTarget(selection.displayName, true);
+    QStringList oldTargets = buildStep->buildTargets();
+    buildStep->clearBuildTargets();
+    buildStep->setBuildTarget(selection.displayName, true);
 
     // Build
     ProjectExplorerPlugin::buildProject(cmakeProject);
-    makeStep->setBuildTargets(oldTargets);
+    buildStep->setBuildTargets(oldTargets);
 }
 
 void CMakeLocatorFilter::refresh(QFutureInterface<void> &future)

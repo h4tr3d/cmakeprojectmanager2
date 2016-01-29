@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,34 +9,29 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
 #include "cmakebuildconfiguration.h"
 
 #include "cmakebuildinfo.h"
+#include "cmakebuildstep.h"
 #include "cmakeopenprojectwizard.h"
 #include "cmakeproject.h"
 #include "cmakeprojectconstants.h"
 #include "cmakebuildsettingswidget.h"
 #include "cmakeprojectmanager.h"
-#include "makestep.h"
 
 #include <coreplugin/documentmanager.h>
 #include <coreplugin/icore.h>
@@ -58,7 +53,6 @@ using namespace Utils;
 namespace CMakeProjectManager {
 namespace Internal {
 
-const char USE_NINJA_KEY[] = "CMakeProjectManager.CMakeBuildConfiguration.UseNinja";
 const char INITIAL_ARGUMENTS[] = "CMakeProjectManager.CMakeBuildConfiguration.InitialArgument";
 const char CMAKE_PARAMS_KEY[] = "CMakeProjectManager.CMakeBuildConfiguration.CMakeParams";
 const char CMAKE_BUILD_TYPE_KEY[] = "CMakeProjectManaget.CMakeBuildConfiguration.CMakeBuildType";
@@ -80,7 +74,7 @@ static FileName shadowBuildDirectory(const FileName &projectFilePath, const Kit 
 }
 
 CMakeBuildConfiguration::CMakeBuildConfiguration(ProjectExplorer::Target *parent) :
-    BuildConfiguration(parent, Core::Id(Constants::CMAKE_BC_ID)), m_useNinja(false)
+    BuildConfiguration(parent, Core::Id(Constants::CMAKE_BC_ID))
 {
     CMakeProject *project = static_cast<CMakeProject *>(parent->project());
     setBuildDirectory(shadowBuildDirectory(project->projectFilePath(),
@@ -91,8 +85,6 @@ CMakeBuildConfiguration::CMakeBuildConfiguration(ProjectExplorer::Target *parent
 CMakeBuildConfiguration::CMakeBuildConfiguration(ProjectExplorer::Target *parent,
                                                  CMakeBuildConfiguration *source) :
     BuildConfiguration(parent, source),
-    m_msvcVersion(source->m_msvcVersion),
-    m_useNinja(source->m_useNinja),
     m_initialArguments(source->m_initialArguments)
 {
     Q_ASSERT(parent);
@@ -102,7 +94,6 @@ CMakeBuildConfiguration::CMakeBuildConfiguration(ProjectExplorer::Target *parent
 QVariantMap CMakeBuildConfiguration::toMap() const
 {
     QVariantMap map(ProjectExplorer::BuildConfiguration::toMap());
-    map.insert(QLatin1String(USE_NINJA_KEY), m_useNinja);
     map.insert(QLatin1String(INITIAL_ARGUMENTS), m_initialArguments);
     map.insert(QLatin1String(CMAKE_PARAMS_KEY), m_cmakeParams);
     map.insert(QLatin1String(CMAKE_BUILD_TYPE_KEY), static_cast<int>(m_cmakeParamsExt.buildType));
@@ -117,7 +108,6 @@ bool CMakeBuildConfiguration::fromMap(const QVariantMap &map)
     if (!BuildConfiguration::fromMap(map))
         return false;
 
-    m_useNinja = map.value(QLatin1String(USE_NINJA_KEY), false).toBool();
     m_initialArguments = map.value(QLatin1String(INITIAL_ARGUMENTS)).toString();
     m_cmakeParams = map.value(QLatin1String(CMAKE_PARAMS_KEY), QLatin1String("")).toString();
 
@@ -133,19 +123,6 @@ bool CMakeBuildConfiguration::fromMap(const QVariantMap &map)
             map.value(QLatin1String(CMAKE_TOOLCHAIN_INLINE_KEY), QLatin1String("")).toString();
 
     return true;
-}
-
-bool CMakeBuildConfiguration::useNinja() const
-{
-    return m_useNinja;
-}
-
-void CMakeBuildConfiguration::setUseNinja(bool useNninja)
-{
-    if (m_useNinja != useNninja) {
-        m_useNinja = useNninja;
-        emit useNinjaChanged(m_useNinja);
-    }
 }
 
 const CMakeParamsExt &CMakeBuildConfiguration::cmakeParamsExt() const
@@ -178,9 +155,6 @@ QString CMakeBuildConfiguration::initialArguments() const
     return m_initialArguments;
 }
 
-CMakeBuildConfiguration::~CMakeBuildConfiguration()
-{ }
-
 ProjectExplorer::NamedWidget *CMakeBuildConfiguration::createConfigWidget()
 {
     return new CMakeBuildSettingsWidget(this);
@@ -207,10 +181,6 @@ void CMakeBuildConfiguration::setCMakeParams(const QString &cmakeParams)
 
 CMakeBuildConfigurationFactory::CMakeBuildConfigurationFactory(QObject *parent) :
     ProjectExplorer::IBuildConfigurationFactory(parent)
-{
-}
-
-CMakeBuildConfigurationFactory::~CMakeBuildConfigurationFactory()
 {
 }
 
@@ -277,20 +247,19 @@ ProjectExplorer::BuildConfiguration *CMakeBuildConfigurationFactory::create(Proj
                                                    copy.displayName, info->buildType);
     }
 
-    CMakeBuildConfiguration *bc = new CMakeBuildConfiguration(parent);
+    auto bc = new CMakeBuildConfiguration(parent);
     bc->setDisplayName(copy.displayName);
     bc->setDefaultDisplayName(copy.displayName);
 
     ProjectExplorer::BuildStepList *buildSteps = bc->stepList(ProjectExplorer::Constants::BUILDSTEPS_BUILD);
     ProjectExplorer::BuildStepList *cleanSteps = bc->stepList(ProjectExplorer::Constants::BUILDSTEPS_CLEAN);
 
-    MakeStep *makeStep = new MakeStep(buildSteps);
-    buildSteps->insertStep(0, makeStep);
+    auto buildStep = new CMakeBuildStep(buildSteps);
+    buildSteps->insertStep(0, buildStep);
 
-    MakeStep *cleanMakeStep = new MakeStep(cleanSteps);
-    cleanSteps->insertStep(0, cleanMakeStep);
-    cleanMakeStep->setAdditionalArguments(QLatin1String("clean"));
-    cleanMakeStep->setClean(true);
+    auto cleanStep = new CMakeBuildStep(cleanSteps);
+    cleanSteps->insertStep(0, cleanStep);
+    cleanStep->setBuildTarget(CMakeBuildStep::cleanTarget(), true);
 
     bc->setBuildDirectory(copy.buildDirectory);
     bc->setInitialArguments(copy.arguments);
@@ -299,7 +268,7 @@ ProjectExplorer::BuildConfiguration *CMakeBuildConfigurationFactory::create(Proj
 
     // Default to all
     if (project->hasBuildTarget(QLatin1String("all")))
-        makeStep->setBuildTarget(QLatin1String("all"), true);
+        buildStep->setBuildTarget(QLatin1String("all"), true);
 
     return bc;
 }
@@ -330,7 +299,7 @@ CMakeBuildConfiguration *CMakeBuildConfigurationFactory::restore(ProjectExplorer
 {
     if (!canRestore(parent, map))
         return 0;
-    CMakeBuildConfiguration *bc = new CMakeBuildConfiguration(parent);
+    auto bc = new CMakeBuildConfiguration(parent);
     if (bc->fromMap(map))
         return bc;
     delete bc;
@@ -353,7 +322,6 @@ CMakeBuildInfo *CMakeBuildConfigurationFactory::createBuildInfo(const ProjectExp
     info->kitId = k->id();
     info->environment = Environment::systemEnvironment();
     k->addToEnvironment(info->environment);
-    info->useNinja = false;
     info->sourceDirectory = sourceDir;
     switch (buildType) {
     case BuildTypeNone:

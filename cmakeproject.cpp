@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
-** Contact: http://www.qt.io/licensing
+** Copyright (C) 2016 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of Qt Creator.
 **
@@ -9,32 +9,28 @@
 ** Licensees holding valid commercial Qt licenses may use this file in
 ** accordance with the commercial license agreement provided with the
 ** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company.  For licensing terms and
-** conditions see http://www.qt.io/terms-conditions.  For further information
-** use the contact form at http://www.qt.io/contact-us.
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
 **
-** GNU Lesser General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU Lesser
-** General Public License version 2.1 or version 3 as published by the Free
-** Software Foundation and appearing in the file LICENSE.LGPLv21 and
-** LICENSE.LGPLv3 included in the packaging of this file.  Please review the
-** following information to ensure the GNU Lesser General Public License
-** requirements will be met: https://www.gnu.org/licenses/lgpl.html and
-** http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
-**
-** In addition, as a special exception, The Qt Company gives you certain additional
-** rights.  These rights are described in The Qt Company LGPL Exception
-** version 1.1, included in the file LGPL_EXCEPTION.txt in this package.
+** GNU General Public License Usage
+** Alternatively, this file may be used under the terms of the GNU
+** General Public License version 3 as published by the Free Software
+** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
+** included in the packaging of this file. Please review the following
+** information to ensure the GNU General Public License requirements will
+** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
 
 #include "cmakeproject.h"
 
 #include "cmakebuildconfiguration.h"
+#include "cmakebuildstep.h"
+#include "cmakekitinformation.h"
 #include "cmakeprojectconstants.h"
 #include "cmakeprojectnodes.h"
 #include "cmakerunconfiguration.h"
-#include "makestep.h"
 #include "cmakeopenprojectwizard.h"
 #include "generatorinfo.h"
 #include "cmakecbpparser.h"
@@ -59,6 +55,8 @@
 #include <qtsupport/qtkitinformation.h>
 #include <qtsupport/uicodemodelsupport.h>
 #include <cpptools/cppmodelmanager.h>
+#include <cpptools/projectinfo.h>
+#include <cpptools/projectpartbuilder.h>
 #include <extensionsystem/pluginmanager.h>
 #include <utils/algorithm.h>
 #include <utils/qtcassert.h>
@@ -140,32 +138,26 @@ static ProjectExplorer::FileNode* fileToFileNode(const Utils::FileName &fileName
 /*!
   \class CMakeProject
 */
-CMakeProject::CMakeProject(CMakeManager *manager, const FileName &fileName)
-    : m_manager(manager),
-      m_activeTarget(0),
-      m_fileName(fileName),
-      m_cbpUpdateProcess(0),
-      m_watcher(new QFileSystemWatcher(this))
+CMakeProject::CMakeProject(CMakeManager *manager, const FileName &fileName) :
+    m_cbpUpdateProcess(0),
+    m_watcher(new QFileSystemWatcher(this))
 {
     setId(Constants::CMAKEPROJECT_ID);
+    setProjectManager(manager);
+    setDocument(new CMakeFile(fileName));
+    setRootProjectNode(new CMakeProjectNode(fileName));
     setProjectContext(Core::Context(CMakeProjectManager::Constants::PROJECTCONTEXT));
     setProjectLanguages(Core::Context(ProjectExplorer::Constants::LANG_CXX));
 
-    m_projectName = fileName.parentDir().fileName();
+    rootProjectNode()->setDisplayName(fileName.parentDir().fileName());
 
-    m_file = new CMakeFile(this, fileName);
-    m_rootNode = new CMakeProjectNode(this, m_fileName);
-
-    connect(this, SIGNAL(buildTargetsChanged()),
-            this, SLOT(updateRunConfigurations()));
-
-    connect(m_watcher, SIGNAL(fileChanged(QString)), this, SLOT(fileChanged(QString)));
+    connect(this, &CMakeProject::buildTargetsChanged, this, &CMakeProject::updateRunConfigurations);
+    connect(m_watcher, &QFileSystemWatcher::fileChanged, this, &CMakeProject::fileChanged);
 }
 
 CMakeProject::~CMakeProject()
 {
     m_codeModelFuture.cancel();
-    delete m_rootNode;
 }
 
 void CMakeProject::fileChanged(const QString &fileName)
@@ -199,14 +191,11 @@ void CMakeProject::changeActiveBuildConfiguration(ProjectExplorer::BuildConfigur
 
     if (mode != CMakeOpenProjectWizard::Nothing) {
         CMakeBuildInfo info(cmakebc);
-        CMakeOpenProjectWizard copw(Core::ICore::mainWindow(), m_manager, mode, &info,
-                                    bc->target()->displayName(), bc->displayName());
-        if (copw.exec() == QDialog::Accepted) {
+        CMakeOpenProjectWizard copw(Core::ICore::mainWindow(), mode, &info);
+        if (copw.exec() == QDialog::Accepted)
             cmakebc->setCMakeParams(copw.arguments());
-            cmakebc->setUseNinja(copw.useNinja()); // NeedToCreate can change the Ninja setting
             cmakebc->setInitialArguments(QString());
             cmakebc->setCMakeParamsExt(copw.cmakeParamsExt());
-        }
     }
 
     // reparse
@@ -216,8 +205,8 @@ void CMakeProject::changeActiveBuildConfiguration(ProjectExplorer::BuildConfigur
 void CMakeProject::activeTargetWasChanged(Target *target)
 {
     if (m_activeTarget) {
-        disconnect(m_activeTarget, SIGNAL(activeBuildConfigurationChanged(ProjectExplorer::BuildConfiguration*)),
-                   this, SLOT(changeActiveBuildConfiguration(ProjectExplorer::BuildConfiguration*)));
+        disconnect(m_activeTarget, &Target::activeBuildConfigurationChanged,
+                   this, &CMakeProject::changeActiveBuildConfiguration);
     }
 
     m_activeTarget = target;
@@ -225,9 +214,8 @@ void CMakeProject::activeTargetWasChanged(Target *target)
     if (!m_activeTarget)
         return;
 
-    connect(m_activeTarget, SIGNAL(activeBuildConfigurationChanged(ProjectExplorer::BuildConfiguration*)),
-            this, SLOT(changeActiveBuildConfiguration(ProjectExplorer::BuildConfiguration*)));
-
+    connect(m_activeTarget, &Target::activeBuildConfigurationChanged,
+            this, &CMakeProject::changeActiveBuildConfiguration);
     changeActiveBuildConfiguration(m_activeTarget->activeBuildConfiguration());
 }
 
@@ -309,10 +297,7 @@ QStringList CMakeProject::getCXXFlagsFor(const CMakeBuildTarget &buildTarget, QB
 
 bool CMakeProject::parseCMakeLists()
 {
-    if (!activeTarget() ||
-        !activeTarget()->activeBuildConfiguration()) {
-        return false;
-    }
+    QTC_ASSERT(activeTarget() && activeTarget()->activeBuildConfiguration(), return false);
 
     CMakeBuildConfiguration *activeBC = static_cast<CMakeBuildConfiguration *>(activeTarget()->activeBuildConfiguration());
     foreach (Core::IDocument *document, Core::DocumentModel::openedDocuments())
@@ -330,7 +315,7 @@ bool CMakeProject::parseCMakeLists()
     Kit *k = activeTarget()->kit();
 
     // setFolderName
-    m_rootNode->setDisplayName(QFileInfo(cbpFile).completeBaseName());
+    rootProjectNode()->setDisplayName(QFileInfo(cbpFile).completeBaseName());
     CMakeCbpParser cbpparser;
     // Parsing
     //qDebug()<<"Parsing file "<<cbpFile;
@@ -347,8 +332,7 @@ bool CMakeProject::parseCMakeLists()
     // how can we ensure that it is completely written?
     m_watcher->addPath(cbpFile);
 
-    m_projectName = cbpparser.projectName();
-    m_rootNode->setDisplayName(cbpparser.projectName());
+    rootProjectNode()->setDisplayName(cbpparser.projectName());
 
     //qDebug()<<"Building Tree";
     QList<ProjectExplorer::FileNode *> fileList = cbpparser.fileList(); // this files must be passed to code model
@@ -399,7 +383,7 @@ bool CMakeProject::parseCMakeLists()
     m_files.sort();
     m_files.removeDuplicates();
 
-    buildTree(m_rootNode, treeFileList);
+    buildTree(static_cast<CMakeProjectNode *>(rootProjectNode()), treeFileList);
 
     //qDebug()<<"Adding Targets";
     m_buildTargets = cbpparser.buildTargets();
@@ -477,6 +461,16 @@ bool CMakeProject::requiresTargetPanel() const
     return !targets().isEmpty();
 }
 
+bool CMakeProject::supportsKit(Kit *k, QString *errorMessage) const
+{
+    if (!CMakeKitInformation::cmakeTool(k)) {
+        if (errorMessage)
+            *errorMessage = tr("No cmake tool set.");
+        return false;
+    }
+    return true;
+}
+
 bool CMakeProject::isProjectFile(const FileName &fileName)
 {
     return m_watchedFiles.contains(fileName);
@@ -489,22 +483,18 @@ QList<CMakeBuildTarget> CMakeProject::buildTargets() const
 
 QStringList CMakeProject::buildTargetTitles(bool runnable) const
 {
-    QStringList results;
-    foreach (const CMakeBuildTarget &ct, m_buildTargets) {
-        if (runnable && (ct.executable.isEmpty() || ct.targetType != ExecutableType))
-            continue;
-        results << ct.title;
-    }
-    return results;
+    const QList<CMakeBuildTarget> targets
+            = runnable ? Utils::filtered(m_buildTargets,
+                                         [](const CMakeBuildTarget &ct) {
+                                             return !ct.executable.isEmpty() && ct.targetType == ExecutableType;
+                                         })
+                       : m_buildTargets;
+    return Utils::transform(targets, [](const CMakeBuildTarget &ct) { return ct.title; });
 }
 
 bool CMakeProject::hasBuildTarget(const QString &title) const
 {
-    foreach (const CMakeBuildTarget &ct, m_buildTargets) {
-        if (ct.title == title)
-            return true;
-    }
-    return false;
+    return Utils::anyOf(m_buildTargets, [title](const CMakeBuildTarget &ct) { return ct.title == title; });
 }
 
 void CMakeProject::gatherFileNodes(ProjectExplorer::FolderNode *parent, QList<ProjectExplorer::FileNode *> &list)
@@ -583,7 +573,7 @@ ProjectExplorer::FolderNode *CMakeProject::findOrCreateFolder(CMakeProjectNode *
         }
         if (!found) {
             // No FolderNode yet, so create it
-            ProjectExplorer::FolderNode *tmp = new ProjectExplorer::FolderNode(path);
+            auto tmp = new ProjectExplorer::FolderNode(path);
             tmp->setDisplayName(part);
             parent->addFolderNodes(QList<ProjectExplorer::FolderNode *>() << tmp);
             parent = tmp;
@@ -594,24 +584,8 @@ ProjectExplorer::FolderNode *CMakeProject::findOrCreateFolder(CMakeProjectNode *
 
 QString CMakeProject::displayName() const
 {
-    return m_projectName;
+    return rootProjectNode()->displayName();
 }
-
-Core::IDocument *CMakeProject::document() const
-{
-    return m_file;
-}
-
-IProjectManager *CMakeProject::projectManager() const
-{
-    return m_manager;
-}
-
-ProjectExplorer::ProjectNode *CMakeProject::rootProjectNode() const
-{
-    return m_rootNode;
-}
-
 
 QStringList CMakeProject::files(FilesMode fileMode) const
 {
@@ -642,21 +616,18 @@ Project::RestoreResult CMakeProject::fromMap(const QVariantMap &map, QString *er
         CMakeOpenProjectWizard::Mode mode = CMakeOpenProjectWizard::Nothing;
         if (!cbpFileFi.exists())
             mode = CMakeOpenProjectWizard::NeedToCreate;
-        else if (cbpFileFi.lastModified() < m_fileName.toFileInfo().lastModified())
+        else if (cbpFileFi.lastModified() < projectFilePath().toFileInfo().lastModified())
             mode = CMakeOpenProjectWizard::NeedToUpdate;
 
         if (mode != CMakeOpenProjectWizard::Nothing) {
             CMakeBuildInfo info(activeBC);
-            CMakeOpenProjectWizard copw(Core::ICore::mainWindow(), m_manager, mode, &info,
-                                        activeBC->target()->displayName(), activeBC->displayName());
-            if (copw.exec() != QDialog::Accepted) {
+            CMakeOpenProjectWizard copw(Core::ICore::mainWindow(), mode, &info);
+            if (copw.exec() != QDialog::Accepted)
                 return RestoreResult::UserAbort;
-            } else {
-                activeBC->setUseNinja(copw.useNinja());
+            else
                 activeBC->setInitialArguments(QString());
                 activeBC->setCMakeParams(copw.arguments());
                 activeBC->setCMakeParamsExt(copw.cmakeParamsExt());
-            }
         }
     }
 
@@ -664,11 +635,10 @@ Project::RestoreResult CMakeProject::fromMap(const QVariantMap &map, QString *er
 
     m_activeTarget = activeTarget();
     if (m_activeTarget)
-        connect(m_activeTarget, SIGNAL(activeBuildConfigurationChanged(ProjectExplorer::BuildConfiguration*)),
-                this, SLOT(changeActiveBuildConfiguration(ProjectExplorer::BuildConfiguration*)));
-
-    connect(this, SIGNAL(activeTargetChanged(ProjectExplorer::Target*)),
-            this, SLOT(activeTargetWasChanged(ProjectExplorer::Target*)));
+        connect(m_activeTarget, &Target::activeBuildConfigurationChanged,
+                this, &CMakeProject::changeActiveBuildConfiguration);
+    connect(this, &Project::activeTargetChanged,
+            this, &CMakeProject::activeTargetWasChanged);
 
     return RestoreResult::Ok;
 }
@@ -723,7 +693,7 @@ QString CMakeProject::uiHeaderFile(const QString &uiFile)
 void CMakeProject::updateRunConfigurations()
 {
     foreach (Target *t, targets())
-        updateRunConfigurations(t);
+        updateTargetRunConfigurations(t);
 }
 
 void CMakeProject::cbpUpdateFinished(int /*code*/)
@@ -740,7 +710,7 @@ void CMakeProject::cbpUpdateFinished(int /*code*/)
 }
 
 // TODO Compare with updateDefaultRunConfigurations();
-void CMakeProject::updateRunConfigurations(Target *t)
+void CMakeProject::updateTargetRunConfigurations(Target *t)
 {
     // create new and remove obsolete RCs using the factories
     t->updateDefaultRunConfigurations();
