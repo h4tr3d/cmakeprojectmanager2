@@ -23,8 +23,7 @@
 **
 ****************************************************************************/
 
-#ifndef CMAKEBUILDCONFIGURATION_H
-#define CMAKEBUILDCONFIGURATION_H
+#pragma once
 
 #include <projectexplorer/buildconfiguration.h>
 #include <projectexplorer/abi.h>
@@ -116,4 +115,3 @@ private:
 } // namespace Internal
 } // namespace CMakeProjectManager
 
-#endif // CMAKEBUILDCONFIGURATION_H

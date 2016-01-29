@@ -23,8 +23,7 @@
 **
 ****************************************************************************/
 
-#ifndef CMAKEFILECOMPLETIONASSIST_H
-#define CMAKEFILECOMPLETIONASSIST_H
+#pragma once
 
 #include <texteditor/codeassist/completionassistprovider.h>
 #include <texteditor/codeassist/keywordscompletionassist.h>
@@ -48,8 +47,6 @@ class CMakeFileCompletionAssistProvider : public TextEditor::CompletionAssistPro
     Q_OBJECT
 
 public:
-    CMakeFileCompletionAssistProvider();
-
     bool supportsEditor(Core::Id editorId) const override;
     TextEditor::IAssistProcessor *createProcessor() const override;
 };
@@ -57,4 +54,3 @@ public:
 } // Internal
 } // CMakeProjectManager
 
-#endif // CMAKEFILECOMPLETIONASSIST_H
