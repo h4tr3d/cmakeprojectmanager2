@@ -421,20 +421,20 @@ CMakeRunPage::CMakeRunPage(CMakeOpenProjectWizard *cmakeWizard, Mode mode,
     m_toolchainGroupbox->setLayout(toolchainLayout);
 
     m_toolchainLineEdit = new Utils::FancyLineEdit(this);
-    
+
     m_toolchainFileSelectPushButton = new QPushButton(this);
     m_toolchainFileSelectPushButton->setText(tr("Browse..."));
-    connect(m_toolchainFileSelectPushButton, SIGNAL(clicked()), this, SLOT(toolchainFileSelect()));
-    
+    connect(m_toolchainFileSelectPushButton, &QAbstractButton::clicked, this, &CMakeRunPage::toolchainFileSelect);
+
     m_toolchainPushButton = new QPushButton(this);
     m_toolchainPushButton->setText(tr("Edit"));
-    connect(m_toolchainPushButton, SIGNAL(clicked()), this, SLOT(toolchainEdit()));
+    connect(m_toolchainPushButton, &QAbstractButton::clicked, this, &CMakeRunPage::toolchainEdit);
 
     m_fileToolchainRadioButton = new QRadioButton(tr("Toolchain file:"), this);
     m_inlineToolchainRadioButton = new QRadioButton(tr("Inline Toolchain:"), this);
 
-    connect(m_fileToolchainRadioButton, SIGNAL(toggled(bool)), this, SLOT(toolchainRadio(bool)));
-    connect(m_inlineToolchainRadioButton, SIGNAL(toggled(bool)), this, SLOT(toolchainRadio(bool)));
+    connect(m_fileToolchainRadioButton, &QAbstractButton::toggled, this, &CMakeRunPage::toolchainRadio);
+    connect(m_inlineToolchainRadioButton, &QAbstractButton::toggled, this, &CMakeRunPage::toolchainRadio);
 
     hbox = new QHBoxLayout;
     hbox->addWidget(m_fileToolchainRadioButton);
@@ -851,6 +851,7 @@ void CMakeRunPage::toolchainFileSelect()
 
 void CMakeRunPage::toolchainRadio(bool)
 {
+    qDebug() << "toolchainRadio()";
     m_toolchainLineEdit->setEnabled(m_fileToolchainRadioButton->isChecked());
     m_toolchainFileSelectPushButton->setEnabled(m_fileToolchainRadioButton->isChecked());
     m_toolchainPushButton->setEnabled(m_inlineToolchainRadioButton->isChecked());
