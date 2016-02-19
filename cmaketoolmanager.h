@@ -48,8 +48,6 @@ public:
     static CMakeToolManager *instance();
 
     static QList<CMakeTool *> cmakeTools();
-    static void setPreferNinja(bool set);
-    static bool preferNinja();
 
     static Core::Id registerOrFindCMakeTool(const Utils::FileName &command);
     static bool registerCMakeTool(CMakeTool *tool);
@@ -79,4 +77,3 @@ private:
 };
 
 } // namespace CMakeProjectManager
-

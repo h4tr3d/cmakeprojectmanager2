@@ -25,40 +25,33 @@
 
 #pragma once
 
-#include "cmakeprojectmanager.h"
+#include <QByteArray>
+#include <QList>
 
-#include <projectexplorer/kit.h>
-
-#include <QCoreApplication>
-#include <QMetaType>
+#include <functional>
 
 namespace CMakeProjectManager {
-namespace Internal {
 
-class GeneratorInfo
-{
-    Q_DECLARE_TR_FUNCTIONS(CMakeProjectManager::Internal::GeneratorInfo)
+class CMakeConfigItem {
 public:
-    static QList<GeneratorInfo> generatorInfosFor(ProjectExplorer::Kit *k, bool hasNinja,
-                                                  bool preferNinja, bool hasCodeBlocks);
-    GeneratorInfo() = default;
+    enum Type { FILEPATH, PATH, BOOL, STRING, INTERNAL };
+    CMakeConfigItem();
+    CMakeConfigItem(const CMakeConfigItem &other);
+    CMakeConfigItem(const QByteArray &k, Type &t, const QByteArray &d, const QByteArray &v);
+    CMakeConfigItem(const QByteArray &k, const QByteArray &v);
 
-    ProjectExplorer::Kit *kit() const;
-    bool isNinja() const;
-    QString displayName() const;
-    QByteArray generatorArgument() const;
-    QByteArray generator() const;
-    QString preLoadCacheFileArgument() const;
+    bool isNull() const { return key.isEmpty(); }
 
-private:
-    explicit GeneratorInfo(ProjectExplorer::Kit *kit, bool ninja = false);
+    static std::function<bool(const CMakeConfigItem &a, const CMakeConfigItem &b)> sortOperator();
+    static CMakeConfigItem fromString(const QString &s);
+    QString toString() const;
 
-    ProjectExplorer::Kit *m_kit = 0;
-    bool m_isNinja = false;
+    QByteArray key;
+    Type type = STRING;
+    bool isAdvanced = false;
+    QByteArray value; // converted to string as needed
+    QByteArray documentation;
 };
+using CMakeConfig = QList<CMakeConfigItem>;
 
-} // namespace Internal
 } // namespace CMakeProjectManager
-
-Q_DECLARE_METATYPE(CMakeProjectManager::Internal::GeneratorInfo)
-

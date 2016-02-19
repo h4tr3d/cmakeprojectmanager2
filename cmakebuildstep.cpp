@@ -35,6 +35,7 @@
 
 #include <projectexplorer/buildsteplist.h>
 #include <projectexplorer/deployconfiguration.h>
+#include <projectexplorer/gnumakeparser.h>
 #include <projectexplorer/kitinformation.h>
 #include <projectexplorer/projectexplorerconstants.h>
 #include <projectexplorer/projectexplorer.h>
@@ -97,7 +98,7 @@ void CMakeBuildStep::ctor()
     setDefaultDisplayName(tr("Make"));
 
     connect(target(), &Target::kitChanged, this, &CMakeBuildStep::cmakeCommandChanged);
-    connect(static_cast<CMakeProject *>(project()), &CMakeProject::buildTargetsChanged,
+    connect(static_cast<CMakeProject *>(project()), &CMakeProject::buildDirectoryDataAvailable,
             this, &CMakeBuildStep::buildTargetsChanged);
 }
 
@@ -204,7 +205,8 @@ bool CMakeBuildStep::init(QList<const BuildStep *> &earlierSteps)
     pp->setArguments(arguments);
     pp->resolveAll();
 
-    setOutputParser(new CMakeParser());
+    setOutputParser(new CMakeParser);
+    appendOutputParser(new GnuMakeParser);
     IOutputParser *parser = target()->kit()->createOutputParser();
     if (parser)
         appendOutputParser(parser);
@@ -399,7 +401,7 @@ CMakeBuildStepConfigWidget::CMakeBuildStepConfigWidget(CMakeBuildStep *buildStep
     connect(ProjectExplorerPlugin::instance(), &ProjectExplorerPlugin::settingsChanged,
             this, &CMakeBuildStepConfigWidget::updateDetails);
 
-    connect(pro, &CMakeProject::buildTargetsChanged, this, &CMakeBuildStepConfigWidget::buildTargetsChanged);
+    connect(pro, &CMakeProject::buildDirectoryDataAvailable, this, &CMakeBuildStepConfigWidget::buildTargetsChanged);
     connect(m_buildStep, &CMakeBuildStep::targetsToBuildChanged, this, &CMakeBuildStepConfigWidget::selectedBuildTargetsChanged);
     connect(pro, &CMakeProject::environmentChanged, this, &CMakeBuildStepConfigWidget::updateDetails);
 }

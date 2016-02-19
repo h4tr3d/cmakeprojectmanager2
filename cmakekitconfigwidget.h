@@ -27,19 +27,27 @@
 
 #include <projectexplorer/kitconfigwidget.h>
 
+QT_BEGIN_NAMESPACE
+class QComboBox;
+class QLabel;
+class QPlainTextEdit;
+class QPushButton;
+QT_END_NAMESPACE
+
 namespace ProjectExplorer {
     class Kit;
     class KitInformation;
-}
-
-QT_FORWARD_DECLARE_CLASS(QComboBox)
-QT_FORWARD_DECLARE_CLASS(QPushButton)
+} // namespace ProjectExplorer
 
 namespace CMakeProjectManager {
 
 class CMakeTool;
 
 namespace Internal {
+
+// --------------------------------------------------------------------
+// CMakeKitConfigWidget:
+// --------------------------------------------------------------------
 
 class CMakeKitConfigWidget : public ProjectExplorer::KitConfigWidget
 {
@@ -70,6 +78,61 @@ private:
     QPushButton *m_manageButton;
 };
 
+// --------------------------------------------------------------------
+// CMakeGeneratorKitConfigWidget:
+// --------------------------------------------------------------------
+
+class CMakeGeneratorKitConfigWidget : public ProjectExplorer::KitConfigWidget
+{
+    Q_OBJECT
+public:
+    CMakeGeneratorKitConfigWidget(ProjectExplorer::Kit *kit, const ProjectExplorer::KitInformation *ki);
+    ~CMakeGeneratorKitConfigWidget() override;
+
+    // KitConfigWidget interface
+    QString displayName() const override;
+    void makeReadOnly() override;
+    void refresh() override;
+    QWidget *mainWidget() const override;
+    QWidget *buttonWidget() const override;
+    QString toolTip() const override;
+
+private:
+    bool m_ignoreChange = false;
+    QComboBox *m_comboBox;
+    CMakeTool *m_currentTool = nullptr;
+};
+
+// --------------------------------------------------------------------
+// CMakeConfigurationKitConfigWidget:
+// --------------------------------------------------------------------
+
+class CMakeConfigurationKitConfigWidget : public ProjectExplorer::KitConfigWidget
+{
+    Q_OBJECT
+public:
+    CMakeConfigurationKitConfigWidget(ProjectExplorer::Kit *kit, const ProjectExplorer::KitInformation *ki);
+
+    // KitConfigWidget interface
+    QString displayName() const override;
+    void makeReadOnly() override;
+    void refresh() override;
+    QWidget *mainWidget() const override;
+    QWidget *buttonWidget() const override;
+    QString toolTip() const override;
+
+private:
+    void editConfigurationChanges();
+
+    void applyChanges();
+    void closeChangesDialog();
+    void acceptChangesDialog();
+
+    QLabel *m_summaryLabel;
+    QPushButton *m_manageButton;
+    QDialog *m_dialog = nullptr;
+    QPlainTextEdit *m_editor = nullptr;
+};
+
 } // namespace Internal
 } // namespace CMakeProjectManager
-

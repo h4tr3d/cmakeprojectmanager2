@@ -27,10 +27,22 @@
 
 #include <projectexplorer/namedwidget.h>
 
-QT_FORWARD_DECLARE_CLASS(QLineEdit)
-QT_FORWARD_DECLARE_CLASS(QPushButton)
+#include <utils/progressindicator.h>
+
+#include <QTimer>
+
+QT_BEGIN_NAMESPACE
+class QCheckBox;
+class QLabel;
+class QPushButton;
+class QTreeView;
+class QSortFilterProxyModel;
+QT_END_NAMESPACE
 
 namespace CMakeProjectManager {
+
+class ConfigModel;
+
 namespace Internal {
 
 class CMakeBuildConfiguration;
@@ -41,15 +53,25 @@ class CMakeBuildSettingsWidget : public ProjectExplorer::NamedWidget
 public:
     CMakeBuildSettingsWidget(CMakeBuildConfiguration *bc);
 
-private:
-    void openChangeBuildDirectoryDialog();
-    void runCMake();
+    void setError(const QString &message);
 
-    QLineEdit *m_pathLineEdit;
-    QPushButton *m_changeButton;
-    CMakeBuildConfiguration *m_buildConfiguration = 0;
+private:
+    void updateButtonState();
+    void updateAdvancedCheckBox();
+
+    CMakeBuildConfiguration *m_buildConfiguration;
+    QTreeView *m_configView;
+    ConfigModel *m_configModel;
+    QSortFilterProxyModel *m_configFilterModel;
+    Utils::ProgressIndicator *m_progressIndicator;
+    QPushButton *m_editButton;
+    QPushButton *m_resetButton;
+    QCheckBox *m_showAdvancedCheckBox;
+    QPushButton *m_reconfigureButton;
+    QTimer m_showProgressTimer;
+    QLabel *m_errorLabel;
+    QLabel *m_errorMessageLabel;
 };
 
 } // namespace Internal
 } // namespace CMakeProjectManager
-

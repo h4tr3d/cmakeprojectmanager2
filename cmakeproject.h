@@ -27,7 +27,9 @@
 
 #include "cmake_global.h"
 #include "cmakeprojectnodes.h"
+#include "configmodel.h"
 
+#include <projectexplorer/extracompiler.h>
 #include <projectexplorer/project.h>
 #include <projectexplorer/buildconfiguration.h>
 #include <projectexplorer/namedwidget.h>
@@ -50,13 +52,14 @@ QT_END_NAMESPACE
 namespace CMakeProjectManager {
 
 namespace Internal {
+class BuildDirManager;
 class CMakeFile;
 class CMakeBuildSettingsWidget;
 class CMakeProjectNode;
 class CMakeBuildConfiguration;
 class CMakeProjectNode;
 class CMakeManager;
-}
+} // namespace Internal
 
 enum TargetType {
     ExecutableType = 0,
@@ -104,23 +107,27 @@ public:
     CMakeBuildTarget buildTargetForTitle(const QString &title);
 
     bool isProjectFile(const Utils::FileName &fileName);
-    void refresh();
 
     bool addFiles(const QStringList &filePaths);
     bool eraseFiles(const QStringList &filePaths);
     bool renameFile(const QString &filePath, const QString &newFilePath);
 
-    bool parseCMakeLists();
-
     bool needsConfiguration() const override;
-
     bool requiresTargetPanel() const override;
 
     bool supportsKit(ProjectExplorer::Kit *k, QString *errorMessage = 0) const override;
 
+    void runCMake();
+    bool isParsing() const;
+
+    QList<ConfigModel::DataItem> currentCMakeConfiguration() const;
+    void setCurrentCMakeConfiguration(const QList<ConfigModel::DataItem> &items);
+
 signals:
+    /// emitted when parsing starts:
+    void parsingStarted();
     /// emitted after parsing
-    void buildTargetsChanged();
+    void buildDirectoryDataAvailable(ProjectExplorer::BuildConfiguration *bc);
 
 protected:
     RestoreResult fromMap(const QVariantMap &map, QString *errorMessage) override;
@@ -129,46 +136,33 @@ protected:
     // called by CMakeBuildSettingsWidget
     void changeBuildDirectory(Internal::CMakeBuildConfiguration *bc, const QString &newBuildDirectory);
 
-    void getFileList(const QDir &dir,
-                     const QString &projectRoot,
-                     QStringList *files,
-                     QStringList *paths) const;
-
-    bool isValidDir(const QFileInfo &fileInfo) const;
-
 private:
-    void fileChanged(const QString &fileName);
-    void activeTargetWasChanged(ProjectExplorer::Target *target);
+    void handleKitChanges();
+    void parseCMakeOutput();
+
+    void activeTargetHasChanged(ProjectExplorer::Target *target);
     void changeActiveBuildConfiguration(ProjectExplorer::BuildConfiguration*);
 
     void updateRunConfigurations();
 
-    void cbpUpdateFinished(int code);
-
     void buildTree(Internal::CMakeProjectNode *rootNode, QList<ProjectExplorer::FileNode *> list);
-    void gatherFileNodes(ProjectExplorer::FolderNode *parent, QList<ProjectExplorer::FileNode *> &list);
+    void gatherFileNodes(ProjectExplorer::FolderNode *parent, QList<ProjectExplorer::FileNode *> &list) const;
     ProjectExplorer::FolderNode *findOrCreateFolder(Internal::CMakeProjectNode *rootNode, QString directory);
-    void createUiCodeModelSupport();
-    QString uiHeaderFile(const QString &uiFile);
+    void createGeneratedCodeModelSupport();
+    QStringList filesGeneratedFrom(const QString &sourceFile) const override;
     void updateTargetRunConfigurations(ProjectExplorer::Target *t);
     void updateApplicationAndDeploymentTargets();
-    QStringList getCXXFlagsFor(const CMakeBuildTarget &buildTarget, QByteArray *cachedBuildNinja);
-
-
-    void cbpUpdateMessage(const QString &message, bool show = true);
-    void updateCbp();
-
+    QStringList getCXXFlagsFor(const CMakeBuildTarget &buildTarget, QHash<QString, QStringList> &cache);
+    bool extractCXXFlagsFromMake(const CMakeBuildTarget &buildTarget, QHash<QString, QStringList> &cache);
+    bool extractCXXFlagsFromNinja(const CMakeBuildTarget &buildTarget, QHash<QString, QStringList> &cache);
 
     ProjectExplorer::Target *m_activeTarget = 0;
-    Utils::QtcProcess *m_cbpUpdateProcess;
+    Internal::BuildDirManager *m_buildDirManager = 0;
 
     // TODO probably need a CMake specific node structure
-    QStringList m_files;
     QList<CMakeBuildTarget> m_buildTargets;
-    QFileSystemWatcher *m_watcher;
-    QSet<Utils::FileName> m_watchedFiles;
     QFuture<void> m_codeModelFuture;
+    QList<ProjectExplorer::ExtraCompiler *> m_extraCompilers;
 };
 
 } // namespace CMakeProjectManager
-

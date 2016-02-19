@@ -24,7 +24,6 @@
 ****************************************************************************/
 
 #include "cmakeprojectmanager.h"
-#include "cmakeopenprojectwizard.h"
 #include "cmakeprojectconstants.h"
 #include "cmakeproject.h"
 #include "cmakesettingspage.h"
@@ -39,11 +38,14 @@
 #include <projectexplorer/projectexplorerconstants.h>
 #include <projectexplorer/projecttree.h>
 #include <projectexplorer/session.h>
+#include <projectexplorer/target.h>
 
+#include <utils/qtcprocess.h>
 #include <utils/synchronousprocess.h>
 
 #include <QAction>
 #include <QDateTime>
+#include <QIcon>
 
 using namespace ProjectExplorer;
 using namespace CMakeProjectManager::Internal;
@@ -103,17 +105,7 @@ void CMakeManager::runCMake(Project *project)
     if (!ProjectExplorerPlugin::saveModifiedFiles())
         return;
 
-    CMakeBuildConfiguration *bc
-            = static_cast<CMakeBuildConfiguration *>(cmakeProject->activeTarget()->activeBuildConfiguration());
-
-    CMakeBuildInfo info(bc);
-
-    CMakeOpenProjectWizard copw(Core::ICore::mainWindow(), CMakeOpenProjectWizard::WantToUpdate, &info);
-    if (copw.exec() == QDialog::Accepted) {
-        cmakeProject->parseCMakeLists();
-        bc->setCMakeParams(copw.arguments());
-        bc->setCMakeParamsExt(copw.cmakeParamsExt());
-    }
+    cmakeProject->runCMake();
 }
 
 Project *CMakeManager::openProject(const QString &fileName, QString *errorString)
@@ -132,11 +124,6 @@ Project *CMakeManager::openProject(const QString &fileName, QString *errorString
 QString CMakeManager::mimeType() const
 {
     return QLatin1String(Constants::CMAKEPROJECTMIMETYPE);
-}
-
-bool CMakeManager::preferNinja()
-{
-    return CMakeToolManager::preferNinja();
 }
 
 // need to refactor this out

@@ -37,7 +37,7 @@
 #include <QUuid>
 #include <QVariantMap>
 
-using namespace CMakeProjectManager;
+namespace CMakeProjectManager {
 
 const char CMAKE_INFORMATION_ID[] = "Id";
 const char CMAKE_INFORMATION_COMMAND[] = "Binary";
@@ -152,12 +152,14 @@ QStringList CMakeTool::supportedGenerators() const
             foreach (const QString &line, lines) {
                 if (line.isEmpty())
                     continue;
-                if (line == QLatin1String("Generators"))
+                if (line == QLatin1String("Generators")) {
                     inGeneratorSection = true;
+                    continue;
+                }
                 if (!inGeneratorSection)
                     continue;
 
-                if (line.startsWith(QLatin1String("  "))) {
+                if (line.startsWith(QLatin1String("  ")) && line.at(3) != QLatin1Char(' ')) {
                     int pos = line.indexOf(QLatin1Char('='));
                     if (pos < 0)
                         pos = line.length();
@@ -223,7 +225,7 @@ void CMakeTool::setPathMapper(const CMakeTool::PathMapper &pathMapper)
     m_pathMapper = pathMapper;
 }
 
-QString CMakeTool::mapAllPaths(ProjectExplorer::Kit *kit, const QString &in) const
+QString CMakeTool::mapAllPaths(const ProjectExplorer::Kit *kit, const QString &in) const
 {
     if (m_pathMapper)
         return m_pathMapper(kit, in);
@@ -318,3 +320,5 @@ QStringList CMakeTool::parseVariableOutput(const QString &output)
     }
     return result;
 }
+
+} // namespace CMakeProjectManager

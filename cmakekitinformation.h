@@ -27,6 +27,8 @@
 
 #include "cmake_global.h"
 
+#include "cmakeconfigitem.h"
+
 #include <projectexplorer/kitmanager.h>
 
 namespace CMakeProjectManager {
@@ -39,14 +41,51 @@ class CMAKE_EXPORT CMakeKitInformation : public ProjectExplorer::KitInformation
 public:
     CMakeKitInformation();
 
-    static Core::Id id();
-
     static CMakeTool *cmakeTool(const ProjectExplorer::Kit *k);
     static void setCMakeTool(ProjectExplorer::Kit *k, const Core::Id id);
-    static Core::Id defaultValue();
 
     // KitInformation interface
-    QVariant defaultValue(ProjectExplorer::Kit *) const override;
+    QVariant defaultValue(const ProjectExplorer::Kit *k) const override;
+    QList<ProjectExplorer::Task> validate(const ProjectExplorer::Kit *k) const override;
+    void setup(ProjectExplorer::Kit *k) override;
+    void fix(ProjectExplorer::Kit *k) override;
+    ItemList toUserOutput(const ProjectExplorer::Kit *k) const override;
+    ProjectExplorer::KitConfigWidget *createConfigWidget(ProjectExplorer::Kit *k) const override;
+};
+
+class CMAKE_EXPORT CMakeGeneratorKitInformation : public ProjectExplorer::KitInformation
+{
+    Q_OBJECT
+public:
+    CMakeGeneratorKitInformation();
+
+    static QString generator(const ProjectExplorer::Kit *k);
+    static void setGenerator(ProjectExplorer::Kit *k, const QString &generator);
+    static QString generatorArgument(const ProjectExplorer::Kit *k);
+
+    // KitInformation interface
+    QVariant defaultValue(const ProjectExplorer::Kit *k) const override;
+    QList<ProjectExplorer::Task> validate(const ProjectExplorer::Kit *k) const override;
+    void setup(ProjectExplorer::Kit *k) override;
+    void fix(ProjectExplorer::Kit *k) override;
+    ItemList toUserOutput(const ProjectExplorer::Kit *k) const override;
+    ProjectExplorer::KitConfigWidget *createConfigWidget(ProjectExplorer::Kit *k) const override;
+};
+
+class CMAKE_EXPORT CMakeConfigurationKitInformation : public ProjectExplorer::KitInformation
+{
+    Q_OBJECT
+public:
+    CMakeConfigurationKitInformation();
+
+    static CMakeConfig configuration(const ProjectExplorer::Kit *k);
+    static void setConfiguration(ProjectExplorer::Kit *k, const CMakeConfig &config);
+
+    static QStringList toStringList(const ProjectExplorer::Kit *k);
+    static void fromStringList(ProjectExplorer::Kit *k, const QStringList &in);
+
+    // KitInformation interface
+    QVariant defaultValue(const ProjectExplorer::Kit *k) const override;
     QList<ProjectExplorer::Task> validate(const ProjectExplorer::Kit *k) const override;
     void setup(ProjectExplorer::Kit *k) override;
     void fix(ProjectExplorer::Kit *k) override;
@@ -55,4 +94,3 @@ public:
 };
 
 } // namespace CMakeProjectManager
-

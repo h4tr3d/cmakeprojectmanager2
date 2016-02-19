@@ -25,6 +25,8 @@
 
 #pragma once
 
+#include "cmakeconfigitem.h"
+
 #include <projectexplorer/buildconfiguration.h>
 #include <projectexplorer/abi.h>
 
@@ -48,31 +50,38 @@ class CMakeBuildConfiguration : public ProjectExplorer::BuildConfiguration
 public:
     CMakeBuildConfiguration(ProjectExplorer::Target *parent);
 
+    bool isEnabled() const override;
+    QString disabledReason() const override;
+
     ProjectExplorer::NamedWidget *createConfigWidget() override;
 
     QVariantMap toMap() const override;
-    
-    BuildType buildType() const override;
 
-    QString cmakeParams() const;
-    void    setCMakeParams(const QString &cmakeParams);
+    BuildType buildType() const override;
 
     const CMakeParamsExt& cmakeParamsExt() const;
     void  setCMakeParamsExt(const CMakeParamsExt &cmakeParamsExt);
 
     void emitBuildTypeChanged();
 
-    void setInitialArguments(const QString &arguments);
-    QString initialArguments() const;
+    void setCMakeConfiguration(const CMakeConfig &config);
+    CMakeConfig cmakeConfiguration() const;
+
+    void setError(const QString &message);
+    QString error() const;
+
+signals:
+    void errorOccured(const QString &message);
 
 protected:
     CMakeBuildConfiguration(ProjectExplorer::Target *parent, CMakeBuildConfiguration *source);
     bool fromMap(const QVariantMap &map) override;
 
 private:
-    QString m_cmakeParams;
     QString m_initialArguments;
+    CMakeConfig m_configuration;
     CMakeParamsExt m_cmakeParamsExt;
+    QString m_error;
 
     friend class CMakeProjectManager::CMakeProject;
 };
@@ -114,4 +123,3 @@ private:
 
 } // namespace Internal
 } // namespace CMakeProjectManager
-
