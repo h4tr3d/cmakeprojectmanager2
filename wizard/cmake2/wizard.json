@@ -137,6 +137,12 @@
                     "condition": "%{JS: '%{ProjectLanguage}' === 'cpp'}"
                 },
                 {
+                    "source": "cmake/modules/FindCxx11.cmake"
+                },
+                {
+                    "source": "cmake/modules/FindCxx14.cmake"
+                },
+                {
                     "source": "../git.ignore",
                     "target": "%{ProjectDirectory}/.gitignore",
                     "condition": "%{JS: ! %{IsSubproject} && '%{VersionControl}' === 'G.Git'}"
