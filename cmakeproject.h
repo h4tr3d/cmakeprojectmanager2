@@ -111,7 +111,6 @@ public:
     bool addFiles(const QStringList &filePaths);
     bool eraseFiles(const QStringList &filePaths);
     bool renameFile(const QString &filePath, const QString &newFilePath);
-
     bool needsConfiguration() const override;
     bool requiresTargetPanel() const override;
 
