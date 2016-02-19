@@ -282,15 +282,6 @@ bool CMakeProject::extractCXXFlagsFromMake(const CMakeBuildTarget &buildTarget,
     }
     return false;
 }
-    return false;
-}
-
-bool CMakeProject::extractCXXFlagsFromNinja(const CMakeBuildTarget &buildTarget,
-                                            QHash<QString, QStringList> &cache)
-{
-    Q_UNUSED(buildTarget)
-    if (!cache.isEmpty()) // We fill the cache in one go!
-        return false;
 
 bool CMakeProject::extractCXXFlagsFromNinja(const CMakeBuildTarget &buildTarget,
                                             QHash<QString, QStringList> &cache)
