@@ -28,6 +28,7 @@
 
 #include "cmakecbpparser.h"
 #include "cmakeconfigitem.h"
+#include "cmaketoolchaininfo.h"
 
 #include <projectexplorer/task.h>
 
@@ -63,7 +64,7 @@ class BuildDirManager : public QObject
 
 public:
     BuildDirManager(const Utils::FileName &sourceDir, const ProjectExplorer::Kit *k,
-                    const CMakeConfig &inputConfig, const Utils::Environment &env,
+                    const CMakeConfig &inputConfig, const CMakeToolchainInfo &inputToolchainInfo, const Utils::Environment &env,
                     const Utils::FileName &buildDir);
     ~BuildDirManager() override;
 
@@ -73,9 +74,10 @@ public:
     bool isBusy() const;
 
     void parse();
-    void forceReparse();
+    void forceReparse(bool clearCache = false);
+    void forceReparseTimer();
 
-    void setInputConfiguration(const CMakeConfig &config);
+    void setInputConfiguration(const CMakeConfig &config, const CMakeToolchainInfo &info);
 
     bool isProjectFile(const Utils::FileName &fileName) const;
     QString projectName() const;
@@ -92,7 +94,7 @@ signals:
 private:
     void extractData();
 
-    void startCMake(CMakeTool *tool, const QString &generator, const CMakeConfig &config);
+    void startCMake(CMakeTool *tool, const QString &generator, const CMakeConfig &config, const CMakeToolchainInfo &toolchain);
 
     void cmakeFinished(int code, QProcess::ExitStatus status);
     void processCMakeOutput();
@@ -106,6 +108,7 @@ private:
     const ProjectExplorer::Kit *const m_kit;
     Utils::Environment m_environment;
     CMakeConfig m_inputConfig;
+    CMakeToolchainInfo m_inputToolchainInfo;
 
     QTemporaryDir *m_tempDir = nullptr;
     Utils::QtcProcess *m_cmakeProcess = nullptr;

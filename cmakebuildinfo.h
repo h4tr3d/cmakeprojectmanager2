@@ -49,7 +49,7 @@ public:
         displayName = bc->displayName();
         buildDirectory = bc->buildDirectory();
         kitId = bc->target()->kit()->id();
-        cmakeParamsExt = bc->cmakeParamsExt();
+        cmakeToolchainInfo = bc->cmakeToolchainInfo();
 
         QTC_ASSERT(bc->target()->project(), return);
         sourceDirectory = bc->target()->project()->projectDirectory().toString();
@@ -58,8 +58,7 @@ public:
 
     QString sourceDirectory;
     CMakeConfig configuration;
-    //QString cmakeParams;
-    CMakeParamsExt cmakeParamsExt;
+    CMakeToolchainInfo cmakeToolchainInfo;
 };
 
 } // namespace CMakeProjectManager

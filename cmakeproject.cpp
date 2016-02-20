@@ -179,6 +179,7 @@ void CMakeProject::changeActiveBuildConfiguration(ProjectExplorer::BuildConfigur
 
     Kit *k = nullptr;
     CMakeConfig config;
+    CMakeToolchainInfo toolchain;
     Utils::FileName buildDir;
 
     CMakeBuildConfiguration *cmakebc = qobject_cast<CMakeBuildConfiguration *>(bc);
@@ -188,10 +189,11 @@ void CMakeProject::changeActiveBuildConfiguration(ProjectExplorer::BuildConfigur
     } else {
         k = cmakebc->target()->kit();
         config = cmakebc->cmakeConfiguration();
+        toolchain = cmakebc->cmakeToolchainInfo();
         buildDir = cmakebc->buildDirectory();
     }
     if (k) {
-        m_buildDirManager = new Internal::BuildDirManager(projectDirectory(), k, config,
+        m_buildDirManager = new Internal::BuildDirManager(projectDirectory(), k, config, toolchain,
                                                           cmakebc->environment(), buildDir);
         connect(m_buildDirManager, &BuildDirManager::parsingStarted,
                 this, &CMakeProject::parsingStarted);
@@ -462,7 +464,7 @@ QList<ConfigModel::DataItem> CMakeProject::currentCMakeConfiguration() const
     });
 }
 
-void CMakeProject::setCurrentCMakeConfiguration(const QList<ConfigModel::DataItem> &items)
+void CMakeProject::setCurrentCMakeConfiguration(const QList<ConfigModel::DataItem> &items, const CMakeToolchainInfo &info)
 {
     if (!m_buildDirManager || m_buildDirManager->isBusy())
         return;
@@ -502,8 +504,9 @@ void CMakeProject::setCurrentCMakeConfiguration(const QList<ConfigModel::DataIte
     QTC_ASSERT(bc, return);
     const CMakeConfig config = bc->cmakeConfiguration() + newConfig;
     bc->setCMakeConfiguration(config);
+    bc->setCMakeToolchainInfo(info);
 
-    m_buildDirManager->setInputConfiguration(config);
+    m_buildDirManager->setInputConfiguration(config, info);
 }
 
 bool CMakeProject::isProjectFile(const FileName &fileName)

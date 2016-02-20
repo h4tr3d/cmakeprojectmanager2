@@ -25,9 +25,12 @@
 
 #pragma once
 
+#include "cmaketoolchaininfo.h"
+
 #include <projectexplorer/namedwidget.h>
 
 #include <utils/progressindicator.h>
+#include <utils/fancylineedit.h>
 
 #include <QTimer>
 
@@ -37,6 +40,8 @@ class QLabel;
 class QPushButton;
 class QTreeView;
 class QSortFilterProxyModel;
+class QGroupBox;
+class QRadioButton;
 QT_END_NAMESPACE
 
 namespace CMakeProjectManager {
@@ -59,6 +64,11 @@ private:
     void updateButtonState();
     void updateAdvancedCheckBox();
 
+    CMakeToolchainInfo currentToolchainInfo() const;
+    void toolchainFileSelect();
+    void toolchainEdit();
+    void toolchainRadio(bool toggled);
+
     CMakeBuildConfiguration *m_buildConfiguration;
     QTreeView *m_configView;
     ConfigModel *m_configModel;
@@ -68,9 +78,17 @@ private:
     QPushButton *m_resetButton;
     QCheckBox *m_showAdvancedCheckBox;
     QPushButton *m_reconfigureButton;
+    QGroupBox *m_toolchainGroupBox;
+    Utils::FancyLineEdit *m_toolchainLineEdit;
+    QPushButton *m_toolchainFileSelectPushButton;
+    QPushButton *m_toolchainEditPushButton;
+    QRadioButton *m_fileToolchainRadioButton;
+    QRadioButton *m_inlineToolchainRadioButton;
     QTimer m_showProgressTimer;
     QLabel *m_errorLabel;
     QLabel *m_errorMessageLabel;
+
+    QString m_toolchainInlineCurrent;
 };
 
 } // namespace Internal

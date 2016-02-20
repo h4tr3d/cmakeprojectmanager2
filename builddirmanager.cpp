@@ -89,13 +89,14 @@ static QStringList toArguments(const CMakeConfig &config) {
 // --------------------------------------------------------------------
 
 BuildDirManager::BuildDirManager(const Utils::FileName &sourceDir, const ProjectExplorer::Kit *k,
-                                 const CMakeConfig &inputConfig, const Utils::Environment &env,
-                                 const Utils::FileName &buildDir) :
+                                 const CMakeConfig &inputConfig, const CMakeToolchainInfo &inputToolchainInfo,
+                                 const Utils::Environment &env, const Utils::FileName &buildDir) :
     m_sourceDir(sourceDir),
     m_buildDir(buildDir),
     m_kit(k),
     m_environment(env),
     m_inputConfig(inputConfig),
+    m_inputToolchainInfo(inputToolchainInfo),
     m_watcher(new QFileSystemWatcher(this))
 {
     QTC_CHECK(!sourceDir.isEmpty());
@@ -109,7 +110,7 @@ BuildDirManager::BuildDirManager(const Utils::FileName &sourceDir, const Project
 
     m_reparseTimer.setSingleShot(true);
     m_reparseTimer.setInterval(500);
-    connect(&m_reparseTimer, &QTimer::timeout, this, &BuildDirManager::forceReparse);
+    connect(&m_reparseTimer, &QTimer::timeout, this, &BuildDirManager::forceReparseTimer);
 
     connect(m_watcher, &QFileSystemWatcher::fileChanged, this, [this]() {
         if (!isBusy())
@@ -131,12 +132,55 @@ bool BuildDirManager::isBusy() const
     return false;
 }
 
-void BuildDirManager::forceReparse()
+namespace {
+bool removePath(QString path)
+{
+    bool result = true;
+    QFileInfo fi(path);
+
+    if (fi.isDir()) {
+        QDir dir(path);
+        if (dir.exists(path)) {
+            for (QFileInfo &info : dir.entryInfoList(QDir::NoDotAndDotDot | QDir::System | QDir::Hidden  | QDir::AllDirs | QDir::Files, QDir::DirsFirst)) {
+                if (info.isDir()) {
+                    result = removePath(info.absoluteFilePath());
+                }
+                else {
+                    result = QFile::remove(info.absoluteFilePath());
+                }
+
+                if (!result) {
+                    return result;
+                }
+            }
+            result = dir.rmdir(path);
+        }
+    } else {
+        result = QFile::remove(path);
+    }
+    return result;
+}
+} // ::anonymous
+
+void BuildDirManager::forceReparse(bool clearCache)
 {
     if (isBusy()) {
         m_cmakeProcess->disconnect();
         m_cmakeProcess->deleteLater();
         m_cmakeProcess = nullptr;
+    }
+
+    if (clearCache) {
+        QString cmakeCache(m_buildDir.toString() + QLatin1String("/CMakeCache.txt"));
+        QString cmakeFiles(m_buildDir.toString() + QLatin1String("/CMakeFiles"));
+
+        if (QFileInfo::exists(cmakeCache)) {
+            removePath(cmakeCache);
+        }
+
+        if (QFileInfo::exists(cmakeFiles)) {
+            removePath(cmakeFiles);
+        }
     }
 
     CMakeTool *tool = CMakeKitInformation::cmakeTool(m_kit);
@@ -145,13 +189,20 @@ void BuildDirManager::forceReparse()
     QTC_ASSERT(tool, return);
     QTC_ASSERT(!generator.isEmpty(), return);
 
-    startCMake(tool, generator, m_inputConfig);
+    startCMake(tool, generator, m_inputConfig, m_inputToolchainInfo);
 }
 
-void BuildDirManager::setInputConfiguration(const CMakeConfig &config)
+void BuildDirManager::forceReparseTimer()
 {
+    forceReparse(false);
+}
+
+void BuildDirManager::setInputConfiguration(const CMakeConfig &config, const CMakeToolchainInfo &info)
+{
+    bool clearCache = m_inputToolchainInfo != info;
     m_inputConfig = config;
-    forceReparse();
+    m_inputToolchainInfo = info;
+    forceReparse(clearCache);
 }
 
 void BuildDirManager::parse()
@@ -168,7 +219,7 @@ void BuildDirManager::parse()
 
     if (!cbpFileFi.exists()) {
         // Initial create:
-        startCMake(tool, generator, m_inputConfig);
+        startCMake(tool, generator, m_inputConfig, m_inputToolchainInfo);
         return;
     }
 
@@ -177,7 +228,7 @@ void BuildDirManager::parse()
                   return f.toFileInfo().lastModified() > cbpFileFi.lastModified();
               });
     if (mustUpdate) {
-        startCMake(tool, generator, CMakeConfig());
+        startCMake(tool, generator, CMakeConfig(), CMakeToolchainInfo());
     } else {
         extractData();
         emit dataAvailable();
@@ -263,7 +314,7 @@ void BuildDirManager::extractData()
 }
 
 void BuildDirManager::startCMake(CMakeTool *tool, const QString &generator,
-                                 const CMakeConfig &config)
+                                 const CMakeConfig &config, const CMakeToolchainInfo &toolchain)
 {
     QTC_ASSERT(tool && tool->isValid(), return);
     QTC_ASSERT(!m_cmakeProcess, return);
@@ -308,6 +359,7 @@ void BuildDirManager::startCMake(CMakeTool *tool, const QString &generator,
     if (!generator.isEmpty())
         Utils::QtcProcess::addArg(&args, QString::fromLatin1("-G%1").arg(generator));
     Utils::QtcProcess::addArgs(&args, toArguments(config));
+    Utils::QtcProcess::addArgs(&args, toolchain.arguments(toArguments(config), buildDirStr));
 
     ProjectExplorer::TaskHub::clearTasks(ProjectExplorer::Constants::TASK_CATEGORY_BUILDSYSTEM);
 

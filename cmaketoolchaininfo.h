@@ -5,17 +5,9 @@
 
 #include <QtCore>
 #include <QTemporaryFile>
+#include <QStringList>
 
 namespace CMakeProjectManager {
-
-enum class CMakeBuildType
-{
-    Default,
-    Debug,
-    Release,
-    ReleaseWithDebugInfo,
-    MinSizeRelease
-};
 
 enum class CMakeToolchainOverrideType
 {
@@ -24,21 +16,21 @@ enum class CMakeToolchainOverrideType
     Inline
 };
 
-struct CMakeParamsExt
+struct CMakeToolchainInfo
 {
-    CMakeBuildType                  buildType         = CMakeBuildType::Default;
     CMakeToolchainOverrideType      toolchainOverride = CMakeToolchainOverrideType::Disabled;
     QString                         toolchainFile;
     QString                         toolchainInline;
 
     QString arguments(const QString &userArguments, const QString& buildDirectory) const;
-    bool operator==(const CMakeParamsExt& other) const;
-    bool operator!=(const CMakeParamsExt& other) const;
+    QStringList arguments(const QStringList &userArguments, const QString &buildDirectory) const;
+
+    QString toolchainArgument(const QString& buildDirectory) const;
+
+    bool operator==(const CMakeToolchainInfo& other) const;
+    bool operator!=(const CMakeToolchainInfo& other) const;
 };
 
 } // namespace CMakeProjectManager
-
-//Q_DECLARE_METATYPE(CMakeProjectManager::CMakeParamsExt)
-Q_DECLARE_METATYPE(CMakeProjectManager::CMakeBuildType)
 
 #endif // CMAKEPROJECTMANAGER_CMAKEPARAMSEXT_H

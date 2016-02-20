@@ -31,7 +31,6 @@ HEADERS = builddirmanager.h \
     cmaketoolmanager.h \
     cmake_global.h \
     cmakeinlineeditordialog.h \
-    cmakeparamsext.h \
     cmakekitinformation.h \
     cmakekitconfigwidget.h \
     cmakecbpparser.h \
@@ -39,7 +38,8 @@ HEADERS = builddirmanager.h \
     cmakebuildsettingswidget.h \
     cmakeindenter.h \
     cmakeautocompleter.h \
-    configmodel.h
+    configmodel.h \
+    cmaketoolchaininfo.h
 
 SOURCES = builddirmanager.cpp \
     cmakebuildstep.cpp \
@@ -58,7 +58,6 @@ SOURCES = builddirmanager.cpp \
     cmakesettingspage.cpp \
     cmaketoolmanager.cpp \
     cmakeinlineeditordialog.cpp \
-    cmakeparamsext.cpp \
     cmakekitinformation.cpp \
     cmakekitconfigwidget.cpp \
     cmakecbpparser.cpp \
@@ -66,7 +65,8 @@ SOURCES = builddirmanager.cpp \
     cmakebuildsettingswidget.cpp \
     cmakeindenter.cpp \
     cmakeautocompleter.cpp \
-    configmodel.cpp
+    configmodel.cpp \
+    cmaketoolchaininfo.cpp
 
 RESOURCES += cmakeproject.qrc
 

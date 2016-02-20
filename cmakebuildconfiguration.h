@@ -30,7 +30,7 @@
 #include <projectexplorer/buildconfiguration.h>
 #include <projectexplorer/abi.h>
 
-#include "cmakeparamsext.h"
+#include "cmaketoolchaininfo.h"
 
 namespace ProjectExplorer { class ToolChain; }
 
@@ -59,8 +59,8 @@ public:
 
     BuildType buildType() const override;
 
-    const CMakeParamsExt& cmakeParamsExt() const;
-    void  setCMakeParamsExt(const CMakeParamsExt &cmakeParamsExt);
+    const CMakeToolchainInfo& cmakeToolchainInfo() const;
+    void  setCMakeToolchainInfo(const CMakeToolchainInfo &cmakeToolchainInfo);
 
     void emitBuildTypeChanged();
 
@@ -80,7 +80,7 @@ protected:
 private:
     QString m_initialArguments;
     CMakeConfig m_configuration;
-    CMakeParamsExt m_cmakeParamsExt;
+    CMakeToolchainInfo m_cmakeToolchainInfo;
     QString m_error;
 
     friend class CMakeProjectManager::CMakeProject;

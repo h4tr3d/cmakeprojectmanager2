@@ -109,9 +109,9 @@ QVariantMap CMakeBuildConfiguration::toMap() const
     const QStringList config
             = Utils::transform(m_configuration, [](const CMakeConfigItem &i) { return i.toString(); });
     map.insert(QLatin1String(CONFIGURATION_KEY), config);
-    map.insert(QLatin1String(CMAKE_TOOLCHAIN_TYPE_KEY), static_cast<int>(m_cmakeParamsExt.toolchainOverride));
-    map.insert(QLatin1String(CMAKE_TOOLCHAIN_FILE_KEY), m_cmakeParamsExt.toolchainFile);
-    map.insert(QLatin1String(CMAKE_TOOLCHAIN_INLINE_KEY), m_cmakeParamsExt.toolchainInline);
+    map.insert(QLatin1String(CMAKE_TOOLCHAIN_TYPE_KEY), static_cast<int>(m_cmakeToolchainInfo.toolchainOverride));
+    map.insert(QLatin1String(CMAKE_TOOLCHAIN_FILE_KEY), m_cmakeToolchainInfo.toolchainFile);
+    map.insert(QLatin1String(CMAKE_TOOLCHAIN_INLINE_KEY), m_cmakeToolchainInfo.toolchainInline);
     return map;
 }
 
@@ -142,30 +142,27 @@ bool CMakeBuildConfiguration::fromMap(const QVariantMap &map)
 
     setCMakeConfiguration(legacyConf + conf);
 
-    m_cmakeParamsExt.toolchainOverride =
+    m_cmakeToolchainInfo.toolchainOverride =
             static_cast<CMakeToolchainOverrideType>(
                 map.value(QLatin1String(CMAKE_TOOLCHAIN_TYPE_KEY), static_cast<int>(CMakeToolchainOverrideType::Disabled)).toInt());
-    m_cmakeParamsExt.toolchainFile =
+    m_cmakeToolchainInfo.toolchainFile =
             map.value(QLatin1String(CMAKE_TOOLCHAIN_FILE_KEY), QLatin1String("")).toString();
-    m_cmakeParamsExt.toolchainInline =
+    m_cmakeToolchainInfo.toolchainInline =
             map.value(QLatin1String(CMAKE_TOOLCHAIN_INLINE_KEY), QLatin1String("")).toString();
 
     return true;
 }
 
-const CMakeParamsExt &CMakeBuildConfiguration::cmakeParamsExt() const
+const CMakeToolchainInfo &CMakeBuildConfiguration::cmakeToolchainInfo() const
 {
-    return m_cmakeParamsExt;
+    return m_cmakeToolchainInfo;
 }
 
-void CMakeBuildConfiguration::setCMakeParamsExt(const CMakeParamsExt &cmakeParamsExt)
+void CMakeBuildConfiguration::setCMakeToolchainInfo(const CMakeToolchainInfo &cmakeToolchainInfo)
 {
-    if (m_cmakeParamsExt == cmakeParamsExt)
+    if (m_cmakeToolchainInfo == cmakeToolchainInfo)
         return;
-    m_cmakeParamsExt = cmakeParamsExt;
-    // TODO: is this need?
-    emit buildDirectoryChanged();
-    emit environmentChanged();
+    m_cmakeToolchainInfo = cmakeToolchainInfo;
 }
 
 void CMakeBuildConfiguration::emitBuildTypeChanged()
@@ -305,7 +302,7 @@ ProjectExplorer::BuildConfiguration *CMakeBuildConfigurationFactory::create(Proj
 
     bc->setBuildDirectory(copy.buildDirectory);
     bc->setCMakeConfiguration(copy.configuration);
-    bc->setCMakeParamsExt(copy.cmakeParamsExt);
+    bc->setCMakeToolchainInfo(copy.cmakeToolchainInfo);
 
     // Default to all
     if (project->hasBuildTarget(QLatin1String("all")))

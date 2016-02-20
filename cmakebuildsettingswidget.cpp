@@ -28,6 +28,7 @@
 #include "configmodel.h"
 #include "cmakeproject.h"
 #include "cmakebuildconfiguration.h"
+#include "cmakeinlineeditordialog.h"
 
 #include <coreplugin/coreicons.h>
 #include <coreplugin/icore.h>
@@ -48,6 +49,10 @@
 #include <QPushButton>
 #include <QSortFilterProxyModel>
 #include <QSpacerItem>
+#include <QGroupBox>
+#include <QRadioButton>
+#include <QFileDialog>
+#include <QFormLayout>
 
 namespace CMakeProjectManager {
 namespace Internal {
@@ -154,6 +159,44 @@ CMakeBuildSettingsWidget::CMakeBuildSettingsWidget(CMakeBuildConfiguration *bc) 
 
     mainLayout->addLayout(buttonLayout, row, 2);
 
+    // Toolchain settings
+    {
+        ++row;
+        m_toolchainGroupBox = new QGroupBox(this);
+        m_toolchainGroupBox->setCheckable(true);
+        m_toolchainGroupBox->setTitle(tr("Override toolchain:"));
+
+        QFormLayout *toolchainLayout = new QFormLayout;
+        toolchainLayout->setFieldGrowthPolicy(QFormLayout::ExpandingFieldsGrow);
+        m_toolchainGroupBox->setLayout(toolchainLayout);
+
+        //m_toolchainComboBox = new QComboBox(this);
+        m_toolchainLineEdit = new Utils::FancyLineEdit(this);
+
+        m_toolchainFileSelectPushButton = new QPushButton(this);
+        m_toolchainFileSelectPushButton->setText(tr("Browse..."));
+
+        m_toolchainEditPushButton = new QPushButton(this);
+        m_toolchainEditPushButton->setText(tr("Edit"));
+
+        m_fileToolchainRadioButton = new QRadioButton(tr("Toolchain file:"), this);
+        m_inlineToolchainRadioButton = new QRadioButton(tr("Inline Toolchain:"), this);
+
+        auto hbox = new QHBoxLayout;
+        hbox->addWidget(m_fileToolchainRadioButton);
+        hbox->addWidget(m_toolchainLineEdit);
+        hbox->addWidget(m_toolchainFileSelectPushButton);
+        toolchainLayout->addRow(hbox);
+
+        hbox = new QHBoxLayout;
+        hbox->addWidget(m_inlineToolchainRadioButton);
+        hbox->addStretch(10);
+        hbox->addWidget(m_toolchainEditPushButton);
+        toolchainLayout->addRow(hbox);
+
+        mainLayout->addWidget(m_toolchainGroupBox, row, 0, 1, 3);
+    }
+
     ++row;
     m_reconfigureButton = new QPushButton(tr("Apply Configuration Changes"));
     m_reconfigureButton->setEnabled(false);
@@ -187,7 +230,7 @@ CMakeBuildSettingsWidget::CMakeBuildSettingsWidget(CMakeBuildConfiguration *bc) 
 
     connect(m_resetButton, &QPushButton::clicked, m_configModel, &ConfigModel::resetAllChanges);
     connect(m_reconfigureButton, &QPushButton::clicked, this, [this, project]() {
-        project->setCurrentCMakeConfiguration(m_configModel->configurationChanges());
+        project->setCurrentCMakeConfiguration(m_configModel->configurationChanges(), currentToolchainInfo());
     });
     connect(m_editButton, &QPushButton::clicked, this, [this]() {
         QModelIndex idx = m_configView->currentIndex();
@@ -198,6 +241,36 @@ CMakeBuildSettingsWidget::CMakeBuildSettingsWidget(CMakeBuildConfiguration *bc) 
     });
 
     connect(bc, &CMakeBuildConfiguration::errorOccured, this, &CMakeBuildSettingsWidget::setError);
+
+    connect(m_toolchainGroupBox, &QGroupBox::clicked, [this](bool) {
+        updateButtonState();
+    });
+    connect(m_toolchainEditPushButton, &QAbstractButton::clicked, [this](bool) {
+        toolchainEdit();
+    });
+    connect(m_toolchainFileSelectPushButton, &QAbstractButton::clicked, [this](bool) {
+        toolchainFileSelect();
+    });
+    connect(m_fileToolchainRadioButton, &QAbstractButton::toggled, this, &CMakeBuildSettingsWidget::toolchainRadio);
+    connect(m_inlineToolchainRadioButton, &QAbstractButton::toggled, this, &CMakeBuildSettingsWidget::toolchainRadio);
+
+    auto info = bc->cmakeToolchainInfo();
+    m_toolchainInlineCurrent = info.toolchainInline;
+
+    m_toolchainGroupBox->setChecked(false);
+    m_toolchainLineEdit->setDisabled(true);
+    m_toolchainEditPushButton->setDisabled(true);
+    m_toolchainFileSelectPushButton->setDisabled(true);
+
+    if (info.toolchainOverride != CMakeToolchainOverrideType::Disabled) {
+        m_toolchainGroupBox->setChecked(true);
+        if (info.toolchainOverride == CMakeToolchainOverrideType::File) {
+            m_fileToolchainRadioButton->setChecked(true);
+        } else if (info.toolchainOverride == CMakeToolchainOverrideType::Inline) {
+            m_inlineToolchainRadioButton->setChecked(true);
+        }
+    }
+    m_toolchainLineEdit->setText(info.toolchainFile);
 }
 
 void CMakeBuildSettingsWidget::setError(const QString &message)
@@ -222,13 +295,94 @@ void CMakeBuildSettingsWidget::updateButtonState()
     const bool isParsing = project->isParsing();
     const bool hasChanges = m_configModel->hasChanges();
     m_resetButton->setEnabled(hasChanges && !isParsing);
-    m_reconfigureButton->setEnabled((hasChanges || m_configModel->hasCMakeChanges()) && !isParsing);
+
+    auto const& prev = m_buildConfiguration->cmakeToolchainInfo();
+    auto const  curr = currentToolchainInfo();
+
+    // If toolchain changed we need full tree regeneration
+    bool hasToolchainChanges = (curr.toolchainOverride != prev.toolchainOverride ||
+                                                       curr.toolchainFile != prev.toolchainFile ||
+                                                                             curr.toolchainInline != prev.toolchainInline);
+
+    m_reconfigureButton->setEnabled((hasChanges || hasToolchainChanges || m_configModel->hasCMakeChanges()) && !isParsing);
 }
 
 void CMakeBuildSettingsWidget::updateAdvancedCheckBox()
 {
     // Switch between Qt::DisplayRole (everything is "0") and Qt::EditRole (advanced is "1").
     m_configFilterModel->setFilterRole(m_showAdvancedCheckBox->isChecked() ? Qt::EditRole : Qt::DisplayRole);
+}
+
+CMakeToolchainInfo CMakeBuildSettingsWidget::currentToolchainInfo() const
+{
+    auto curr = m_buildConfiguration->cmakeToolchainInfo();
+    curr.toolchainOverride = CMakeToolchainOverrideType::Disabled;
+    curr.toolchainFile     = m_toolchainLineEdit->text();
+    curr.toolchainInline   = m_toolchainInlineCurrent;
+    // toolchainInline already filled
+    if (m_toolchainGroupBox->isChecked()) {
+        if (m_fileToolchainRadioButton->isChecked()) {
+            curr.toolchainOverride = CMakeToolchainOverrideType::File;
+        } else if (m_inlineToolchainRadioButton->isChecked()) {
+            curr.toolchainOverride = CMakeToolchainOverrideType::Inline;
+        }
+    }
+    return curr;
+}
+
+void CMakeBuildSettingsWidget::toolchainFileSelect()
+{
+    QFileDialog openToolchainDialog(this,
+                                    tr("Select CMake toolchain"),
+                                    m_buildConfiguration->target()->project()->projectDirectory().toString(),
+                                    QLatin1String("CMake files (*.cmake);; All (*)"));
+
+    openToolchainDialog.setFileMode(QFileDialog::ExistingFile);
+    openToolchainDialog.setAcceptMode(QFileDialog::AcceptOpen);
+
+    QList<QUrl> urls;
+    urls << QUrl::fromLocalFile(m_buildConfiguration->target()->project()->projectDirectory().toString());
+    openToolchainDialog.setSidebarUrls(urls);
+
+    if (!m_toolchainLineEdit->text().isEmpty()) {
+        QFileInfo fi(m_toolchainLineEdit->text());
+        openToolchainDialog.setDirectory(fi.absolutePath());
+    }
+
+    if (openToolchainDialog.exec()) {
+        auto files = openToolchainDialog.selectedFiles();
+        if (!files.isEmpty())
+            m_toolchainLineEdit->setText(files[0]);
+    }
+
+    updateButtonState();
+}
+
+void CMakeBuildSettingsWidget::toolchainEdit()
+{
+    bool ok;
+    QString current = m_toolchainInlineCurrent;
+
+    if (current.isEmpty()) {
+        QFile sampleToolchain(QLatin1String(":/cmakeproject/inlinetoolchainexample.cmake"));
+        sampleToolchain.open(QIODevice::ReadOnly | QIODevice::Text);
+        auto data = sampleToolchain.readAll();
+        current = QLatin1String(data);
+    }
+
+    QString content = CMakeInlineEditorDialog::getContent(this, current, &ok);
+    if (ok)
+        m_toolchainInlineCurrent = std::move(content);
+
+    updateButtonState();
+}
+
+void CMakeBuildSettingsWidget::toolchainRadio(bool /*toggled*/)
+{
+    m_toolchainLineEdit->setEnabled(m_fileToolchainRadioButton->isChecked());
+    m_toolchainFileSelectPushButton->setEnabled(m_fileToolchainRadioButton->isChecked());
+    m_toolchainEditPushButton->setEnabled(m_inlineToolchainRadioButton->isChecked());
+    updateButtonState();
 }
 
 } // namespace Internal

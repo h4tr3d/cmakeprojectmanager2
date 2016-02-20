@@ -28,6 +28,7 @@
 #include "cmake_global.h"
 #include "cmakeprojectnodes.h"
 #include "configmodel.h"
+#include "cmaketoolchaininfo.h"
 
 #include <projectexplorer/extracompiler.h>
 #include <projectexplorer/project.h>
@@ -111,6 +112,7 @@ public:
     bool addFiles(const QStringList &filePaths);
     bool eraseFiles(const QStringList &filePaths);
     bool renameFile(const QString &filePath, const QString &newFilePath);
+
     bool needsConfiguration() const override;
     bool requiresTargetPanel() const override;
 
@@ -120,7 +122,7 @@ public:
     bool isParsing() const;
 
     QList<ConfigModel::DataItem> currentCMakeConfiguration() const;
-    void setCurrentCMakeConfiguration(const QList<ConfigModel::DataItem> &items);
+    void setCurrentCMakeConfiguration(const QList<ConfigModel::DataItem> &items, const CMakeToolchainInfo &info);
 
 signals:
     /// emitted when parsing starts:
