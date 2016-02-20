@@ -77,7 +77,7 @@ public:
     void forceReparse(bool clearCache = false);
     void forceReparseTimer();
 
-    void setInputConfiguration(const CMakeConfig &config, const CMakeToolchainInfo &info);
+    void setInputConfiguration(const CMakeConfig &config, const CMakeToolchainInfo &info, bool clearCache = false);
 
     bool isProjectFile(const Utils::FileName &fileName) const;
     QString projectName() const;

@@ -464,7 +464,7 @@ QList<ConfigModel::DataItem> CMakeProject::currentCMakeConfiguration() const
     });
 }
 
-void CMakeProject::setCurrentCMakeConfiguration(const QList<ConfigModel::DataItem> &items, const CMakeToolchainInfo &info)
+void CMakeProject::setCurrentCMakeConfiguration(const QList<ConfigModel::DataItem> &items, const CMakeToolchainInfo &info, bool clearCache)
 {
     if (!m_buildDirManager || m_buildDirManager->isBusy())
         return;
@@ -515,7 +515,7 @@ void CMakeProject::setCurrentCMakeConfiguration(const QList<ConfigModel::DataIte
     bc->setCMakeConfiguration(config);
     bc->setCMakeToolchainInfo(info);
 
-    m_buildDirManager->setInputConfiguration(config, info);
+    m_buildDirManager->setInputConfiguration(config, info, clearCache);
 }
 
 bool CMakeProject::isProjectFile(const FileName &fileName)

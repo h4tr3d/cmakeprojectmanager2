@@ -122,7 +122,7 @@ public:
     bool isParsing() const;
 
     QList<ConfigModel::DataItem> currentCMakeConfiguration() const;
-    void setCurrentCMakeConfiguration(const QList<ConfigModel::DataItem> &items, const CMakeToolchainInfo &info);
+    void setCurrentCMakeConfiguration(const QList<ConfigModel::DataItem> &items, const CMakeToolchainInfo &info, bool clearCache = false);
 
 signals:
     /// emitted when parsing starts:

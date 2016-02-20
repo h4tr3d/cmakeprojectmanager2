@@ -197,9 +197,9 @@ void BuildDirManager::forceReparseTimer()
     forceReparse(false);
 }
 
-void BuildDirManager::setInputConfiguration(const CMakeConfig &config, const CMakeToolchainInfo &info)
+void BuildDirManager::setInputConfiguration(const CMakeConfig &config, const CMakeToolchainInfo &info, bool clearCache)
 {
-    bool clearCache = m_inputToolchainInfo != info;
+    clearCache = (m_inputToolchainInfo != info) || clearCache;
     m_inputConfig = config;
     m_inputToolchainInfo = info;
     forceReparse(clearCache);
