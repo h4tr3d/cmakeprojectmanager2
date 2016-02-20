@@ -502,7 +502,16 @@ void CMakeProject::setCurrentCMakeConfiguration(const QList<ConfigModel::DataIte
 
     auto bc = static_cast<CMakeBuildConfiguration *>(activeTarget()->activeBuildConfiguration());
     QTC_ASSERT(bc, return);
-    const CMakeConfig config = bc->cmakeConfiguration() + newConfig;
+    CMakeConfig config;
+    auto kitConfig = CMakeConfigurationKitInformation::configuration(bc->target()->kit());
+
+    if (info.toolchainOverride != CMakeToolchainOverrideType::Disabled) {
+        config = removeDuplicates(bc->cmakeConfiguration() + newConfig);
+        config = removeSubList(config, kitConfig);
+    } else {
+        config = removeDuplicates(kitConfig + bc->cmakeConfiguration() + newConfig);
+    }
+
     bc->setCMakeConfiguration(config);
     bc->setCMakeToolchainInfo(info);
 

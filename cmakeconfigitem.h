@@ -25,8 +25,11 @@
 
 #pragma once
 
+#include "utils/algorithm.h"
+
 #include <QByteArray>
 #include <QList>
+#include <QSet>
 
 #include <functional>
 
@@ -53,5 +56,35 @@ public:
     QByteArray documentation;
 };
 using CMakeConfig = QList<CMakeConfigItem>;
+
+static inline CMakeConfig removeDuplicates(const CMakeConfig &config)
+{
+    CMakeConfig result;
+    // Remove duplicates (last value wins):
+    QSet<QByteArray> knownKeys;
+    for (int i = config.count() - 1; i >= 0; --i) {
+        const CMakeConfigItem &item = config.at(i);
+        if (knownKeys.contains(item.key))
+            continue;
+        result.append(item);
+        knownKeys.insert(item.key);
+    }
+    Utils::sort(result, CMakeConfigItem::sortOperator());
+    return result;
+}
+
+static inline CMakeConfig removeSubList(const CMakeConfig &config, const CMakeConfig &subConfig)
+{
+    CMakeConfig result = config;
+    Utils::erase(result, [&subConfig](const CMakeConfigItem &item) {
+        return std::find_if(subConfig.constBegin(), subConfig.constEnd(), [&item](const CMakeConfigItem &subItem) {
+            if (!item.isAdvanced) {
+                return item.key == subItem.key;
+            }
+            return false;
+        }) != subConfig.end();
+    });
+    return result;
+}
 
 } // namespace CMakeProjectManager

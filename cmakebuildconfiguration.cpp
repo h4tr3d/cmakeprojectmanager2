@@ -32,6 +32,7 @@
 #include "cmakeprojectconstants.h"
 #include "cmakebuildsettingswidget.h"
 #include "cmakeprojectmanager.h"
+#include "cmakeconfigitem.h"
 
 #include <coreplugin/documentmanager.h>
 #include <coreplugin/icore.h>
@@ -168,22 +169,6 @@ void CMakeBuildConfiguration::setCMakeToolchainInfo(const CMakeToolchainInfo &cm
 void CMakeBuildConfiguration::emitBuildTypeChanged()
 {
     emit buildTypeChanged();
-}
-
-static CMakeConfig removeDuplicates(const CMakeConfig &config)
-{
-    CMakeConfig result;
-    // Remove duplicates (last value wins):
-    QSet<QByteArray> knownKeys;
-    for (int i = config.count() - 1; i >= 0; --i) {
-        const CMakeConfigItem &item = config.at(i);
-        if (knownKeys.contains(item.key))
-            continue;
-        result.append(item);
-        knownKeys.insert(item.key);
-    }
-    Utils::sort(result, CMakeConfigItem::sortOperator());
-    return result;
 }
 
 void CMakeBuildConfiguration::setCMakeConfiguration(const CMakeConfig &config)
