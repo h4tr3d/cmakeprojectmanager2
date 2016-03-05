@@ -41,9 +41,9 @@ public:
     bool showInSimpleTree() const override;
     QList<ProjectExplorer::ProjectAction> supportedActions(Node *node) const override;
 
-    virtual bool addFiles(const QStringList &filePaths, QStringList *notAdded) override;
-    virtual bool deleteFiles(const QStringList &filePaths) override;
-    virtual bool renameFile(const QString &filePath, const QString &newFilePath) override;
+    bool addFiles(const QStringList &filePaths, QStringList *notAdded) override;
+    bool deleteFiles(const QStringList &filePaths) override;
+    bool renameFile(const QString &filePath, const QString &newFilePath) override;
 
 private:
     CMakeProject *m_project;

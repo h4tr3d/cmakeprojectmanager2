@@ -943,16 +943,16 @@ void CMakeBuildTarget::clear()
 bool CMakeProject::addFiles(const QStringList &filePaths)
 {
     Q_UNUSED(filePaths);
-    // TODO
-    //updateCbp();
+    // If globbing is used, watched does not know about new files, so force rebuilding
+    m_buildDirManager->forceReparse();
     return true;
 }
 
 bool CMakeProject::eraseFiles(const QStringList &filePaths)
 {
     Q_UNUSED(filePaths);
-    // TODO
-    //updateCbp();
+    // FIXME force only when really needed
+    m_buildDirManager->forceReparse();
     return true;
 }
 
@@ -960,7 +960,7 @@ bool CMakeProject::renameFile(const QString &filePath, const QString &newFilePat
 {
     Q_UNUSED(filePath);
     Q_UNUSED(newFilePath);
-    // TODO
-    //updateCbp();
+    // FIXME force only when really needed
+    m_buildDirManager->forceReparse();
     return true;
 }

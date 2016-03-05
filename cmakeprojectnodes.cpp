@@ -52,7 +52,6 @@ QList<ProjectExplorer::ProjectAction> CMakeProjectNode::supportedActions(Node *n
 bool CMakeProjectNode::addFiles(const QStringList &filePaths, QStringList *notAdded)
 {
     Q_UNUSED(notAdded)
-
     return m_project->addFiles(filePaths);
 }
 
