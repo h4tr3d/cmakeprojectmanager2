@@ -73,10 +73,13 @@ public:
     const Utils::FileName workDirectory() const;
     const Utils::FileName sourceDirectory() const;
     const CMakeConfig cmakeConfiguration() const;
+    const CMakeToolchainInfo& cmakeToolchainInfo() const;
+
     bool isParsing() const;
 
     void parse();
     void forceReparse(bool clearCache = false);
+    void forceReparseHandle();
     void resetData();
     bool persistCMakeState();
 
@@ -106,7 +109,6 @@ private:
     CMakeConfig parseConfiguration() const;
 
     bool m_hasData = false;
-    CMakeToolchainInfo m_inputToolchainInfo;
 
     const CMakeBuildConfiguration *m_buildConfiguration = nullptr;
     Utils::QtcProcess *m_cmakeProcess = nullptr;

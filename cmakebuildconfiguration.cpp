@@ -94,10 +94,10 @@ CMakeBuildConfiguration::CMakeBuildConfiguration(ProjectExplorer::Target *parent
             this, [this]() { m_completeConfigurationCache.clear(); emit parsingStarted(); });
 
     connect(this, &CMakeBuildConfiguration::environmentChanged,
-            m_buildDirManager, &BuildDirManager::forceReparse);
+            m_buildDirManager, &BuildDirManager::forceReparseHandle);
     connect(this, &CMakeBuildConfiguration::buildDirectoryChanged,
-            m_buildDirManager, &BuildDirManager::forceReparse);
-    connect(target(), &Target::kitChanged, m_buildDirManager, &BuildDirManager::forceReparse);
+            m_buildDirManager, &BuildDirManager::forceReparseHandle);
+    connect(target(), &Target::kitChanged, m_buildDirManager, &BuildDirManager::forceReparseHandle);
 
     connect(this, &CMakeBuildConfiguration::parsingStarted, project, &CMakeProject::handleParsingStarted);
     connect(this, &CMakeBuildConfiguration::dataAvailable, project, &CMakeProject::parseCMakeOutput);
@@ -239,7 +239,7 @@ QList<ConfigModel::DataItem> CMakeBuildConfiguration::completeCMakeConfiguration
     });
 }
 
-void CMakeBuildConfiguration::setCurrentCMakeConfiguration(const QList<ConfigModel::DataItem> &items)
+void CMakeBuildConfiguration::setCurrentCMakeConfiguration(const QList<ConfigModel::DataItem> &items, const CMakeToolchainInfo &info, bool clearCache)
 {
     if (m_buildDirManager->isParsing())
         return;
@@ -272,10 +272,22 @@ void CMakeBuildConfiguration::setCurrentCMakeConfiguration(const QList<ConfigMod
     });
 
     // There is a buildDirManager, so there must also be an active BC:
-    const CMakeConfig config = cmakeConfiguration() + newConfig;
-    setCMakeConfiguration(config);
+    CMakeConfig config;
+    auto kitConfig = CMakeConfigurationKitInformation::configuration(target()->kit());
 
-    m_buildDirManager->forceReparse();
+    if (info.toolchainOverride != CMakeToolchainOverrideType::Disabled) {
+        config = removeDuplicates(cmakeConfiguration() + newConfig);
+        config = removeSubList(config, kitConfig);
+    } else {
+        config = removeDuplicates(kitConfig + cmakeConfiguration() + newConfig);
+    }
+
+    clearCache = (m_cmakeToolchainInfo != info) || clearCache;
+
+    setCMakeConfiguration(config);
+    setCMakeToolchainInfo(info);
+
+    m_buildDirManager->forceReparse(clearCache);
 }
 
 const CMakeToolchainInfo &CMakeBuildConfiguration::cmakeToolchainInfo() const

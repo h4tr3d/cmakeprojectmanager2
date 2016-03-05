@@ -93,7 +93,6 @@ static QStringList toArguments(const CMakeConfig &config) {
 
 BuildDirManager::BuildDirManager(const CMakeBuildConfiguration *bc) :
     m_buildConfiguration(bc),
-    m_inputToolchainInfo(inputToolchainInfo),
     m_watcher(new QFileSystemWatcher(this))
 {
     QTC_ASSERT(bc, return);
@@ -145,6 +144,11 @@ const CMakeConfig BuildDirManager::cmakeConfiguration() const
     return m_buildConfiguration->cmakeConfiguration();
 }
 
+const CMakeToolchainInfo &BuildDirManager::cmakeToolchainInfo() const
+{
+    return m_buildConfiguration->cmakeToolchainInfo();
+}
+
 bool BuildDirManager::isParsing() const
 {
     if (m_cmakeProcess)
@@ -190,8 +194,8 @@ void BuildDirManager::forceReparse(bool clearCache)
     const QString generator = CMakeGeneratorKitInformation::generator(kit());
 
     if (clearCache) {
-        QString cmakeCache(m_buildDir.toString() + QLatin1String("/CMakeCache.txt"));
-        QString cmakeFiles(m_buildDir.toString() + QLatin1String("/CMakeFiles"));
+        QString cmakeCache(buildDirectory().toString() + QLatin1String("/CMakeCache.txt"));
+        QString cmakeFiles(buildDirectory().toString() + QLatin1String("/CMakeFiles"));
 
         if (QFileInfo::exists(cmakeCache)) {
             removePath(cmakeCache);
@@ -300,6 +304,11 @@ CMakeConfig BuildDirManager::configuration() const
         return CMakeConfig();
 
     return parseConfiguration();
+}
+
+void BuildDirManager::forceReparseHandle()
+{
+    forceReparse(false);
 }
 
 void BuildDirManager::stopProcess()
@@ -443,7 +452,7 @@ void BuildDirManager::startCMake(CMakeTool *tool, const QString &generator,
     if (!generator.isEmpty())
         Utils::QtcProcess::addArg(&args, QString::fromLatin1("-G%1").arg(generator));
     Utils::QtcProcess::addArgs(&args, toArguments(config));
-    Utils::QtcProcess::addArgs(&args, toolchain.arguments(toArguments(config), buildDirStr));
+    Utils::QtcProcess::addArgs(&args, toolchain.arguments(toArguments(config), workDirectory().toString()));
 
     ProjectExplorer::TaskHub::clearTasks(ProjectExplorer::Constants::TASK_CATEGORY_BUILDSYSTEM);
 

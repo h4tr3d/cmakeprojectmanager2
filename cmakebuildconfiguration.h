@@ -94,7 +94,7 @@ protected:
 
 private:
     QList<ConfigModel::DataItem> completeCMakeConfiguration() const;
-    void setCurrentCMakeConfiguration(const QList<ConfigModel::DataItem> &items);
+    void setCurrentCMakeConfiguration(const QList<ConfigModel::DataItem> &items, const CMakeToolchainInfo &info, bool clearCache = false);
 
     void setError(const QString &message);
 

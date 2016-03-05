@@ -28,6 +28,7 @@
 #include "cmake_global.h"
 #include "cmakeprojectnodes.h"
 #include "cmaketoolchaininfo.h"
+#include "cmakebuildconfiguration.h"
 
 #include <projectexplorer/extracompiler.h>
 #include <projectexplorer/project.h>
@@ -130,6 +131,9 @@ private:
     void handleActiveBuildConfigurationChanged();
     void handleParsingStarted();
     void parseCMakeOutput();
+
+    Internal::BuildDirManager *buildDirManager();
+    bool cmakeForceReparse();
 
     void updateRunConfigurations();
 
