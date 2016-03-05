@@ -132,9 +132,6 @@ private:
     void handleParsingStarted();
     void parseCMakeOutput();
 
-    Internal::BuildDirManager *buildDirManager();
-    bool cmakeForceReparse();
-
     void updateRunConfigurations();
 
     void buildTree(Internal::CMakeProjectNode *rootNode, QList<ProjectExplorer::FileNode *> list);

@@ -389,24 +389,6 @@ void CMakeProject::parseCMakeOutput()
     updateRunConfigurations();
 }
 
-BuildDirManager *CMakeProject::buildDirManager()
-{
-    BuildDirManager *bdm = nullptr;
-    if (activeTarget() && activeTarget()->activeBuildConfiguration())
-        bdm = static_cast<CMakeBuildConfiguration *>(activeTarget()->activeBuildConfiguration())->buildDirManager();
-    return bdm;
-}
-
-bool CMakeProject::cmakeForceReparse()
-{
-    auto bdm = buildDirManager();
-    if (bdm) {
-        bdm->forceReparse();
-        return true;
-    }
-    return false;
-}
-
 bool CMakeProject::needsConfiguration() const
 {
     return targets().isEmpty();
@@ -828,14 +810,16 @@ bool CMakeProject::addFiles(const QStringList &filePaths)
 {
     Q_UNUSED(filePaths);
     // If globbing is used, watched does not know about new files, so force rebuilding
-    return cmakeForceReparse();
+    runCMake();
+    return true;
 }
 
 bool CMakeProject::eraseFiles(const QStringList &filePaths)
 {
     Q_UNUSED(filePaths);
     // FIXME force only when really needed
-    return cmakeForceReparse();
+    runCMake();
+    return true;
 }
 
 bool CMakeProject::renameFile(const QString &filePath, const QString &newFilePath)
@@ -843,7 +827,8 @@ bool CMakeProject::renameFile(const QString &filePath, const QString &newFilePat
     Q_UNUSED(filePath);
     Q_UNUSED(newFilePath);
     // FIXME force only when really needed
-    return cmakeForceReparse();
+    runCMake();
+    return true;
 }
 
 } // namespace CMakeProjectManager
