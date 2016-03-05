@@ -27,7 +27,6 @@
 
 #include "cmake_global.h"
 #include "cmakeprojectnodes.h"
-#include "configmodel.h"
 #include "cmaketoolchaininfo.h"
 
 #include <projectexplorer/extracompiler.h>
@@ -107,8 +106,6 @@ public:
 
     CMakeBuildTarget buildTargetForTitle(const QString &title);
 
-    bool isProjectFile(const Utils::FileName &fileName);
-
     bool addFiles(const QStringList &filePaths);
     bool eraseFiles(const QStringList &filePaths);
     bool renameFile(const QString &filePath, const QString &newFilePath);
@@ -119,30 +116,20 @@ public:
     bool supportsKit(ProjectExplorer::Kit *k, QString *errorMessage = 0) const override;
 
     void runCMake();
-    bool isParsing() const;
-
-    QList<ConfigModel::DataItem> currentCMakeConfiguration() const;
-    void setCurrentCMakeConfiguration(const QList<ConfigModel::DataItem> &items, const CMakeToolchainInfo &info, bool clearCache = false);
 
 signals:
-    /// emitted when parsing starts:
+    /// emitted when cmake is running:
     void parsingStarted();
-    /// emitted after parsing
-    void buildDirectoryDataAvailable(ProjectExplorer::BuildConfiguration *bc);
 
 protected:
     RestoreResult fromMap(const QVariantMap &map, QString *errorMessage) override;
     bool setupTarget(ProjectExplorer::Target *t) override;
 
-    // called by CMakeBuildSettingsWidget
-    void changeBuildDirectory(Internal::CMakeBuildConfiguration *bc, const QString &newBuildDirectory);
-
 private:
-    void handleKitChanges();
+    void handleActiveTargetChanged();
+    void handleActiveBuildConfigurationChanged();
+    void handleParsingStarted();
     void parseCMakeOutput();
-
-    void activeTargetHasChanged(ProjectExplorer::Target *target);
-    void changeActiveBuildConfiguration(ProjectExplorer::BuildConfiguration*);
 
     void updateRunConfigurations();
 
@@ -157,13 +144,14 @@ private:
     bool extractCXXFlagsFromMake(const CMakeBuildTarget &buildTarget, QHash<QString, QStringList> &cache);
     bool extractCXXFlagsFromNinja(const CMakeBuildTarget &buildTarget, QHash<QString, QStringList> &cache);
 
-    ProjectExplorer::Target *m_activeTarget = 0;
-    Internal::BuildDirManager *m_buildDirManager = 0;
+    ProjectExplorer::Target *m_connectedTarget = nullptr;
 
     // TODO probably need a CMake specific node structure
     QList<CMakeBuildTarget> m_buildTargets;
     QFuture<void> m_codeModelFuture;
     QList<ProjectExplorer::ExtraCompiler *> m_extraCompilers;
+
+    friend class Internal::CMakeBuildConfiguration;
 };
 
 } // namespace CMakeProjectManager
