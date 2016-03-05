@@ -133,6 +133,10 @@ static ProjectExplorer::FileNode* fileToFileNode(const Utils::FileName &fileName
     return node;
 }
 
+bool sortNodesByPath(Node *a, Node *b)
+{
+    return a->filePath() < b->filePath();
+}
 
 /*!
   \class CMakeProject
@@ -333,6 +337,48 @@ bool CMakeProject::extractCXXFlagsFromNinja(const CMakeBuildTarget &buildTarget,
     return !cache.isEmpty();
 }
 
+namespace {
+
+bool isValidDir(const QFileInfo &fileInfo)
+{
+    const QString fileName = fileInfo.fileName();
+    const QString suffix = fileInfo.suffix();
+
+    if (fileName.startsWith(QLatin1Char('.')))
+        return false;
+
+    else if (fileName == QLatin1String("CVS"))
+        return false;
+
+    // ### user include/exclude
+
+    return true;
+}
+
+void getFileList(const QDir &dir, const QString &projectRoot,
+                 QList<ProjectExplorer::FileNode *> &files)
+{
+    const QFileInfoList fileInfoList = dir.entryInfoList(QDir::Files |
+                                                         QDir::Dirs |
+                                                         QDir::NoDotAndDotDot |
+                                                         QDir::NoSymLinks);
+
+    foreach (const QFileInfo &fileInfo, fileInfoList) {
+        QString filePath = fileInfo.absoluteFilePath();
+
+        if (fileInfo.isDir() && isValidDir(fileInfo)) {
+            // Recursive call for subdirectory
+            getFileList(QDir(fileInfo.absoluteFilePath()), projectRoot, files);
+        } else {
+            // Skip settings file
+            if (!filePath.endsWith(QLatin1String("CMakeLists.txt.user")))
+                files.append(fileToFileNode(FileName::fromString(filePath)));
+        }
+    }
+}
+
+} // ::anonymous
+
 void CMakeProject::parseCMakeOutput()
 {
     QTC_ASSERT(m_buildDirManager, return);
@@ -342,7 +388,29 @@ void CMakeProject::parseCMakeOutput()
 
     rootProjectNode()->setDisplayName(m_buildDirManager->projectName());
 
-    buildTree(static_cast<CMakeProjectNode *>(rootProjectNode()), m_buildDirManager->files());
+    auto cmakefiles = m_buildDirManager->files();
+    QList<ProjectExplorer::FileNode *> treefiles;
+
+    // Take file list from file system instead cbp project file
+    const QDir        dir(projectDirectory().toString());
+
+    // Step 1: get files
+    getFileList(dir, projectDirectory().toString(), treefiles);
+
+    // Step 2: sort lists. It duplicate actions in buildTree()
+    Utils::sort(cmakefiles, sortNodesByPath);
+    Utils::sort(treefiles,  sortNodesByPath);
+
+    // Step 3: get only added files
+    QList<ProjectExplorer::FileNode *> added;
+    QList<ProjectExplorer::FileNode *> deleted;
+    ProjectExplorer::compareSortedLists(cmakefiles, treefiles, deleted, added, sortNodesByPath);
+    qDeleteAll(ProjectExplorer::subtractSortedList(treefiles, added, sortNodesByPath));
+
+    // Step 4: now add new files to the cmakefiles. Note: using cmakefiles as a base is a good idea!
+    cmakefiles.append(added);
+
+    buildTree(static_cast<CMakeProjectNode *>(rootProjectNode()), cmakefiles);
     m_buildDirManager->clearFiles(); // Some of the FileNodes in files() were deleted!
 
     updateApplicationAndDeploymentTargets();
@@ -554,11 +622,6 @@ void CMakeProject::gatherFileNodes(ProjectExplorer::FolderNode *parent, QList<Pr
         gatherFileNodes(folder, list);
     foreach (ProjectExplorer::FileNode *file, parent->fileNodes())
         list.append(file);
-}
-
-bool sortNodesByPath(Node *a, Node *b)
-{
-    return a->filePath() < b->filePath();
 }
 
 void CMakeProject::buildTree(CMakeProjectNode *rootNode, QList<ProjectExplorer::FileNode *> newList)
