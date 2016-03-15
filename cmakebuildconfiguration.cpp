@@ -249,7 +249,7 @@ QList<ConfigModel::DataItem> CMakeBuildConfiguration::completeCMakeConfiguration
     });
 }
 
-void CMakeBuildConfiguration::setCurrentCMakeConfiguration(const QList<ConfigModel::DataItem> &items, const CMakeToolchainInfo &info, bool clearCache)
+void CMakeBuildConfiguration::setCurrentCMakeConfiguration(const QList<ConfigModel::DataItem> &items, const CMakeToolchainInfo &info)
 {
     if (m_buildDirManager->isParsing())
         return;
@@ -292,12 +292,13 @@ void CMakeBuildConfiguration::setCurrentCMakeConfiguration(const QList<ConfigMod
         config = removeDuplicates(kitConfig + cmakeConfiguration() + newConfig);
     }
 
-    clearCache = (m_cmakeToolchainInfo != info) || clearCache;
+    if (m_cmakeToolchainInfo != info)
+        m_buildDirManager->clearCache();
 
     setCMakeConfiguration(config);
     setCMakeToolchainInfo(info);
 
-    m_buildDirManager->forceReparse(clearCache);
+    m_buildDirManager->forceReparse();
 }
 
 const CMakeToolchainInfo &CMakeBuildConfiguration::cmakeToolchainInfo() const

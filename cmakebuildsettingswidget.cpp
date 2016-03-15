@@ -197,13 +197,6 @@ CMakeBuildSettingsWidget::CMakeBuildSettingsWidget(CMakeBuildConfiguration *bc) 
         mainLayout->addWidget(m_toolchainGroupBox, row, 0, 1, 3);
     }
 
-    // Force clean cache
-    {
-        ++row;
-        m_forceClearCache = new QCheckBox(tr("Force cache clean before CMake run"));
-        mainLayout->addWidget(m_forceClearCache, row, 0, 1, 3);
-    }
-
     ++row;
     m_reconfigureButton = new QPushButton(tr("Apply Configuration Changes"));
     m_reconfigureButton->setEnabled(false);
@@ -242,9 +235,7 @@ CMakeBuildSettingsWidget::CMakeBuildSettingsWidget(CMakeBuildConfiguration *bc) 
 
     connect(m_resetButton, &QPushButton::clicked, m_configModel, &ConfigModel::resetAllChanges);
     connect(m_reconfigureButton, &QPushButton::clicked, this, [this]() {
-        bool clearCache = m_forceClearCache->isChecked();
-        m_forceClearCache->setChecked(false);
-        m_buildConfiguration->setCurrentCMakeConfiguration(m_configModel->configurationChanges(), currentToolchainInfo(), clearCache);
+        m_buildConfiguration->setCurrentCMakeConfiguration(m_configModel->configurationChanges(), currentToolchainInfo());
     });
     connect(m_editButton, &QPushButton::clicked, [this]() {
         QModelIndex idx = m_configView->currentIndex();
@@ -252,10 +243,6 @@ CMakeBuildSettingsWidget::CMakeBuildSettingsWidget(CMakeBuildConfiguration *bc) 
             idx = idx.sibling(idx.row(), 1);
         m_configView->setCurrentIndex(idx);
         m_configView->edit(idx);
-    });
-
-    connect(m_forceClearCache, &QCheckBox::stateChanged, [this] (int) {
-        updateButtonState();
     });
 
     connect(bc, &CMakeBuildConfiguration::errorOccured, this, &CMakeBuildSettingsWidget::setError);
@@ -311,7 +298,6 @@ void CMakeBuildSettingsWidget::updateButtonState()
 {
     const bool isParsing = m_buildConfiguration->isParsing();
     const bool hasChanges = m_configModel->hasChanges();
-    const bool clearCache = m_forceClearCache->isChecked();
     m_resetButton->setEnabled(hasChanges && !isParsing);
 
     auto const& prev = m_buildConfiguration->cmakeToolchainInfo();
@@ -319,10 +305,10 @@ void CMakeBuildSettingsWidget::updateButtonState()
 
     // If toolchain changed we need full tree regeneration
     bool hasToolchainChanges = (curr.toolchainOverride != prev.toolchainOverride ||
-                                                       curr.toolchainFile != prev.toolchainFile ||
-                                                                             curr.toolchainInline != prev.toolchainInline);
+                                curr.toolchainFile != prev.toolchainFile ||
+                                curr.toolchainInline != prev.toolchainInline);
 
-    m_reconfigureButton->setEnabled((hasChanges || hasToolchainChanges || clearCache || m_configModel->hasCMakeChanges()) && !isParsing);
+    m_reconfigureButton->setEnabled((hasChanges || hasToolchainChanges || m_configModel->hasCMakeChanges()) && !isParsing);
 }
 
 void CMakeBuildSettingsWidget::updateAdvancedCheckBox()

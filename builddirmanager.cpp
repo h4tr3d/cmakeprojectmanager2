@@ -186,25 +186,12 @@ bool removePath(QString path)
 }
 } // ::anonymous
 
-void BuildDirManager::forceReparse(bool clearCache)
+void BuildDirManager::forceReparse()
 {
     stopProcess();
 
     CMakeTool *tool = CMakeKitInformation::cmakeTool(kit());
     const QString generator = CMakeGeneratorKitInformation::generator(kit());
-
-    if (clearCache) {
-        QString cmakeCache(buildDirectory().toString() + QLatin1String("/CMakeCache.txt"));
-        QString cmakeFiles(buildDirectory().toString() + QLatin1String("/CMakeFiles"));
-
-        if (QFileInfo::exists(cmakeCache)) {
-            removePath(cmakeCache);
-        }
-
-        if (QFileInfo::exists(cmakeFiles)) {
-            removePath(cmakeFiles);
-        }
-    }
 
     QTC_ASSERT(tool, return);
     QTC_ASSERT(!generator.isEmpty(), return);
@@ -328,11 +315,6 @@ CMakeConfig BuildDirManager::parsedConfiguration() const
         emit errorOccured(tr("The build directory is not for %1").arg(sourceDirectory().toUserOutput()));
 
     return result;
-}
-
-void BuildDirManager::forceReparseHandle()
-{
-    forceReparse(false);
 }
 
 void BuildDirManager::stopProcess()

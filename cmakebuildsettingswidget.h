@@ -84,7 +84,6 @@ private:
     QPushButton *m_toolchainEditPushButton;
     QRadioButton *m_fileToolchainRadioButton;
     QRadioButton *m_inlineToolchainRadioButton;
-    QCheckBox    *m_forceClearCache;
     QTimer m_showProgressTimer;
     QLabel *m_errorLabel;
     QLabel *m_errorMessageLabel;
