@@ -64,19 +64,6 @@ const char CMAKE_TOOLCHAIN_TYPE_KEY[] = "CMakeProjectManaget.CMakeBuildConfigura
 const char CMAKE_TOOLCHAIN_FILE_KEY[] = "CMakeProjectManaget.CMakeBuildConfiguration.CMakeToolchainFile";
 const char CMAKE_TOOLCHAIN_INLINE_KEY[] = "CMakeProjectManaget.CMakeBuildConfiguration.CMakeToolchainInline";
 
-static FileName shadowBuildDirectory(const FileName &projectFilePath, const Kit *k,
-                                     const QString &bcName, BuildConfiguration::BuildType buildType)
-{
-    if (projectFilePath.isEmpty())
-        return FileName();
-
-    const QString projectName = projectFilePath.parentDir().fileName();
-    ProjectMacroExpander expander(projectName, k, bcName, buildType);
-    QDir projectDir = QDir(Project::projectDirectory(projectFilePath).toString());
-    QString buildPath = expander.expand(Core::DocumentManager::buildDirectory());
-    return FileName::fromUserInput(projectDir.absoluteFilePath(buildPath));
-}
-
 CMakeBuildConfiguration::CMakeBuildConfiguration(ProjectExplorer::Target *parent) :
     BuildConfiguration(parent, Core::Id(Constants::CMAKE_BC_ID))
 {
@@ -94,10 +81,16 @@ CMakeBuildConfiguration::CMakeBuildConfiguration(ProjectExplorer::Target *parent
             this, [this]() { m_completeConfigurationCache.clear(); emit parsingStarted(); });
 
     connect(this, &CMakeBuildConfiguration::environmentChanged,
-            m_buildDirManager, &BuildDirManager::forceReparseHandle);
+            m_buildDirManager, &BuildDirManager::forceReparse);
     connect(this, &CMakeBuildConfiguration::buildDirectoryChanged,
-            m_buildDirManager, &BuildDirManager::forceReparseHandle);
-    connect(target(), &Target::kitChanged, m_buildDirManager, &BuildDirManager::forceReparseHandle);
+            m_buildDirManager, &BuildDirManager::forceReparse);
+    connect(target(), &Target::kitChanged, this, [this]() {
+        ProjectExplorer::Kit *k = target()->kit();
+        CMakeConfig config = cmakeConfiguration();
+        config.append(CMakeConfigurationKitInformation::configuration(k));  // last value wins...
+        setCMakeConfiguration(config);
+        m_buildDirManager->maybeForceReparse();
+    });
 
     connect(this, &CMakeBuildConfiguration::parsingStarted, project, &CMakeProject::handleParsingStarted);
     connect(this, &CMakeBuildConfiguration::dataAvailable, project, &CMakeProject::parseCMakeOutput);
@@ -202,15 +195,32 @@ bool CMakeBuildConfiguration::persistCMakeState()
     return m_buildDirManager->persistCMakeState();
 }
 
+FileName CMakeBuildConfiguration::shadowBuildDirectory(const FileName &projectFilePath,
+                                                       const Kit *k,
+                                                       const QString &bcName,
+                                                       BuildConfiguration::BuildType buildType)
+{
+    if (projectFilePath.isEmpty())
+        return FileName();
+
+    const QString projectName = projectFilePath.parentDir().fileName();
+    ProjectMacroExpander expander(projectName, k, bcName, buildType);
+    QDir projectDir = QDir(Project::projectDirectory(projectFilePath).toString());
+    QString buildPath = expander.expand(Core::DocumentManager::buildDirectory());
+    return FileName::fromUserInput(projectDir.absoluteFilePath(buildPath));
+}
+
 QList<ConfigModel::DataItem> CMakeBuildConfiguration::completeCMakeConfiguration() const
 {
     if (m_buildDirManager->isParsing())
         return QList<ConfigModel::DataItem>();
 
     if (m_completeConfigurationCache.isEmpty())
-        m_completeConfigurationCache = m_buildDirManager->configuration();
+        m_completeConfigurationCache = m_buildDirManager->parsedConfiguration();
 
-    return Utils::transform(m_completeConfigurationCache, [](const CMakeConfigItem &i) {
+    CMakeConfig cache = Utils::filtered(m_completeConfigurationCache,
+                                        [](const CMakeConfigItem &i) { return i.type != CMakeConfigItem::INTERNAL; });
+    return Utils::transform(cache, [](const CMakeConfigItem &i) {
         ConfigModel::DataItem j;
         j.key = QString::fromUtf8(i.key);
         j.value = QString::fromUtf8(i.value);
@@ -386,7 +396,8 @@ QList<ProjectExplorer::BuildInfo *> CMakeBuildConfigurationFactory::availableSet
             info->displayName = info->typeName;
         }
         info->buildDirectory
-                = shadowBuildDirectory(projectPathName, k, info->displayName, info->buildType);
+                = CMakeBuildConfiguration::shadowBuildDirectory(projectPathName, k,
+                                                                info->displayName, info->buildType);
         result << info;
     }
     return result;
@@ -403,8 +414,10 @@ ProjectExplorer::BuildConfiguration *CMakeBuildConfigurationFactory::create(Proj
     CMakeProject *project = static_cast<CMakeProject *>(parent->project());
 
     if (copy.buildDirectory.isEmpty()) {
-        copy.buildDirectory = shadowBuildDirectory(project->projectFilePath(), parent->kit(),
-                                                   copy.displayName, info->buildType);
+        copy.buildDirectory
+                = CMakeBuildConfiguration::shadowBuildDirectory(project->projectFilePath(),
+                                                                parent->kit(),
+                                                                copy.displayName, info->buildType);
     }
 
     auto bc = new CMakeBuildConfiguration(parent);
