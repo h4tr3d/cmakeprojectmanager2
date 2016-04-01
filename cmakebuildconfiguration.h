@@ -97,12 +97,13 @@ protected:
     bool fromMap(const QVariantMap &map) override;
 
 private:
+    void ctor();
+    void maybeForceReparse();
     QList<ConfigModel::DataItem> completeCMakeConfiguration() const;
     void setCurrentCMakeConfiguration(const QList<ConfigModel::DataItem> &items, const CMakeToolchainInfo &info);
 
     void setError(const QString &message);
 
-    QString m_initialArguments;
     CMakeConfig m_configuration;
     CMakeToolchainInfo m_cmakeToolchainInfo;
     QString m_error;

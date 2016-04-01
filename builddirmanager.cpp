@@ -60,8 +60,8 @@
 namespace CMakeProjectManager {
 namespace Internal {
 
-static QStringList toArguments(const CMakeConfig &config) {
-    return Utils::transform(config, [](const CMakeConfigItem &i) -> QString {
+static QStringList toArguments(const CMakeConfig &config, const ProjectExplorer::Kit *k) {
+    return Utils::transform(config, [k](const CMakeConfigItem &i) -> QString {
                                  QString a = QString::fromLatin1("-D");
                                  a.append(QString::fromUtf8(i.key));
                                  switch (i.type) {
@@ -81,7 +81,7 @@ static QStringList toArguments(const CMakeConfig &config) {
                                      a.append(QLatin1String(":INTERNAL="));
                                      break;
                                  }
-                                 a.append(QString::fromUtf8(i.value));
+                                 a.append(QString::fromUtf8(k->macroExpander()->expand(i.value)));
 
                                  return a;
                              });
@@ -110,6 +110,7 @@ BuildDirManager::BuildDirManager(const CMakeBuildConfiguration *bc) :
 
 BuildDirManager::~BuildDirManager()
 {
+    stopProcess();
     resetData();
     delete m_tempDir;
 }
@@ -188,6 +189,9 @@ bool removePath(QString path)
 
 void BuildDirManager::forceReparse()
 {
+    if (m_buildConfiguration->target()->activeBuildConfiguration() != m_buildConfiguration)
+        return;
+
     stopProcess();
 
     CMakeTool *tool = CMakeKitInformation::cmakeTool(kit());
@@ -311,7 +315,9 @@ CMakeConfig BuildDirManager::parsedConfiguration() const
     CMakeConfig result = parseConfiguration(cacheFile, &errorMessage);
     if (!errorMessage.isEmpty())
         emit errorOccured(errorMessage);
-    if (CMakeConfigItem::valueOf("CMAKE_HOME_DIRECTORY", result) != sourceDirectory().toString().toUtf8())
+    const Utils::FileName sourceOfBuildDir
+            = Utils::FileName::fromUtf8(CMakeConfigItem::valueOf("CMAKE_HOME_DIRECTORY", result));
+    if (sourceOfBuildDir != sourceDirectory()) // Use case-insensitive compare where appropriate
         emit errorOccured(tr("The build directory is not for %1").arg(sourceDirectory().toUserOutput()));
 
     return result;
@@ -459,12 +465,12 @@ void BuildDirManager::startCMake(CMakeTool *tool, const QString &generator,
     Utils::QtcProcess::addArg(&args, srcDir);
     if (!generator.isEmpty())
         Utils::QtcProcess::addArg(&args, QString::fromLatin1("-G%1").arg(generator));
-    Utils::QtcProcess::addArgs(&args, toArguments(config));
+    Utils::QtcProcess::addArgs(&args, toArguments(config, kit()));
     Utils::QtcProcess::addArgs(&args, toolchain.arguments(toArguments(config), workDirectory().toString()));
 
     ProjectExplorer::TaskHub::clearTasks(ProjectExplorer::Constants::TASK_CATEGORY_BUILDSYSTEM);
 
-    Core::MessageManager::write(tr("Running '%1 %2' in %3.")
+    Core::MessageManager::write(tr("Running \"%1 %2\" in %3.")
                                 .arg(tool->cmakeExecutable().toUserOutput())
                                 .arg(args)
                                 .arg(workDirectory().toUserOutput()));
@@ -637,8 +643,10 @@ void BuildDirManager::maybeForceReparse()
     const QByteArray EXTRA_GENERATOR_KEY = "CMAKE_EXTRA_GENERATOR";
     const QByteArray CMAKE_COMMAND_KEY = "CMAKE_COMMAND";
 
-    if (!m_hasData)
+    if (!m_hasData) {
+        forceReparse();
         return;
+    }
 
     const CMakeConfig currentConfig = parsedConfiguration();
 
