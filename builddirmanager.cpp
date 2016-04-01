@@ -465,6 +465,7 @@ void BuildDirManager::startCMake(CMakeTool *tool, const QString &generator,
     Utils::QtcProcess::addArg(&args, srcDir);
     if (!generator.isEmpty())
         Utils::QtcProcess::addArg(&args, QString::fromLatin1("-G%1").arg(generator));
+    Utils::QtcProcess::addArgs(&args, toArguments(config, kit()));
     Utils::QtcProcess::addArgs(&args, toolchain.arguments(toArguments(config, kit()), workDirectory().toString()));
 
     ProjectExplorer::TaskHub::clearTasks(ProjectExplorer::Constants::TASK_CATEGORY_BUILDSYSTEM);
