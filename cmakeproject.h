@@ -113,6 +113,7 @@ public:
 
     bool needsConfiguration() const override;
     bool requiresTargetPanel() const override;
+    bool knowsAllBuildExecutables() const override;
 
     bool supportsKit(ProjectExplorer::Kit *k, QString *errorMessage = 0) const override;
 
@@ -131,8 +132,6 @@ private:
     void handleActiveBuildConfigurationChanged();
     void handleParsingStarted();
     void parseCMakeOutput();
-
-    void updateRunConfigurations();
 
     void buildTree(Internal::CMakeProjectNode *rootNode, QList<ProjectExplorer::FileNode *> list);
     void gatherFileNodes(ProjectExplorer::FolderNode *parent, QList<ProjectExplorer::FileNode *> &list) const;

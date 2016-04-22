@@ -61,30 +61,13 @@ namespace CMakeProjectManager {
 namespace Internal {
 
 static QStringList toArguments(const CMakeConfig &config, const ProjectExplorer::Kit *k) {
-    return Utils::transform(config, [k](const CMakeConfigItem &i) -> QString {
-                                 QString a = QString::fromLatin1("-D");
-                                 a.append(QString::fromUtf8(i.key));
-                                 switch (i.type) {
-                                 case CMakeConfigItem::FILEPATH:
-                                     a.append(QLatin1String(":FILEPATH="));
-                                     break;
-                                 case CMakeConfigItem::PATH:
-                                     a.append(QLatin1String(":PATH="));
-                                     break;
-                                 case CMakeConfigItem::BOOL:
-                                     a.append(QLatin1String(":BOOL="));
-                                     break;
-                                 case CMakeConfigItem::STRING:
-                                     a.append(QLatin1String(":STRING="));
-                                     break;
-                                 case CMakeConfigItem::INTERNAL:
-                                     a.append(QLatin1String(":INTERNAL="));
-                                     break;
-                                 }
-                                 a.append(QString::fromUtf8(k->macroExpander()->expand(i.value)));
-
-                                 return a;
-                             });
+    const QStringList argList
+            =  Utils::transform(config, [k](const CMakeConfigItem &i) -> QString {
+                                    const QString tmp = i.toString();
+                                    return tmp.isEmpty() ? QString()
+                                                         : QString::fromLatin1("-D") + k->macroExpander()->expand(tmp);
+                                });
+    return Utils::filtered(argList, [](const QString &s) { return !s.isEmpty(); });
 }
 
 // --------------------------------------------------------------------
@@ -643,6 +626,9 @@ void BuildDirManager::maybeForceReparse()
     const QByteArray EXTRA_GENERATOR_KEY = "CMAKE_EXTRA_GENERATOR";
     const QByteArray CMAKE_COMMAND_KEY = "CMAKE_COMMAND";
 
+    const QByteArrayList criticalKeys
+            = QByteArrayList() << GENERATOR_KEY << CMAKE_COMMAND_KEY;
+
     if (!m_hasData) {
         forceReparse();
         return;
@@ -650,46 +636,53 @@ void BuildDirManager::maybeForceReparse()
 
     const CMakeConfig currentConfig = parsedConfiguration();
 
+    const CMakeTool *tool = CMakeKitInformation::cmakeTool(kit());
+    QTC_ASSERT(tool, return); // No cmake... we should not have ended up here in the first place
     const QString kitGenerator = CMakeGeneratorKitInformation::generator(kit());
     int pos = kitGenerator.lastIndexOf(QLatin1String(" - "));
     const QString extraKitGenerator = (pos > 0) ? kitGenerator.left(pos) : QString();
     const QString mainKitGenerator = (pos > 0) ? kitGenerator.mid(pos + 3) : kitGenerator;
     CMakeConfig targetConfig = m_buildConfiguration->cmakeConfiguration();
     targetConfig.append(CMakeConfigItem(GENERATOR_KEY, CMakeConfigItem::INTERNAL,
-                                     QByteArray(), mainKitGenerator.toUtf8()));
+                                        QByteArray(), mainKitGenerator.toUtf8()));
     if (!extraKitGenerator.isEmpty())
         targetConfig.append(CMakeConfigItem(EXTRA_GENERATOR_KEY, CMakeConfigItem::INTERNAL,
-                                         QByteArray(), extraKitGenerator.toUtf8()));
-    const CMakeTool *tool = CMakeKitInformation::cmakeTool(kit());
-    if (tool)
-        targetConfig.append(CMakeConfigItem(CMAKE_COMMAND_KEY, CMakeConfigItem::INTERNAL,
-                                         QByteArray(), tool->cmakeExecutable().toUserOutput().toUtf8()));
+                                            QByteArray(), extraKitGenerator.toUtf8()));
+    targetConfig.append(CMakeConfigItem(CMAKE_COMMAND_KEY, CMakeConfigItem::INTERNAL,
+                                        QByteArray(), tool->cmakeExecutable().toUserOutput().toUtf8()));
     Utils::sort(targetConfig, CMakeConfigItem::sortOperator());
 
+    bool mustReparse = false;
     auto ccit = currentConfig.constBegin();
     auto kcit = targetConfig.constBegin();
+
     while (ccit != currentConfig.constEnd() && kcit != targetConfig.constEnd()) {
         if (ccit->key == kcit->key) {
-            if (ccit->value != kcit->value)
-                break;
+            if (ccit->value != kcit->value) {
+                if (criticalKeys.contains(kcit->key)) {
+                        clearCache();
+                        return;
+                }
+                mustReparse = true;
+            }
             ++ccit;
             ++kcit;
         } else {
-            if (ccit->key < kcit->key)
+            if (ccit->key < kcit->key) {
                 ++ccit;
-            else
-                break;
+            } else {
+                ++kcit;
+                mustReparse = true;
+            }
         }
     }
 
-    if (kcit != targetConfig.end()) {
-        if (kcit->key == GENERATOR_KEY
-                || kcit->key == EXTRA_GENERATOR_KEY
-                || kcit->key == CMAKE_COMMAND_KEY)
-            clearCache();
-        else
-            forceReparse();
-    }
+    // If we have keys that do not exist yet, then reparse.
+    //
+    // The critical keys *must* be set in cmake configuration, so those were already
+    // handled above.
+    if (mustReparse || kcit != targetConfig.constEnd())
+        forceReparse();
 }
 
 } // namespace Internal

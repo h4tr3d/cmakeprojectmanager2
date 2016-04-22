@@ -217,12 +217,7 @@ QList<Task> CMakeGeneratorKitInformation::validate(const Kit *k) const
     QString generator = CMakeGeneratorKitInformation::generator(k);
 
     QList<Task> result;
-    if (!tool) {
-        if (!generator.isEmpty()) {
-            result << Task(Task::Warning, tr("No CMake Tool configured, CMake generator will be ignored."),
-                           Utils::FileName(), -1, Core::Id(Constants::TASK_CATEGORY_BUILDSYSTEM));
-        }
-    } else {
+    if (tool) {
         if (!tool->isValid()) {
             result << Task(Task::Warning, tr("CMake Tool is unconfigured, CMake generator will be ignored."),
                            Utils::FileName(), -1, Core::Id(Constants::TASK_CATEGORY_BUILDSYSTEM));
@@ -308,6 +303,7 @@ QStringList CMakeConfigurationKitInformation::toStringList(const Kit *k)
     QStringList current
             = Utils::transform(CMakeConfigurationKitInformation::configuration(k),
                                [](const CMakeConfigItem &i) { return i.toString(); });
+    current = Utils::filtered(current, [](const QString &s) { return !s.isEmpty(); });
     Utils::sort(current);
     return current;
 }
@@ -323,15 +319,22 @@ void CMakeConfigurationKitInformation::fromStringList(Kit *k, const QStringList 
     setConfiguration(k, result);
 }
 
+CMakeConfig CMakeConfigurationKitInformation::defaultConfiguration(const Kit *k)
+{
+    Q_UNUSED(k);
+    CMakeConfig config;
+    config << CMakeConfigItem(CMAKE_QMAKE_KEY, "%{Qt:qmakeExecutable}");
+    config << CMakeConfigItem(CMAKE_TOOLCHAIN_KEY, "%{Compiler:Executable}");
+
+    return config;
+}
+
 QVariant CMakeConfigurationKitInformation::defaultValue(const Kit *k) const
 {
     Q_UNUSED(k);
 
     // FIXME: Convert preload scripts
-    CMakeConfig config;
-    config << CMakeConfigItem(CMAKE_QMAKE_KEY, "%{Qt:qmakeExecutable}");
-    config << CMakeConfigItem(CMAKE_TOOLCHAIN_KEY, "%{Compiler:Executable}");
-
+    CMakeConfig config = defaultConfiguration(k);
     const QStringList tmp
             = Utils::transform(config, [](const CMakeConfigItem &i) { return i.toString(); });
     return tmp;
