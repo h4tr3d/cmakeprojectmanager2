@@ -297,7 +297,7 @@ void BuildDirManager::stopProcess()
 
     if (m_cmakeProcess->state() == QProcess::Running) {
         m_cmakeProcess->terminate();
-        if (!m_cmakeProcess->waitForFinished(500))
+        if (!m_cmakeProcess->waitForFinished(500) && m_cmakeProcess->state() == QProcess::Running)
             m_cmakeProcess->kill();
     }
 
@@ -322,9 +322,10 @@ void BuildDirManager::cleanUpProcess()
 
     if (m_cmakeProcess->state() == QProcess::Running) {
         m_cmakeProcess->terminate();
-        if (!m_cmakeProcess->waitForFinished(500))
+        if (!m_cmakeProcess->waitForFinished(500) && m_cmakeProcess->state() == QProcess::Running)
             m_cmakeProcess->kill();
     }
+    m_cmakeProcess->waitForFinished();
     delete m_cmakeProcess;
     m_cmakeProcess = nullptr;
 
