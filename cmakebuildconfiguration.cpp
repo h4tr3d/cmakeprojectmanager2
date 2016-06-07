@@ -207,10 +207,7 @@ QList<ConfigModel::DataItem> CMakeBuildConfiguration::completeCMakeConfiguration
         m_completeConfigurationCache = m_buildDirManager->parsedConfiguration();
 
     CMakeConfig cache = Utils::filtered(m_completeConfigurationCache,
-                                        [](const CMakeConfigItem &i) {
-                                            return i.type != CMakeConfigItem::INTERNAL
-                                                    && i.type != CMakeConfigItem::STATIC;
-                                        });
+                                        [](const CMakeConfigItem &i) { return i.type != CMakeConfigItem::INTERNAL; });
     return Utils::transform(cache, [](const CMakeConfigItem &i) {
         ConfigModel::DataItem j;
         j.key = QString::fromUtf8(i.key);
