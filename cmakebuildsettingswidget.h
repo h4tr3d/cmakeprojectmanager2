@@ -40,6 +40,7 @@ class QLabel;
 class QPushButton;
 class QTreeView;
 class QSortFilterProxyModel;
+class QMenu;
 class QGroupBox;
 class QRadioButton;
 QT_END_NAMESPACE
@@ -59,6 +60,7 @@ public:
     CMakeBuildSettingsWidget(CMakeBuildConfiguration *bc);
 
     void setError(const QString &message);
+    void setWarning(const QString &message);
 
 private:
     void updateButtonState();
@@ -74,6 +76,8 @@ private:
     ConfigModel *m_configModel;
     QSortFilterProxyModel *m_configFilterModel;
     Utils::ProgressIndicator *m_progressIndicator;
+    QPushButton *m_addButton;
+    QMenu *m_addButtonMenu;
     QPushButton *m_editButton;
     QPushButton *m_resetButton;
     QCheckBox *m_showAdvancedCheckBox;
@@ -86,7 +90,9 @@ private:
     QRadioButton *m_inlineToolchainRadioButton;
     QTimer m_showProgressTimer;
     QLabel *m_errorLabel;
+    QLabel *m_warningLabel;
     QLabel *m_errorMessageLabel;
+    QLabel *m_warningMessageLabel;
 
     QString m_toolchainInlineCurrent;
 };

@@ -33,19 +33,24 @@
 
 #include <functional>
 
+namespace ProjectExplorer { class Kit; }
+
 namespace CMakeProjectManager {
 
 class CMakeConfigItem {
 public:
-    enum Type { FILEPATH, PATH, BOOL, STRING, INTERNAL, STATIC };
+    enum Type { FILEPATH, PATH, BOOL, STRING, INTERNAL };
     CMakeConfigItem();
     CMakeConfigItem(const CMakeConfigItem &other);
     CMakeConfigItem(const QByteArray &k, Type t, const QByteArray &d, const QByteArray &v);
     CMakeConfigItem(const QByteArray &k, const QByteArray &v);
 
     static QByteArray valueOf(const QByteArray &key, const QList<CMakeConfigItem> &input);
-
+    static QString expandedValueOf(const ProjectExplorer::Kit *k, const QByteArray &key,
+                                   const QList<CMakeConfigItem> &input);
     bool isNull() const { return key.isEmpty(); }
+
+    QString expandedValue(const ProjectExplorer::Kit *k) const;
 
     static std::function<bool(const CMakeConfigItem &a, const CMakeConfigItem &b)> sortOperator();
     static CMakeConfigItem fromString(const QString &s);

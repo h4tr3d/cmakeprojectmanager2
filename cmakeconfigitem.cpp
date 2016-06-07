@@ -25,6 +25,9 @@
 
 #include "cmakeconfigitem.h"
 
+#include <projectexplorer/kit.h>
+
+#include <utils/macroexpander.h>
 #include <utils/qtcassert.h>
 
 #include <QString>
@@ -58,6 +61,21 @@ QByteArray CMakeConfigItem::valueOf(const QByteArray &key, const QList<CMakeConf
             return it->value;
     }
     return QByteArray();
+}
+
+QString CMakeConfigItem::expandedValueOf(const ProjectExplorer::Kit *k, const QByteArray &key,
+                                         const QList<CMakeConfigItem> &input)
+{
+    for (auto it = input.constBegin(); it != input.constEnd(); ++it) {
+        if (it->key == key)
+            return it->expandedValue(k);
+    }
+    return QString();
+}
+
+QString CMakeConfigItem::expandedValue(const ProjectExplorer::Kit *k) const
+{
+    return k->macroExpander()->expand(QString::fromUtf8(value));
 }
 
 std::function<bool (const CMakeConfigItem &a, const CMakeConfigItem &b)> CMakeConfigItem::sortOperator()
@@ -120,8 +138,6 @@ CMakeConfigItem CMakeConfigItem::fromString(const QString &s)
             t = CMakeConfigItem::BOOL;
         else if (type == QLatin1String("INTERNAL"))
             t = CMakeConfigItem::INTERNAL;
-        else if (type == QLatin1String("STATIC"))
-            t = CMakeConfigItem::STATIC;
 
         item.key = key.toUtf8();
         item.type = t;
@@ -132,7 +148,7 @@ CMakeConfigItem CMakeConfigItem::fromString(const QString &s)
 
 QString CMakeConfigItem::toString() const
 {
-    if (key.isEmpty() || type == CMakeProjectManager::CMakeConfigItem::STATIC)
+    if (key.isEmpty())
         return QString();
 
     QString typeStr;

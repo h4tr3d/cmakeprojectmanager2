@@ -171,10 +171,6 @@ void CMakeBuildConfiguration::ctor()
 
 void CMakeBuildConfiguration::maybeForceReparse()
 {
-    ProjectExplorer::Kit *k = target()->kit();
-    CMakeConfig config = cmakeConfiguration();
-    config.append(CMakeConfigurationKitInformation::configuration(k));  // last value wins...
-    setCMakeConfiguration(config);
     m_buildDirManager->maybeForceReparse();
 }
 
@@ -221,18 +217,14 @@ QList<ConfigModel::DataItem> CMakeBuildConfiguration::completeCMakeConfiguration
     if (m_completeConfigurationCache.isEmpty())
         m_completeConfigurationCache = m_buildDirManager->parsedConfiguration();
 
-    CMakeConfig cache = Utils::filtered(m_completeConfigurationCache,
-                                        [](const CMakeConfigItem &i) {
-                                            return i.type != CMakeConfigItem::INTERNAL
-                                                    && i.type != CMakeConfigItem::STATIC;
-                                        });
-    return Utils::transform(cache, [](const CMakeConfigItem &i) {
+    return Utils::transform(m_completeConfigurationCache,
+                            [this](const CMakeConfigItem &i) {
         ConfigModel::DataItem j;
         j.key = QString::fromUtf8(i.key);
         j.value = QString::fromUtf8(i.value);
         j.description = QString::fromUtf8(i.documentation);
 
-        j.isAdvanced = i.isAdvanced;
+        j.isAdvanced = i.isAdvanced || i.type == CMakeConfigItem::INTERNAL;
         switch (i.type) {
         case CMakeConfigItem::FILEPATH:
             j.type = ConfigModel::DataItem::FILE;
@@ -287,7 +279,6 @@ void CMakeBuildConfiguration::setCurrentCMakeConfiguration(const QList<ConfigMod
         return ni;
     });
 
-    // There is a buildDirManager, so there must also be an active BC:
     CMakeConfig config;
     auto kitConfig = CMakeConfigurationKitInformation::configuration(target()->kit());
 
@@ -327,11 +318,28 @@ void CMakeBuildConfiguration::emitBuildTypeChanged()
 void CMakeBuildConfiguration::setCMakeConfiguration(const CMakeConfig &config)
 {
     m_configuration = removeDuplicates(config);
+
+    const Kit *k = target()->kit();
+    CMakeConfig kitConfig = CMakeConfigurationKitInformation::configuration(k);
+    bool hasKitOverride = false;
+    foreach (const CMakeConfigItem &i, m_configuration) {
+        const QString b = CMakeConfigItem::expandedValueOf(k, i.key, kitConfig);
+        if (!b.isNull() && i.expandedValue(k) != b) {
+            hasKitOverride = true;
+            break;
+        }
+    }
+
+    if (hasKitOverride)
+        setWarning(tr("CMake Configuration set by the Kit was overridden in the project."));
+    else
+        setWarning(QString());
 }
 
 CMakeConfig CMakeBuildConfiguration::cmakeConfiguration() const
 {
-    return m_configuration;
+    return removeDuplicates(CMakeConfigurationKitInformation::configuration(target()->kit())
+                            + m_configuration);
 }
 
 void CMakeBuildConfiguration::setError(const QString &message)
@@ -343,9 +351,22 @@ void CMakeBuildConfiguration::setError(const QString &message)
     emit errorOccured(m_error);
 }
 
+void CMakeBuildConfiguration::setWarning(const QString &message)
+{
+    if (m_warning == message)
+        return;
+    m_warning = message;
+    emit warningOccured(m_warning);
+}
+
 QString CMakeBuildConfiguration::error() const
 {
     return m_error;
+}
+
+QString CMakeBuildConfiguration::warning() const
+{
+    return m_warning;
 }
 
 ProjectExplorer::NamedWidget *CMakeBuildConfiguration::createConfigWidget()
@@ -500,7 +521,6 @@ CMakeBuildInfo *CMakeBuildConfigurationFactory::createBuildInfo(const ProjectExp
     auto info = new CMakeBuildInfo(this);
     info->kitId = k->id();
     info->sourceDirectory = sourceDir;
-    info->configuration = CMakeConfigurationKitInformation::configuration(k);
 
     CMakeConfigItem buildTypeItem;
     switch (buildType) {
