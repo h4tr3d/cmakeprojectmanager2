@@ -76,6 +76,8 @@ public:
 
     bool isParsing() const;
 
+    void cmakeFilesChanged();
+
     void parse();
     void clearCache();
     void forceReparse();
@@ -83,10 +85,10 @@ public:
     void resetData();
     bool persistCMakeState();
 
-    bool isProjectFile(const Utils::FileName &fileName) const;
     QString projectName() const;
     QList<CMakeBuildTarget> buildTargets() const;
     QList<ProjectExplorer::FileNode *> files();
+    QSet<Utils::FileName> cmakeFiles();
     void clearFiles();
     CMakeConfig parsedConfiguration() const;
 
@@ -118,10 +120,9 @@ private:
     QTemporaryDir *m_tempDir = nullptr;
     mutable CMakeConfig m_cmakeCache;
 
-    QSet<Utils::FileName> m_watchedFiles;
+    QSet<Utils::FileName> m_cmakeFiles;
     QString m_projectName;
     QList<CMakeBuildTarget> m_buildTargets;
-    QFileSystemWatcher *m_watcher;
     QList<ProjectExplorer::FileNode *> m_files;
 
     // For error reporting:

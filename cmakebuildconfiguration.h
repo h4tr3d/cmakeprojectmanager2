@@ -54,6 +54,8 @@ public:
     CMakeBuildConfiguration(ProjectExplorer::Target *parent);
     ~CMakeBuildConfiguration();
 
+    void cmakeFilesChanged();
+
     bool isEnabled() const override;
     QString disabledReason() const override;
 

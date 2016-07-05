@@ -75,6 +75,11 @@ CMakeBuildConfiguration::~CMakeBuildConfiguration()
     m_buildDirManager->deleteLater(); // Do not block while waiting for cmake...
 }
 
+void CMakeBuildConfiguration::cmakeFilesChanged()
+{
+    m_buildDirManager->cmakeFilesChanged();
+}
+
 bool CMakeBuildConfiguration::isEnabled() const
 {
     return m_error.isEmpty();
@@ -331,7 +336,7 @@ void CMakeBuildConfiguration::setCMakeConfiguration(const CMakeConfig &config)
     }
 
     if (hasKitOverride)
-        setWarning(tr("CMake Configuration set by the Kit was overridden in the project."));
+        setWarning(tr("CMake configuration set by the kit was overridden in the project."));
     else
         setWarning(QString());
 }
