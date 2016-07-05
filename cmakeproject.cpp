@@ -346,7 +346,7 @@ void CMakeProject::parseCMakeOutput()
     // Delete no longer necessary file watcher:
     const QSet<Utils::FileName> currentWatched
             = Utils::transform(m_watchedFiles, [](CMakeFile *cmf) { return cmf->filePath(); });
-    const QSet<Utils::FileName> toWatch = cmakefiles;
+    const QSet<Utils::FileName> toWatch = bdm->cmakeFiles();;
     QSet<Utils::FileName> toDelete = currentWatched;
     toDelete.subtract(toWatch);
     m_watchedFiles = Utils::filtered(m_watchedFiles, [&toDelete](Internal::CMakeFile *cmf) {
