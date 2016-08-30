@@ -629,6 +629,9 @@ QStringList CMakeProject::files(FilesMode fileMode) const
     QList<FileNode *> nodes;
     gatherFileNodes(rootProjectNode(), nodes);
     nodes = Utils::filtered(nodes, [fileMode](const FileNode *fn) {
+        if (fn->fileType() == UnknownFileType)
+            return false;
+
         const bool isGenerated = fn->isGenerated();
         switch (fileMode)
         {
