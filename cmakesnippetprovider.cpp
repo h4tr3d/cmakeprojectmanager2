@@ -23,36 +23,33 @@
 **
 ****************************************************************************/
 
-#pragma once
+#include "cmakesnippetprovider.h"
 
-#include <QtGlobal>
+#include "cmakeprojectconstants.h"
+#include "cmakeeditor.h"
+
+#include <texteditor/snippets/snippeteditor.h>
 
 namespace CMakeProjectManager {
-namespace Constants {
+namespace Internal {
 
-const char PROJECTCONTEXT[] = "CMakeProject.ProjectContext";
-const char CMAKEMIMETYPE[]  = "text/x-cmake";
-const char CMAKEPROJECTMIMETYPE[]  = "text/x-cmake-project";
-const char CMAKE_EDITOR_ID[] = "CMakeProject.CMakeEditor";
-const char CMAKE_EDITOR_DISPLAY_NAME[] = QT_TRANSLATE_NOOP("CMakeProjectManager::Internal::CMakeEditorFactory", "CMake Editor");
-const char RUNCMAKE[] = "CMakeProject.RunCMake";
-const char CLEARCMAKECACHE[] = "CMakeProject.ClearCache";
-const char RUNCMAKECONTEXTMENU[] = "CMakeProject.RunCMakeContextMenu";
+CMakeSnippetProvider::~CMakeSnippetProvider() = default;
 
-// Project
-const char CMAKEPROJECT_ID[] = "CMakeProjectManager.CMakeProject";
+QString CMakeSnippetProvider::groupId() const
+{
+    return QLatin1String(Constants::CMAKE_SNIPPETS_GROUP_ID);
+}
 
-// Buildconfiguration
-const char CMAKE_BC_ID[] = "CMakeProjectManager.CMakeBuildConfiguration";
+QString CMakeSnippetProvider::displayName() const
+{
+    return tr("CMake");
+}
 
-// Menu
-const char M_CONTEXT[] = "CMakeEditor.ContextMenu";
+void CMakeSnippetProvider::decorateEditor(TextEditor::SnippetEditorWidget *editor) const
+{
+    Q_UNUSED(editor);
+    // What needs to go here?
+}
 
-// Settings page
-const char CMAKE_SETTINGSPAGE_ID[] = "Z.CMake";
-
-// Snippets
-const char CMAKE_SNIPPETS_GROUP_ID[] = "CMake";
-
-} // namespace Constants
+} // namespace Internal
 } // namespace CMakeProjectManager

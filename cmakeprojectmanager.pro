@@ -28,6 +28,7 @@ HEADERS = builddirmanager.h \
     cmaketool.h \
     cmakeparser.h \
     cmakesettingspage.h \
+    cmakesnippetprovider.h \
     cmaketoolmanager.h \
     cmake_global.h \
     cmakeinlineeditordialog.h \
@@ -56,6 +57,7 @@ SOURCES = builddirmanager.cpp \
     cmaketool.cpp \
     cmakeparser.cpp \
     cmakesettingspage.cpp \
+    cmakesnippetprovider.cpp \
     cmaketoolmanager.cpp \
     cmakeinlineeditordialog.cpp \
     cmakekitinformation.cpp \

@@ -74,7 +74,7 @@ class CMAKE_EXPORT CMakeBuildTarget
 public:
     QString title;
     QString executable; // TODO: rename to output?
-    TargetType targetType;
+    TargetType targetType = UtilityType;
     QString workingDirectory;
     QString sourceDirectory;
     QString makeCommand;

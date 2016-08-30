@@ -162,6 +162,7 @@ CMakeProject::~CMakeProject()
 {
     setRootProjectNode(nullptr);
     m_codeModelFuture.cancel();
+    qDeleteAll(m_watchedFiles);
     qDeleteAll(m_extraCompilers);
 }
 
@@ -374,7 +375,7 @@ void CMakeProject::parseCMakeOutput()
 
     createGeneratedCodeModelSupport();
 
-    ToolChain *tc = ProjectExplorer::ToolChainKitInformation::toolChain(k);
+    ToolChain *tc = ProjectExplorer::ToolChainKitInformation::toolChain(k, ToolChain::Language::Cxx);
     if (!tc) {
         emit fileListChanged();
         return;
@@ -398,6 +399,9 @@ void CMakeProject::parseCMakeOutput()
 
     QHash<QString, QStringList> targetDataCache;
     foreach (const CMakeBuildTarget &cbt, buildTargets()) {
+        if (cbt.targetType == UtilityType)
+            continue;
+
         // CMake shuffles the include paths that it reports via the CodeBlocks generator
         // So remove the toolchain include paths, so that at least those end up in the correct
         // place.
@@ -816,7 +820,7 @@ void CMakeProject::updateApplicationAndDeploymentTargets()
     DeploymentData deploymentData;
 
     foreach (const CMakeBuildTarget &ct, buildTargets()) {
-        if (ct.executable.isEmpty())
+        if (ct.targetType == UtilityType)
             continue;
 
         if (ct.targetType == ExecutableType || ct.targetType == DynamicLibraryType)
@@ -883,7 +887,7 @@ void CMakeBuildTarget::clear()
     workingDirectory.clear();
     sourceDirectory.clear();
     title.clear();
-    targetType = ExecutableType;
+    targetType = UtilityType;
     includeFiles.clear();
     compilerOptions.clear();
     defines.clear();
