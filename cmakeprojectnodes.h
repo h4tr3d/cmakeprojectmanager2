@@ -37,7 +37,7 @@ class CMakeProjectNode : public ProjectExplorer::ProjectNode
 {
 
 public:
-    CMakeProjectNode(CMakeProject *project, const Utils::FileName &fileName);
+    CMakeProjectNode(CMakeProject *project, const Utils::FileName &dirName);
     bool showInSimpleTree() const override;
     QList<ProjectExplorer::ProjectAction> supportedActions(Node *node) const override;
 

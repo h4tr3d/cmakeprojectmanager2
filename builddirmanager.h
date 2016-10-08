@@ -27,6 +27,7 @@
 
 #include "cmakecbpparser.h"
 #include "cmakeconfigitem.h"
+#include "cmakefile.h"
 #include "cmaketoolchaininfo.h"
 
 #include <projectexplorer/task.h>
@@ -43,6 +44,8 @@
 
 QT_FORWARD_DECLARE_CLASS(QTemporaryDir);
 QT_FORWARD_DECLARE_CLASS(QFileSystemWatcher);
+
+namespace Core { class IDocument; }
 
 namespace ProjectExplorer {
 class FileNode;
@@ -67,47 +70,51 @@ public:
     BuildDirManager(CMakeBuildConfiguration *bc);
     ~BuildDirManager() override;
 
-    const ProjectExplorer::Kit *kit() const;
-    const Utils::FileName buildDirectory() const;
-    const Utils::FileName workDirectory() const;
-    const Utils::FileName sourceDirectory() const;
-    const CMakeConfig intendedConfiguration() const;
     const CMakeToolchainInfo& cmakeToolchainInfo() const;
 
     bool isParsing() const;
-
-    void cmakeFilesChanged();
 
     void parse();
     void clearCache();
     void forceReparse();
     void maybeForceReparse(); // Only reparse if the configuration has changed...
     void resetData();
+    bool updateCMakeStateBeforeBuild();
     bool persistCMakeState();
 
-    QString projectName() const;
+    void generateProjectTree(CMakeProjectNode *root);
+
     QList<CMakeBuildTarget> buildTargets() const;
-    QList<ProjectExplorer::FileNode *> files();
-    QSet<Utils::FileName> cmakeFiles();
-    void clearFiles();
     CMakeConfig parsedConfiguration() const;
 
     void checkConfiguration();
 
-    static CMakeConfig parseConfiguration(const Utils::FileName &cacheFile,
-                                          QString *errorMessage);
+    void handleDocumentSaves(Core::IDocument *document);
+    void handleCmakeFileChange();
 
 signals:
     void configurationStarted() const;
     void dataAvailable() const;
     void errorOccured(const QString &err) const;
 
+protected:
+    static CMakeConfig parseConfiguration(const Utils::FileName &cacheFile,
+                                          QString *errorMessage);
+
+    const ProjectExplorer::Kit *kit() const;
+    const Utils::FileName buildDirectory() const;
+    const Utils::FileName workDirectory() const;
+    const Utils::FileName sourceDirectory() const;
+    const CMakeConfig intendedConfiguration() const;
+
 private:
+    void cmakeFilesChanged();
+
     void stopProcess();
     void cleanUpProcess();
     void extractData();
 
-    void startCMake(CMakeTool *tool, const QString &generator, const CMakeConfig &config, const CMakeToolchainInfo &toolchain);
+    void startCMake(CMakeTool *tool, const QStringList &generatorArgs, const CMakeConfig &config, const CMakeToolchainInfo &toolchain);
 
     void cmakeFinished(int code, QProcess::ExitStatus status);
     void processCMakeOutput();
@@ -130,6 +137,8 @@ private:
     QFutureInterface<void> *m_future = nullptr;
 
     QTimer m_reparseTimer;
+
+    QSet<Internal::CMakeFile *> m_watchedFiles;
 };
 
 } // namespace Internal

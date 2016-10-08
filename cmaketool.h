@@ -52,6 +52,29 @@ public:
         AutoDetection
     };
 
+    struct Version
+    {
+        int major = 0;
+        int minor = 0;
+        int patch = 0;
+        QByteArray fullVersion;
+    };
+
+    class Generator
+    {
+    public:
+        Generator(const QString &n, const QStringList &eg, bool pl = true, bool ts = true) :
+            name(n), extraGenerators(eg), supportsPlatform(pl), supportsToolset(ts)
+        { }
+
+        QString name;
+        QStringList extraGenerators;
+        bool supportsPlatform = true;
+        bool supportsToolset = true;
+
+        bool matches(const QString &n, const QString &ex) const;
+    };
+
     typedef std::function<QString (const ProjectExplorer::Kit *, const QString &)> PathMapper;
 
     explicit CMakeTool(Detection d, const Core::Id &id);
@@ -70,8 +93,10 @@ public:
 
     Utils::FileName cmakeExecutable() const;
     bool isAutoRun() const;
-    QStringList supportedGenerators() const;
+    QList<Generator> supportedGenerators() const;
     TextEditor::Keywords keywords();
+    bool hasServerMode() const;
+    Version version() const;
 
     bool isAutoDetected() const;
     QString displayName() const;
@@ -81,25 +106,40 @@ public:
     QString mapAllPaths(const ProjectExplorer::Kit *kit, const QString &in) const;
 
 private:
-    Utils::SynchronousProcessResponse run(const QString &arg) const;
+    enum class QueryType {
+        GENERATORS,
+        SERVER_MODE,
+        VERSION
+    };
+    void readInformation(QueryType type) const;
+
+    Utils::SynchronousProcessResponse run(const QStringList &args, bool mayFail = false) const;
     void parseFunctionDetailsOutput(const QString &output);
     QStringList parseVariableOutput(const QString &output);
+
+    void fetchGeneratorsFromHelp() const;
+    void fetchVersionFromVersionOutput() const;
+    void fetchFromCapabilities() const;
 
     Core::Id m_id;
     QString m_displayName;
     Utils::FileName m_executable;
 
-    bool m_isAutoRun;
+    bool m_isAutoRun = true;
+    bool m_isAutoDetected = false;
 
-    bool m_isAutoDetected;
+    mutable bool m_didAttemptToRun = false;
+    mutable bool m_didRun = false;
+    mutable bool m_hasServerMode = false;
 
-    mutable bool m_didAttemptToRun;
-    mutable bool m_didRun;
+    mutable bool m_queriedServerMode = false;
+    mutable bool m_triedCapabilities = false;
 
-    mutable QStringList m_generators;
+    mutable QList<Generator> m_generators;
     mutable QMap<QString, QStringList> m_functionArgs;
     mutable QStringList m_variables;
     mutable QStringList m_functions;
+    mutable Version m_version;
 
     PathMapper m_pathMapper;
 };

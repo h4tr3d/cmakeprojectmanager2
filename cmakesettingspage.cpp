@@ -339,6 +339,7 @@ CMakeToolItemConfigWidget::CMakeToolItemConfigWidget(CMakeToolItemModel *model)
     m_binaryChooser->setExpectedKind(PathChooser::ExistingCommand);
     m_binaryChooser->setMinimumWidth(400);
     m_binaryChooser->setHistoryCompleter(QLatin1String("Cmake.Command.History"));
+    m_binaryChooser->setCommandVersionArguments({ "--version" });
 
     m_autoRunCheckBox = new QCheckBox;
     m_autoRunCheckBox->setText(tr("Autorun CMake"));
@@ -552,7 +553,7 @@ CMakeSettingsPage::CMakeSettingsPage()
     setCategory(ProjectExplorer::Constants::PROJECTEXPLORER_SETTINGS_CATEGORY);
     setDisplayCategory(QCoreApplication::translate("ProjectExplorer",
        ProjectExplorer::Constants::PROJECTEXPLORER_SETTINGS_TR_CATEGORY));
-    setCategoryIcon(QLatin1String(ProjectExplorer::Constants::PROJECTEXPLORER_SETTINGS_CATEGORY_ICON));
+    setCategoryIcon(Utils::Icon(ProjectExplorer::Constants::PROJECTEXPLORER_SETTINGS_CATEGORY_ICON));
 }
 
 QWidget *CMakeSettingsPage::widget()

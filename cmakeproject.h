@@ -26,25 +26,16 @@
 #pragma once
 
 #include "cmake_global.h"
-#include "cmakeprojectnodes.h"
 #include "cmaketoolchaininfo.h"
 #include "cmakebuildconfiguration.h"
 
 #include <projectexplorer/extracompiler.h>
 #include <projectexplorer/project.h>
-#include <projectexplorer/buildconfiguration.h>
-#include <projectexplorer/namedwidget.h>
-#include <coreplugin/idocument.h>
-#include <coreplugin/editormanager/editormanager.h>
-#include <coreplugin/editormanager/ieditor.h>
 
 #include <utils/fileutils.h>
 #include <utils/qtcprocess.h>
 
 #include <QFuture>
-#include <QXmlStreamReader>
-#include <QPushButton>
-#include <QLineEdit>
 
 QT_BEGIN_NAMESPACE
 class QFileSystemWatcher;
@@ -53,7 +44,6 @@ QT_END_NAMESPACE
 namespace CMakeProjectManager {
 
 namespace Internal {
-class BuildDirManager;
 class CMakeFile;
 class CMakeBuildSettingsWidget;
 class CMakeProjectNode;
@@ -78,7 +68,6 @@ public:
     QString workingDirectory;
     QString sourceDirectory;
     QString makeCommand;
-    QString makeCleanCommand;
 
     // code model
     QStringList includeFiles;
@@ -96,13 +85,12 @@ class CMAKE_EXPORT CMakeProject : public ProjectExplorer::Project
     friend class Internal::CMakeBuildSettingsWidget;
 public:
     CMakeProject(Internal::CMakeManager *manager, const Utils::FileName &filename);
-    ~CMakeProject() override;
+    ~CMakeProject() final;
 
-    QString displayName() const override;
+    QString displayName() const final;
 
-    QStringList files(FilesMode fileMode) const override;
+    QStringList files(FilesMode fileMode) const final;
     QStringList buildTargetTitles(bool runnable = false) const;
-    QList<CMakeBuildTarget> buildTargets() const;
     bool hasBuildTarget(const QString &title) const;
 
     CMakeBuildTarget buildTargetForTitle(const QString &title);
@@ -111,11 +99,11 @@ public:
     bool eraseFiles(const QStringList &filePaths);
     bool renameFile(const QString &filePath, const QString &newFilePath);
 
-    bool needsConfiguration() const override;
-    bool requiresTargetPanel() const override;
-    bool knowsAllBuildExecutables() const override;
+    bool needsConfiguration() const final;
+    bool requiresTargetPanel() const final;
+    bool knowsAllBuildExecutables() const final;
 
-    bool supportsKit(ProjectExplorer::Kit *k, QString *errorMessage = 0) const override;
+    bool supportsKit(ProjectExplorer::Kit *k, QString *errorMessage = 0) const final;
 
     void runCMake();
 
@@ -124,23 +112,20 @@ signals:
     void parsingStarted();
 
 protected:
-    RestoreResult fromMap(const QVariantMap &map, QString *errorMessage) override;
-    bool setupTarget(ProjectExplorer::Target *t) override;
+    RestoreResult fromMap(const QVariantMap &map, QString *errorMessage) final;
+    bool setupTarget(ProjectExplorer::Target *t) final;
 
 private:
-    void handleCmakeFileChanged();
+    QList<CMakeBuildTarget> buildTargets() const;
 
     void handleActiveTargetChanged();
     void handleActiveBuildConfigurationChanged();
     void handleParsingStarted();
-    void parseCMakeOutput();
+    void updateProjectData();
     void updateQmlJSCodeModel();
 
-    void buildTree(Internal::CMakeProjectNode *rootNode, QList<ProjectExplorer::FileNode *> list);
-    void gatherFileNodes(ProjectExplorer::FolderNode *parent, QList<ProjectExplorer::FileNode *> &list) const;
-    ProjectExplorer::FolderNode *findOrCreateFolder(Internal::CMakeProjectNode *rootNode, QString directory);
     void createGeneratedCodeModelSupport();
-    QStringList filesGeneratedFrom(const QString &sourceFile) const override;
+    QStringList filesGeneratedFrom(const QString &sourceFile) const final;
     void updateTargetRunConfigurations(ProjectExplorer::Target *t);
     void updateApplicationAndDeploymentTargets();
     QStringList getCXXFlagsFor(const CMakeBuildTarget &buildTarget, QHash<QString, QStringList> &cache);
@@ -153,8 +138,6 @@ private:
     QList<CMakeBuildTarget> m_buildTargets;
     QFuture<void> m_codeModelFuture;
     QList<ProjectExplorer::ExtraCompiler *> m_extraCompilers;
-
-    QSet<Internal::CMakeFile *> m_watchedFiles;
 
     friend class Internal::CMakeBuildConfiguration;
     friend class Internal::CMakeFile;
