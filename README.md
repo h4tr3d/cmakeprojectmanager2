@@ -13,24 +13,20 @@ Main differents from original CMakeProject plugin:
   manualy describe this files in CMakeLists.txt.
 * You can rename files in file system from Qt Creator now.
 * You can erase files from files system from Qt Creator now.
-* CMake Run wizard reworked:
-  * Save CMake arguments line between runs and between configurations
-  * Select build type via Select Box (Release/Debug/Etc)
-  * Set-up used toolchain: via file or inline (stored in user project data)
-  * Reset CMake cache before run
+* Toolchain file overriding via dialog: inline (internal editing) and via pointing file.
 
 Build plugin
 ------------
 
 This plugin is oriented to latest Git version of Qt Creator, sorry I use it and I have no time
-to support other stable versions. But I create branches according to QtC one but I backports changes to the last official branch.
+to support other stable versions.
 
 ### Prepare Qt Creator (without Full Build)
- 
+
 For example, all actions runs in directory `/tmp/qt-creator`
 
 - Take full Qt Creator source tree from Git:
-```bash 
+```bash
 git clone git://gitorious.org/qt-creator/qt-creator.git qt-creator
 ```
 - Create Qt Crator build tree:
@@ -119,14 +115,24 @@ Now you can build plugin from Qt Creator.
 Prebuilt binaries
 -----------------
 
-Now Ubuntu 14.04 / Mint 17.x PPA with master-git Qt Creator and CMakePrjectManager2 plugin:<br />
+Now Ubuntu 14.04/16.04 / Mint 17.x/18.x PPA with master-git Qt Creator and CMakePrjectManager2 plugin:<br />
 https://launchpad.net/~adrozdoff/+archive/ubuntu/qtcreator-git
 
-This repo depdens on next Qt repository: **ppa:beineri/opt-qt55-trusty**
+This repo depdens on next Qt repository: **ppa:beineri/opt-qt561-trusty**
 
-To install next steps is required:
+To install next steps is required (Trusty):
 ```bash
-sudo apt-add-repository ppa:beineri/opt-qt55-trusty
+sudo apt-add-repository ppa:adrozdoff/llvm-backport (i386)
+sudo apt-add-repository ppa:adrozdoff/llvm-backport-x64 (x86_64)
+sudo apt-add-repository ppa:beineri/opt-qt561-trusty
+sudo apt-add-repository ppa:adrozdoff/qtcreator-git
+sudo apt-get update
+sudo apt-get install qtcreator-git qtcreator-git-plugin-cmake2
+```
+
+Xenial:
+```bash
+sudo apt-add-repository ppa:beineri/opt-qt561-xenial
 sudo apt-add-repository ppa:adrozdoff/qtcreator-git
 sudo apt-get update
 sudo apt-get install qtcreator-git qtcreator-git-plugin-cmake2
