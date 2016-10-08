@@ -62,7 +62,6 @@ const char INITIAL_ARGUMENTS[] = "CMakeProjectManager.CMakeBuildConfiguration.In
 const char CONFIGURATION_KEY[] = "CMake.Configuration";
 const char CMAKE_TOOLCHAIN_TYPE_KEY[] = "CMakeProjectManaget.CMakeBuildConfiguration.CMakeToolchainOverride";
 const char CMAKE_TOOLCHAIN_FILE_KEY[] = "CMakeProjectManaget.CMakeBuildConfiguration.CMakeToolchainFile";
-const char CMAKE_TOOLCHAIN_INLINE_KEY[] = "CMakeProjectManaget.CMakeBuildConfiguration.CMakeToolchainInline";
 
 CMakeBuildConfiguration::CMakeBuildConfiguration(ProjectExplorer::Target *parent) :
     BuildConfiguration(parent, Core::Id(Constants::CMAKE_BC_ID)),
@@ -104,7 +103,6 @@ QVariantMap CMakeBuildConfiguration::toMap() const
     map.insert(QLatin1String(CONFIGURATION_KEY), config);
     map.insert(QLatin1String(CMAKE_TOOLCHAIN_TYPE_KEY), static_cast<int>(m_cmakeToolchainInfo.toolchainOverride));
     map.insert(QLatin1String(CMAKE_TOOLCHAIN_FILE_KEY), m_cmakeToolchainInfo.toolchainFile);
-    map.insert(QLatin1String(CMAKE_TOOLCHAIN_INLINE_KEY), m_cmakeToolchainInfo.toolchainInline);
     return map;
 }
 
@@ -141,8 +139,6 @@ bool CMakeBuildConfiguration::fromMap(const QVariantMap &map)
                 map.value(QLatin1String(CMAKE_TOOLCHAIN_TYPE_KEY), static_cast<int>(CMakeToolchainOverrideType::Disabled)).toInt());
     m_cmakeToolchainInfo.toolchainFile =
             map.value(QLatin1String(CMAKE_TOOLCHAIN_FILE_KEY), QLatin1String("")).toString();
-    m_cmakeToolchainInfo.toolchainInline =
-            map.value(QLatin1String(CMAKE_TOOLCHAIN_INLINE_KEY), QLatin1String("")).toString();
 
     return true;
 }

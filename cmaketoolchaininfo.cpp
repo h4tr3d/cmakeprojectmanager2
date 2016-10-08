@@ -39,23 +39,13 @@ QStringList CMakeToolchainInfo::arguments(const QStringList &userArguments, cons
 
 QString CMakeToolchainInfo::toolchainArgument(const QString &buildDirectory) const
 {
+    Q_UNUSED(buildDirectory);
+
     QString result;
     QString fileName;
 
     if (toolchainOverride == CMakeToolchainOverrideType::File) {
         fileName = toolchainFile;
-    } else if (toolchainOverride == CMakeToolchainOverrideType::Inline) {
-        QString overrideFileName = buildDirectory + QLatin1String("/QtCreator-toolchain-override.cmake");
-        QFile   file(overrideFileName);
-
-        if (file.open(QIODevice::WriteOnly)) {
-            // Store content
-            file.write(toolchainInline.toLocal8Bit());
-            fileName = overrideFileName;
-            file.close();
-        } else {
-            // TODO: notify error
-        }
     }
 
     if (fileName.isEmpty() == false)
@@ -67,8 +57,7 @@ QString CMakeToolchainInfo::toolchainArgument(const QString &buildDirectory) con
 bool CMakeToolchainInfo::operator==(const CMakeToolchainInfo &other) const
 {
     bool result = (toolchainOverride == other.toolchainOverride &&
-                   toolchainFile == other.toolchainFile &&
-                   toolchainInline == other.toolchainInline);
+                   toolchainFile == other.toolchainFile);
     return result;
 }
 

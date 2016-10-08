@@ -1,6 +1,5 @@
 <RCC>
     <qresource prefix="/cmakeproject">
          <file alias="CMakeProjectManager.mimetypes.xml">CMakeProjectManager2.mimetypes.xml</file>
-         <file aliad="inlinetoolchainexample.cmake">inlinetoolchainexample.cmake</file>
     </qresource>
 </RCC>

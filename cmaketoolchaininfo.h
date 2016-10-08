@@ -19,7 +19,6 @@ struct CMakeToolchainInfo
 {
     CMakeToolchainOverrideType      toolchainOverride = CMakeToolchainOverrideType::Disabled;
     QString                         toolchainFile;
-    QString                         toolchainInline;
 
     QString arguments(const QString &userArguments, const QString& buildDirectory) const;
     QStringList arguments(const QStringList &userArguments, const QString &buildDirectory) const;

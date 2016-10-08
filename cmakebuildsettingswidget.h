@@ -42,7 +42,6 @@ class QTreeView;
 class QSortFilterProxyModel;
 class QMenu;
 class QGroupBox;
-class QRadioButton;
 QT_END_NAMESPACE
 
 namespace CMakeProjectManager {
@@ -68,8 +67,6 @@ private:
 
     CMakeToolchainInfo currentToolchainInfo() const;
     void toolchainFileSelect();
-    void toolchainEdit();
-    void toolchainRadio(bool toggled);
 
     CMakeBuildConfiguration *m_buildConfiguration;
     QTreeView *m_configView;
@@ -85,16 +82,12 @@ private:
     QGroupBox *m_toolchainGroupBox;
     Utils::FancyLineEdit *m_toolchainLineEdit;
     QPushButton *m_toolchainFileSelectPushButton;
-    QPushButton *m_toolchainEditPushButton;
-    QRadioButton *m_fileToolchainRadioButton;
-    QRadioButton *m_inlineToolchainRadioButton;
+    QLabel *m_toolchainFileLabel;
     QTimer m_showProgressTimer;
     QLabel *m_errorLabel;
     QLabel *m_warningLabel;
     QLabel *m_errorMessageLabel;
     QLabel *m_warningMessageLabel;
-
-    QString m_toolchainInlineCurrent;
 };
 
 } // namespace Internal
