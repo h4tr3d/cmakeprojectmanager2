@@ -28,11 +28,10 @@
 #include "cmakeconfigitem.h"
 #include "cmakeproject.h"
 #include "configmodel.h"
+#include "cmaketoolchaininfo.h"
 
 #include <projectexplorer/buildconfiguration.h>
 #include <projectexplorer/abi.h>
-
-#include "cmaketoolchaininfo.h"
 
 namespace ProjectExplorer { class ToolChain; }
 

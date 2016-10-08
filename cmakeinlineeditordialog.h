@@ -16,8 +16,7 @@
 **
 ****************************************************************************/
 
-#ifndef CMAKEPROJECTMANAGER_INTERNAL_CMAKEINLINEEDITORDIALOG_H
-#define CMAKEPROJECTMANAGER_INTERNAL_CMAKEINLINEEDITORDIALOG_H
+#pragma once
 
 #include <QDialog>
 
@@ -60,4 +59,3 @@ private:
 
 } // namespace CMakeProjectManager
 
-#endif // CMAKEPROJECTMANAGER_INTERNAL_CMAKEINLINEEDITORDIALOG_H

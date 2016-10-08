@@ -25,14 +25,12 @@
 
 #include "cmakeproject.h"
 
+#include "cmakebuildconfiguration.h"
 #include "cmakekitinformation.h"
 #include "cmakeprojectconstants.h"
 #include "cmakeprojectnodes.h"
 #include "cmakerunconfiguration.h"
-//#include "generatorinfo.h"
 #include "cmakeprojectmanager.h"
-#include "cmaketoolmanager.h"
-#include "cmakekitinformation.h"
 
 #include <cpptools/cppmodelmanager.h>
 #include <cpptools/generatedcodemodelsupport.h>
@@ -55,8 +53,6 @@
 #include <utils/stringutils.h>
 #include <utils/hostosinfo.h>
 
-#include <utils/mimetypes/mimedatabase.h>
-
 #include <QDir>
 #include <QSet>
 
@@ -71,59 +67,6 @@ using namespace Internal;
 // Which make targets we need to build to get all executables
 // What is the actual compiler executable
 // DEFINES
-
-// TODO This code taken from projectnodes.cpp and it marked as HACK. Wait for more clean solution.
-static ProjectExplorer::FileType getFileType(const QString &file)
-{
-    using namespace ProjectExplorer;
-
-    Utils::MimeDatabase mdb;
-    const Utils::MimeType mt = mdb.mimeTypeForFile(file);
-    if (!mt.isValid())
-        return UnknownFileType;
-
-    const QString typeName = mt.name();
-    if (typeName == QLatin1String(ProjectExplorer::Constants::CPP_SOURCE_MIMETYPE)
-        || typeName == QLatin1String(ProjectExplorer::Constants::C_SOURCE_MIMETYPE))
-        return SourceType;
-    if (typeName == QLatin1String(ProjectExplorer::Constants::CPP_HEADER_MIMETYPE)
-        || typeName == QLatin1String(ProjectExplorer::Constants::C_HEADER_MIMETYPE))
-        return HeaderType;
-    if (typeName == QLatin1String(ProjectExplorer::Constants::RESOURCE_MIMETYPE))
-        return ResourceType;
-    if (typeName == QLatin1String(ProjectExplorer::Constants::FORM_MIMETYPE))
-        return FormType;
-    if (typeName == QLatin1String(ProjectExplorer::Constants::QML_MIMETYPE))
-        return QMLType;
-    return UnknownFileType;
-}
-
-// Make file node by file name
-static ProjectExplorer::FileNode* fileToFileNode(const Utils::FileName &fileName)
-{
-    // TODO
-    ProjectExplorer::FileNode *node = 0;
-    bool generated = false;
-    QString onlyFileName = fileName.fileName();
-    if (   (onlyFileName.startsWith(QLatin1String("moc_")) && onlyFileName.endsWith(QLatin1String(".cxx")))
-           || (onlyFileName.startsWith(QLatin1String("ui_")) && onlyFileName.endsWith(QLatin1String(".h")))
-           || (onlyFileName.startsWith(QLatin1String("qrc_")) && onlyFileName.endsWith(QLatin1String(".cxx"))))
-        generated = true;
-
-    if (fileName.endsWith(QLatin1String("CMakeLists.txt")))
-        node = new ProjectExplorer::FileNode(fileName, ProjectExplorer::ProjectFileType, false);
-    else {
-        ProjectExplorer::FileType fileType = getFileType(fileName.fileName());
-        node = new ProjectExplorer::FileNode(fileName, fileType, generated);
-    }
-
-    return node;
-}
-
-bool sortNodesByPath(Node *a, Node *b)
-{
-    return a->filePath() < b->filePath();
-}
 
 /*!
   \class CMakeProject
@@ -150,8 +93,6 @@ CMakeProject::~CMakeProject()
     m_codeModelFuture.cancel();
     qDeleteAll(m_extraCompilers);
 }
-
-
 
 QStringList CMakeProject::getCXXFlagsFor(const CMakeBuildTarget &buildTarget,
                                          QHash<QString, QStringList> &cache)
@@ -249,48 +190,6 @@ bool CMakeProject::extractCXXFlagsFromNinja(const CMakeBuildTarget &buildTarget,
     return !cache.isEmpty();
 }
 
-namespace {
-
-bool isValidDir(const QFileInfo &fileInfo)
-{
-    const QString fileName = fileInfo.fileName();
-    const QString suffix = fileInfo.suffix();
-
-    if (fileName.startsWith(QLatin1Char('.')))
-        return false;
-
-    else if (fileName == QLatin1String("CVS"))
-        return false;
-
-    // ### user include/exclude
-
-    return true;
-}
-
-void getFileList(const QDir &dir, const QString &projectRoot,
-                 QList<ProjectExplorer::FileNode *> &files)
-{
-    const QFileInfoList fileInfoList = dir.entryInfoList(QDir::Files |
-                                                         QDir::Dirs |
-                                                         QDir::NoDotAndDotDot |
-                                                         QDir::NoSymLinks);
-
-    foreach (const QFileInfo &fileInfo, fileInfoList) {
-        QString filePath = fileInfo.absoluteFilePath();
-
-        if (fileInfo.isDir() && isValidDir(fileInfo)) {
-            // Recursive call for subdirectory
-            getFileList(QDir(fileInfo.absoluteFilePath()), projectRoot, files);
-        } else {
-            // Skip settings file
-            if (!filePath.endsWith(QLatin1String("CMakeLists.txt.user")))
-                files.append(fileToFileNode(FileName::fromString(filePath)));
-        }
-    }
-}
-
-} // ::anonymous
-
 void CMakeProject::updateProjectData()
 {
     auto cmakeBc = qobject_cast<CMakeBuildConfiguration *>(sender());
@@ -300,30 +199,8 @@ void CMakeProject::updateProjectData()
     if (!t || t->activeBuildConfiguration() != cmakeBc)
         return;
     Kit *k = t->kit();
+
     cmakeBc->generateProjectTree(static_cast<CMakeProjectNode *>(rootProjectNode()));
-    // Build file system tree
-    auto cmakefiles = bdm->files();
-    QList<ProjectExplorer::FileNode *> treefiles;
-
-    // Take file list from file system instead cbp project file
-    const QDir        dir(projectDirectory().toString());
-
-    // Step 1: get files
-    getFileList(dir, projectDirectory().toString(), treefiles);
-
-    // Step 2: sort lists. It duplicate actions in buildTree()
-    Utils::sort(cmakefiles, sortNodesByPath);
-    Utils::sort(treefiles,  sortNodesByPath);
-
-    // Step 3: get only added files
-    QList<ProjectExplorer::FileNode *> added;
-    QList<ProjectExplorer::FileNode *> deleted;
-    ProjectExplorer::compareSortedLists(cmakefiles, treefiles, deleted, added, sortNodesByPath);
-    qDeleteAll(ProjectExplorer::subtractSortedList(treefiles, added, sortNodesByPath));
-
-    // Step 4: now add new files to the cmakefiles. Note: using cmakefiles as a base is a good idea!
-    cmakefiles.append(added);
-
 
     updateApplicationAndDeploymentTargets();
     updateTargetRunConfigurations(t);
@@ -371,7 +248,6 @@ void CMakeProject::updateProjectData()
                 includePaths.append(i);
         }
         includePaths += projectDirectory().toString();
-    //allIncludePaths.append(paths); // This want a lot of memory
         ppBuilder.setIncludePaths(includePaths);
         ppBuilder.setCFlags(cxxflags);
         ppBuilder.setCxxFlags(cxxflags);
@@ -460,7 +336,6 @@ void CMakeProject::runCMake()
 
     if (bc)
         bc->runCMake();
-
 }
 
 QList<CMakeBuildTarget> CMakeProject::buildTargets() const

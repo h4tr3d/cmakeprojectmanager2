@@ -28,7 +28,6 @@
 #include "cmakecbpparser.h"
 #include "cmakeconfigitem.h"
 #include "cmakefile.h"
-#include "cmaketoolchaininfo.h"
 
 #include <projectexplorer/task.h>
 
@@ -57,6 +56,7 @@ class Task;
 namespace CMakeProjectManager {
 
 class CMakeTool;
+class CMakeToolchainInfo;
 
 namespace Internal {
 

@@ -1,5 +1,4 @@
-#ifndef CMAKEPROJECTMANAGER_CMAKEPARAMSEXT_H
-#define CMAKEPROJECTMANAGER_CMAKEPARAMSEXT_H
+#pragma once
 
 #include <memory>
 
@@ -33,4 +32,3 @@ struct CMakeToolchainInfo
 
 } // namespace CMakeProjectManager
 
-#endif // CMAKEPROJECTMANAGER_CMAKEPARAMSEXT_H

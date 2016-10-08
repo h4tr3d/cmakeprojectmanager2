@@ -26,14 +26,11 @@
 #pragma once
 
 #include "cmake_global.h"
-#include "cmaketoolchaininfo.h"
-#include "cmakebuildconfiguration.h"
 
 #include <projectexplorer/extracompiler.h>
 #include <projectexplorer/project.h>
 
 #include <utils/fileutils.h>
-#include <utils/qtcprocess.h>
 
 #include <QFuture>
 
@@ -46,7 +43,6 @@ namespace CMakeProjectManager {
 namespace Internal {
 class CMakeFile;
 class CMakeBuildSettingsWidget;
-class CMakeProjectNode;
 class CMakeBuildConfiguration;
 class CMakeProjectNode;
 class CMakeManager;
