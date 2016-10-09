@@ -29,6 +29,7 @@
 #include <utils/qtcassert.h>
 
 #include <QFont>
+#include <QDebug>
 
 namespace CMakeProjectManager {
 
@@ -87,6 +88,15 @@ QVariant ConfigModel::data(const QModelIndex &index, int role) const
     QTC_ASSERT(index.column() >= 0 && index.column() < columnCount(QModelIndex()), return QVariant());
 
     const InternalDataItem &item = m_configuration[index.row()];
+    
+    if (index.column() < 2) {
+        switch (role) {
+        case ItemTypeRole:
+            return item.type;
+        case ItemValuesRole:
+            return item.values;
+        }
+    }
 
     switch (index.column()) {
     case 0:
@@ -97,8 +107,6 @@ QVariant ConfigModel::data(const QModelIndex &index, int role) const
             return item.key;
         case Qt::ToolTipRole:
             return item.description;
-        case Qt::UserRole:
-            return item.type;
         case Qt::FontRole: {
             QFont font;
             font.setItalic(item.isCMakeChanged);
@@ -126,8 +134,6 @@ QVariant ConfigModel::data(const QModelIndex &index, int role) const
         }
         case Qt::ToolTipRole:
             return item.description;
-        case Qt::UserRole:
-            return item.type;
         default:
             return QVariant();
         }

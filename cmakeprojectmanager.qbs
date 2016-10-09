@@ -73,6 +73,8 @@ QtcPlugin {
         "cmakeautocompleter.h",
         "cmakeautocompleter.cpp",
         "configmodel.cpp",
-        "configmodel.h"
+        "configmodel.h",
+        "configmodelitemdelegate.cpp",
+        "configmodelitemdelegate.h"
     ]
 }
