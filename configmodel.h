@@ -43,6 +43,7 @@ public:
         bool isAdvanced = false;
         QString value;
         QString description;
+        QStringList values;
     };
 
     explicit ConfigModel(QObject *parent = nullptr);
@@ -58,7 +59,8 @@ public:
     void appendConfiguration(const QString &key,
                              const QString &value = QString(),
                              const DataItem::Type type = DataItem::UNKNOWN,
-                             const QString &description = QString());
+                             const QString &description = QString(),
+                             const QStringList &values = QStringList());
     void setConfiguration(const QList<DataItem> &config);
     void flush();
     void resetAllChanges();
