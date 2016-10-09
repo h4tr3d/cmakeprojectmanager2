@@ -68,7 +68,6 @@ QtcPlugin {
         "cmakesnippetprovider.h",
         "cmakeindenter.h",
         "cmakeindenter.cpp",
-        "cmakeinlineeditordialog.cpp",
         "cmakeparamsext.cpp"
         "cmakeautocompleter.h",
         "cmakeautocompleter.cpp",

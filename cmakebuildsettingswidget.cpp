@@ -29,7 +29,6 @@
 #include "configmodelitemdelegate.h"
 #include "cmakeproject.h"
 #include "cmakebuildconfiguration.h"
-#include "cmakeinlineeditordialog.h"
 
 #include <coreplugin/icore.h>
 #include <coreplugin/find/itemviewfind.h>
