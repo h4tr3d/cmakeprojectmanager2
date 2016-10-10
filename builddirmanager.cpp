@@ -328,6 +328,8 @@ void getFileList(const QDir &dir, const QString &projectRoot,
     foreach (const QFileInfo &fileInfo, fileInfoList) {
         QString filePath = fileInfo.absoluteFilePath();
 
+        qApp->processEvents();
+
         if (fileInfo.isDir() && isValidDir(fileInfo)) {
             // Recursive call for subdirectory
             getFileList(QDir(fileInfo.absoluteFilePath()), projectRoot, files);
@@ -372,7 +374,7 @@ void BuildDirManager::generateProjectTree(CMakeProjectNode *root)
         Core::DocumentManager::addDocument(cm);
         m_watchedFiles.insert(cm);
     }
-    
+
     // Build file system tree
     auto cmakefiles = m_files;
     QList<FileNode *> treefiles;
