@@ -209,15 +209,13 @@ QVariant ConfigModel::headerData(int section, Qt::Orientation orientation, int r
 void ConfigModel::appendConfiguration(const QString &key,
                                       const QString &value,
                                       const ConfigModel::DataItem::Type type,
-                                      const QString &description,
-                                      const QStringList &values)
+                                      const QString &description)
 {
     DataItem item;
     item.key = key;
     item.type = type;
     item.value = value;
     item.description = description;
-    item.values = values;
 
     InternalDataItem internalItem(item);
     internalItem.isUserNew = true;

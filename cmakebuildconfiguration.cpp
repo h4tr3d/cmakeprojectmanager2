@@ -251,7 +251,6 @@ QList<ConfigModel::DataItem> CMakeBuildConfiguration::completeCMakeConfiguration
         j.key = QString::fromUtf8(i.key);
         j.value = QString::fromUtf8(i.value);
         j.description = QString::fromUtf8(i.documentation);
-        j.values = i.valueVariants;
 
         j.isAdvanced = i.isAdvanced || i.type == CMakeConfigItem::INTERNAL;
         switch (i.type) {
