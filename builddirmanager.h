@@ -152,6 +152,7 @@ private:
     // For error reporting:
     ProjectExplorer::IOutputParser *m_parser = nullptr;
     QFutureInterface<void> *m_future = nullptr;
+    QFutureInterface<void> *m_treeFuture = nullptr;
 
     QTimer m_reparseTimer;
 

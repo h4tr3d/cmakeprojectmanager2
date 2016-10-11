@@ -26,6 +26,7 @@
 #include <utils/mimetypes/mimedatabase.h>
 
 #include <QDir>
+#include <QDebug>
 
 using namespace ProjectExplorer;
 
@@ -124,6 +125,16 @@ void TreeBuilder::wait()
 bool TreeBuilder::isParsing() const
 {
     return m_watcher.isStarted() || m_watcher.isRunning();
+}
+
+const QFutureWatcher<void> &TreeBuilder::future() const
+{
+    return m_watcher;
+}
+
+QFutureWatcher<void> &TreeBuilder::future()
+{
+    return m_watcher;
 }
 
 void TreeBuilder::buildTree(const Utils::FileName &baseDir,

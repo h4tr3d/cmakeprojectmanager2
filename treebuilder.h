@@ -43,6 +43,9 @@ public:
 
     bool isParsing() const;
 
+    const QFutureWatcher<void>& future() const;
+    QFutureWatcher<void>& future();
+
 #if 0
     void applyFilter(const QString &selectFilesfilter, const QString &hideFilesfilter);
 #endif
