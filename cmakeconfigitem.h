@@ -64,7 +64,7 @@ public:
     bool isAdvanced = false;
     QByteArray value; // converted to string as needed
     QByteArray documentation;
-    QStringList values;
+    QStringList valueVariants;
 };
 using CMakeConfig = QList<CMakeConfigItem>;
 

@@ -847,12 +847,10 @@ CMakeConfig BuildDirManager::parseConfiguration(const Utils::FileName &cacheFile
     for (int i = 0; i < result.count(); ++i) {
         CMakeConfigItem &item = result[i];
         item.isAdvanced = advancedSet.contains(item.key);
-
+        
         if (valuesMap.contains(item.key)) {
-            item.values = CMakeConfigItem::cmakeSplitValue(QString::fromUtf8(valuesMap[item.key]));
-        } else if (item.key  == "CMAKE_BUILD_TYPE") {
-            // WA for known options
-            item.values << "" << "Debug" << "Release" << "MinSizeRel" << "RelWithDebInfo";
+            item.valueVariants = CMakeConfigItem::cmakeSplitValue(QString::fromUtf8(valuesMap[item.key]));
+            qDebug() << "Value variants: " << item.valueVariants << item.key;
         }
     }
 

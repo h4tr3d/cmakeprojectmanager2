@@ -34,11 +34,6 @@ class ConfigModel : public QAbstractTableModel
     Q_OBJECT
 
 public:
-    enum Roles {
-        ItemTypeRole = Qt::UserRole,
-        ItemValuesRole
-    };
-
     class DataItem {
     public:
         enum Type { BOOLEAN, FILE, DIRECTORY, STRING, UNKNOWN};
