@@ -28,6 +28,7 @@
 #include "cmakecbpparser.h"
 #include "cmakeconfigitem.h"
 #include "cmakefile.h"
+#include "treebuilder.h"
 
 #include <projectexplorer/task.h>
 
@@ -116,11 +117,18 @@ private:
     void cleanUpProcess();
     void extractData();
 
-    void startCMake(CMakeTool *tool, const QStringList &generatorArgs, const CMakeConfig &config, const CMakeToolchainInfo &toolchain);
+    void startCMake(CMakeTool *tool, const QStringList &generatorArgs, const CMakeConfig &config, const CMakeToolchainInfo &toolchain);   
 
     void cmakeFinished(int code, QProcess::ExitStatus status);
     void processCMakeOutput();
     void processCMakeError();
+
+    void completeParsing();
+
+    void startTreeBuilder();
+    void waitTreeBuilder();
+    void stopTreeBuilder();
+    void cleanUpTreeBuilder();
 
     QStringList getCXXFlagsFor(const CMakeBuildTarget &buildTarget, QHash<QString, QStringList> &cache);
     bool extractCXXFlagsFromMake(const CMakeBuildTarget &buildTarget, QHash<QString, QStringList> &cache);
@@ -133,10 +141,13 @@ private:
     QTemporaryDir *m_tempDir = nullptr;
     mutable CMakeConfig m_cmakeCache;
 
+    TreeBuilder *m_treeBuilder = nullptr;
+
     QSet<Utils::FileName> m_cmakeFiles;
     QString m_projectName;
     QList<CMakeBuildTarget> m_buildTargets;
     QList<ProjectExplorer::FileNode *> m_files;
+    QList<ProjectExplorer::FileNode *> m_treeFiles;
 
     // For error reporting:
     ProjectExplorer::IOutputParser *m_parser = nullptr;

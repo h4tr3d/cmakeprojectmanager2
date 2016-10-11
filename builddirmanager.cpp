@@ -52,7 +52,6 @@
 #include <utils/qtcassert.h>
 #include <utils/qtcprocess.h>
 #include <utils/synchronousprocess.h>
-#include <utils/mimetypes/mimedatabase.h>
 
 #include <QDateTime>
 #include <QFile>
@@ -100,6 +99,35 @@ static QStringList toArguments(const CMakeConfig &config, const Kit *k) {
         return a;
     });
 }
+
+// --------------------------------------------------------------------
+// Compose source tree:
+// --------------------------------------------------------------------
+namespace {
+bool sortNodesByPath(Node *a, Node *b)
+{
+    return a->filePath() < b->filePath();
+}
+
+QList<FileNode*> composeProjectTree(QList<FileNode*> cmakefiles,
+                                    QList<FileNode*> treefiles)
+{
+    // Step 1: sort lists. treefiles already sorted
+    Utils::sort(cmakefiles, sortNodesByPath);
+
+    // Step 2: get only added files
+    QList<ProjectExplorer::FileNode *> added;
+    QList<ProjectExplorer::FileNode *> deleted;
+    ProjectExplorer::compareSortedLists(cmakefiles, treefiles, deleted, added, sortNodesByPath);
+    qDeleteAll(ProjectExplorer::subtractSortedList(treefiles, added, sortNodesByPath));
+
+    // Step 3: now add new files to the cmakefiles. Note: using cmakefiles as a base is a good idea!
+    cmakefiles.append(added);
+
+    return cmakefiles;
+}
+
+} // ::anonymous
 
 // --------------------------------------------------------------------
 // BuildDirManager:
@@ -180,36 +208,6 @@ void BuildDirManager::cmakeFilesChanged()
     m_reparseTimer.start(1000);
 }
 
-namespace {
-bool removePath(QString path)
-{
-    bool result = true;
-    QFileInfo fi(path);
-
-    if (fi.isDir()) {
-        QDir dir(path);
-        if (dir.exists(path)) {
-            for (QFileInfo &info : dir.entryInfoList(QDir::NoDotAndDotDot | QDir::System | QDir::Hidden  | QDir::AllDirs | QDir::Files, QDir::DirsFirst)) {
-                if (info.isDir()) {
-                    result = removePath(info.absoluteFilePath());
-                }
-                else {
-                    result = QFile::remove(info.absoluteFilePath());
-                }
-
-                if (!result) {
-                    return result;
-                }
-            }
-            result = dir.rmdir(path);
-        }
-    } else {
-        result = QFile::remove(path);
-    }
-    return result;
-}
-} // ::anonymous
-
 void BuildDirManager::forceReparse()
 {
     if (m_buildConfiguration->target()->activeBuildConfiguration() != m_buildConfiguration)
@@ -255,103 +253,6 @@ bool BuildDirManager::persistCMakeState()
     return true;
 }
 
-namespace {
-
-// TODO This code taken from projectnodes.cpp and it marked as HACK. Wait for more clean solution.
-FileType getFileType(const QString &file)
-{
-    using namespace ProjectExplorer;
-
-    Utils::MimeDatabase mdb;
-    const Utils::MimeType mt = mdb.mimeTypeForFile(file);
-    if (!mt.isValid())
-        return UnknownFileType;
-
-    const QString typeName = mt.name();
-    if (typeName == QLatin1String(ProjectExplorer::Constants::CPP_SOURCE_MIMETYPE)
-        || typeName == QLatin1String(ProjectExplorer::Constants::C_SOURCE_MIMETYPE))
-        return SourceType;
-    if (typeName == QLatin1String(ProjectExplorer::Constants::CPP_HEADER_MIMETYPE)
-        || typeName == QLatin1String(ProjectExplorer::Constants::C_HEADER_MIMETYPE))
-        return HeaderType;
-    if (typeName == QLatin1String(ProjectExplorer::Constants::RESOURCE_MIMETYPE))
-        return ResourceType;
-    if (typeName == QLatin1String(ProjectExplorer::Constants::FORM_MIMETYPE))
-        return FormType;
-    if (typeName == QLatin1String(ProjectExplorer::Constants::QML_MIMETYPE))
-        return QMLType;
-    return UnknownFileType;
-}
-
-// Make file node by file name
-FileNode* fileToFileNode(const Utils::FileName &fileName)
-{
-    // TODO
-    ProjectExplorer::FileNode *node = 0;
-    bool generated = false;
-    QString onlyFileName = fileName.fileName();
-    if (   (onlyFileName.startsWith(QLatin1String("moc_")) && onlyFileName.endsWith(QLatin1String(".cxx")))
-           || (onlyFileName.startsWith(QLatin1String("ui_")) && onlyFileName.endsWith(QLatin1String(".h")))
-           || (onlyFileName.startsWith(QLatin1String("qrc_")) && onlyFileName.endsWith(QLatin1String(".cxx"))))
-        generated = true;
-
-    if (fileName.endsWith(QLatin1String("CMakeLists.txt")))
-        node = new ProjectExplorer::FileNode(fileName, ProjectExplorer::ProjectFileType, false);
-    else {
-        ProjectExplorer::FileType fileType = getFileType(fileName.fileName());
-        node = new ProjectExplorer::FileNode(fileName, fileType, generated);
-    }
-
-    return node;
-}
-
-bool isValidDir(const QFileInfo &fileInfo)
-{
-    const QString fileName = fileInfo.fileName();
-    const QString suffix = fileInfo.suffix();
-
-    if (fileName.startsWith(QLatin1Char('.')))
-        return false;
-
-    else if (fileName == QLatin1String("CVS"))
-        return false;
-
-    // ### user include/exclude
-
-    return true;
-}
-
-void getFileList(const QDir &dir, const QString &projectRoot,
-                 QList<ProjectExplorer::FileNode *> &files)
-{
-    const QFileInfoList fileInfoList = dir.entryInfoList(QDir::Files |
-                                                         QDir::Dirs |
-                                                         QDir::NoDotAndDotDot |
-                                                         QDir::NoSymLinks);
-
-    foreach (const QFileInfo &fileInfo, fileInfoList) {
-        QString filePath = fileInfo.absoluteFilePath();
-
-        qApp->processEvents();
-
-        if (fileInfo.isDir() && isValidDir(fileInfo)) {
-            // Recursive call for subdirectory
-            getFileList(QDir(fileInfo.absoluteFilePath()), projectRoot, files);
-        } else {
-            // Skip settings file
-            if (!filePath.endsWith(QLatin1String("CMakeLists.txt.user")))
-                files.append(fileToFileNode(Utils::FileName::fromString(filePath)));
-        }
-    }
-}
-
-bool sortNodesByPath(Node *a, Node *b)
-{
-    return a->filePath() < b->filePath();
-}
-
-} // ::anonymous
-
 void BuildDirManager::generateProjectTree(CMakeProjectNode *root)
 {
     root->setDisplayName(m_projectName);
@@ -379,30 +280,7 @@ void BuildDirManager::generateProjectTree(CMakeProjectNode *root)
         m_watchedFiles.insert(cm);
     }
 
-    // Build file system tree
-    auto cmakefiles = m_files;
-    QList<FileNode *> treefiles;
-
-    // Take file list from file system instead cbp project file
-    const QDir dir(sourceDirectory().toString());
-
-    // Step 1: get files
-    getFileList(dir, sourceDirectory().toString(), treefiles);
-
-    // Step 2: sort lists. It duplicate actions in buildTree()
-    Utils::sort(cmakefiles, sortNodesByPath);
-    Utils::sort(treefiles,  sortNodesByPath);
-
-    // Step 3: get only added files
-    QList<ProjectExplorer::FileNode *> added;
-    QList<ProjectExplorer::FileNode *> deleted;
-    ProjectExplorer::compareSortedLists(cmakefiles, treefiles, deleted, added, sortNodesByPath);
-    qDeleteAll(ProjectExplorer::subtractSortedList(treefiles, added, sortNodesByPath));
-
-    // Step 4: now add new files to the cmakefiles. Note: using cmakefiles as a base is a good idea!
-    cmakefiles.append(added);
-
-    QList<FileNode *> fileNodes = cmakefiles;
+    QList<FileNode *> fileNodes = m_files;
     root->buildTree(fileNodes);
     m_files.clear(); // Some of the FileNodes in files() were deleted!
 }
@@ -520,6 +398,8 @@ CMakeConfig BuildDirManager::parsedConfiguration() const
 
 void BuildDirManager::stopProcess()
 {
+    stopTreeBuilder();
+
     if (!m_cmakeProcess)
         return;
 
@@ -609,6 +489,10 @@ void BuildDirManager::extractData()
     }
 
     m_buildTargets = cbpparser.buildTargets();
+    
+    // Build file system tree
+    m_files = composeProjectTree(m_files, m_treeFiles);
+    m_treeFiles.clear();
 }
 
 void BuildDirManager::startCMake(CMakeTool *tool, const QStringList &generatorArgs,
@@ -679,7 +563,52 @@ void BuildDirManager::startCMake(CMakeTool *tool, const QStringList &generatorAr
 
     m_cmakeProcess->setCommand(tool->cmakeExecutable().toString(), args);
     m_cmakeProcess->start();
+    startTreeBuilder();
     emit configurationStarted();
+}
+
+void BuildDirManager::startTreeBuilder()
+{
+    QTC_ASSERT(!m_treeBuilder, return);
+
+    m_treeBuilder = new TreeBuilder(this);
+
+    connect(m_treeBuilder, &TreeBuilder::parsingFinished, [this]() {
+        m_treeFiles = m_treeBuilder->fileNodes();
+        cleanUpTreeBuilder();
+        completeParsing();
+    });
+
+    connect(m_treeBuilder, &TreeBuilder::parsingProgress, [this](const Utils::FileName &fn) {
+        qDebug() << fn;
+    });
+
+    m_treeBuilder->startParsing(sourceDirectory());
+}
+
+void BuildDirManager::waitTreeBuilder()
+{
+    if (m_treeBuilder)
+        m_treeBuilder->wait();
+}
+
+void BuildDirManager::stopTreeBuilder()
+{
+    if (!m_treeBuilder)
+        return;
+
+    m_treeBuilder->cancel();
+    cleanUpTreeBuilder();
+}
+
+void BuildDirManager::cleanUpTreeBuilder()
+{
+    if (!m_treeBuilder)
+        return;
+
+    m_treeBuilder->cancel();
+    delete m_treeBuilder;
+    m_treeBuilder = nullptr;
 }
 
 void BuildDirManager::cmakeFinished(int code, QProcess::ExitStatus status)
@@ -691,8 +620,6 @@ void BuildDirManager::cmakeFinished(int code, QProcess::ExitStatus status)
     processCMakeError();
 
     cleanUpProcess();
-
-    extractData(); // try even if cmake failed...
 
     QString msg;
     if (status != QProcess::NormalExit)
@@ -712,8 +639,7 @@ void BuildDirManager::cmakeFinished(int code, QProcess::ExitStatus status)
     delete m_future;
     m_future = nullptr;
 
-    m_hasData = true;
-    emit dataAvailable();
+    completeParsing();
 }
 
 static QString lineSplit(const QString &rest, const QByteArray &array, std::function<void(const QString &)> f)
@@ -742,6 +668,16 @@ void BuildDirManager::processCMakeError()
         m_parser->stdError(s);
         Core::MessageManager::write(s);
     });
+}
+
+void BuildDirManager::completeParsing()
+{
+    if (m_cmakeProcess || m_treeBuilder)
+        return;
+
+    extractData(); // try even if cmake failed...
+    m_hasData = true;
+    emit dataAvailable();
 }
 
 QStringList BuildDirManager::getCXXFlagsFor(const CMakeBuildTarget &buildTarget,

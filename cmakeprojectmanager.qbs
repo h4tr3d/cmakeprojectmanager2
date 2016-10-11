@@ -74,6 +74,8 @@ QtcPlugin {
         "configmodel.cpp",
         "configmodel.h",
         "configmodelitemdelegate.cpp",
-        "configmodelitemdelegate.h"
+        "configmodelitemdelegate.h",
+        "treebuilder.cpp",
+        "treebuilder.h"
     ]
 }
