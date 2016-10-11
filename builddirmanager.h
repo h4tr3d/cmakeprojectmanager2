@@ -45,6 +45,7 @@ QT_FORWARD_DECLARE_CLASS(QTemporaryDir);
 QT_FORWARD_DECLARE_CLASS(QFileSystemWatcher);
 
 namespace Core { class IDocument; }
+namespace CppTools { class ProjectPartBuilder; }
 
 namespace ProjectExplorer {
 class FileNode;
@@ -83,6 +84,7 @@ public:
     bool persistCMakeState();
 
     void generateProjectTree(CMakeProjectNode *root);
+    QSet<Core::Id> updateCodeModel(CppTools::ProjectPartBuilder &ppBuilder);
 
     QList<CMakeBuildTarget> buildTargets() const;
     CMakeConfig parsedConfiguration() const;
@@ -119,6 +121,10 @@ private:
     void cmakeFinished(int code, QProcess::ExitStatus status);
     void processCMakeOutput();
     void processCMakeError();
+
+    QStringList getCXXFlagsFor(const CMakeBuildTarget &buildTarget, QHash<QString, QStringList> &cache);
+    bool extractCXXFlagsFromMake(const CMakeBuildTarget &buildTarget, QHash<QString, QStringList> &cache);
+    bool extractCXXFlagsFromNinja(const CMakeBuildTarget &buildTarget, QHash<QString, QStringList> &cache);
 
     bool m_hasData = false;
 

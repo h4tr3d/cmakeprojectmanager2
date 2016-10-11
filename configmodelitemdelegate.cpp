@@ -20,29 +20,24 @@
 #include "configmodel.h"
 
 #include <QComboBox>
-#include <QDebug>
 
 namespace CMakeProjectManager {
- 
+
 ConfigModelItemDelegate::ConfigModelItemDelegate(QObject* parent)
     : QStyledItemDelegate(parent)
-{
-}
- 
- 
+{ }
+
 ConfigModelItemDelegate::~ConfigModelItemDelegate()
-{
-}
- 
- 
+{ }
+
 QWidget* ConfigModelItemDelegate::createEditor(QWidget* parent, const QStyleOptionViewItem& option, const QModelIndex& index) const
 {
     // ComboBox ony in column 2
     if (index.column() != 1)
         return QStyledItemDelegate::createEditor(parent, option, index);
-  
+
     auto model = index.model();
-    auto values = model->data(index, ConfigModel::ItemValuesRole).toStringList();    
+    auto values = model->data(index, ConfigModel::ItemValuesRole).toStringList();
     if (values.isEmpty())
         return QStyledItemDelegate::createEditor(parent, option, index);
 
@@ -50,11 +45,10 @@ QWidget* ConfigModelItemDelegate::createEditor(QWidget* parent, const QStyleOpti
     auto cb = new QComboBox(parent);
     cb->addItems(values);
     cb->setEditable(true);
-    
+
     return cb;
 }
- 
- 
+
 void ConfigModelItemDelegate::setEditorData(QWidget* editor, const QModelIndex& index) const
 {
     if (QComboBox* cb = qobject_cast<QComboBox*>(editor)) {
@@ -70,8 +64,7 @@ void ConfigModelItemDelegate::setEditorData(QWidget* editor, const QModelIndex& 
         QStyledItemDelegate::setEditorData(editor, index);
     }
 }
- 
- 
+
 void ConfigModelItemDelegate::setModelData(QWidget* editor, QAbstractItemModel* model, const QModelIndex& index) const
 {
     if (QComboBox* cb = qobject_cast<QComboBox*>(editor))

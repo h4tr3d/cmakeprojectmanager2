@@ -29,7 +29,6 @@
 #include <utils/qtcassert.h>
 
 #include <QFont>
-#include <QDebug>
 
 namespace CMakeProjectManager {
 
@@ -88,7 +87,7 @@ QVariant ConfigModel::data(const QModelIndex &index, int role) const
     QTC_ASSERT(index.column() >= 0 && index.column() < columnCount(QModelIndex()), return QVariant());
 
     const InternalDataItem &item = m_configuration[index.row()];
-    
+
     if (index.column() < 2) {
         switch (role) {
         case ItemTypeRole:

@@ -33,6 +33,7 @@
 #include <projectexplorer/buildconfiguration.h>
 #include <projectexplorer/abi.h>
 
+namespace CppTools { class ProjectPartBuilder; }
 namespace ProjectExplorer { class ToolChain; }
 
 namespace CMakeProjectManager {
@@ -86,6 +87,7 @@ public:
 
     QList<CMakeBuildTarget> buildTargets() const;
     void generateProjectTree(CMakeProjectNode *root) const;
+    QSet<Core::Id> updateCodeModel(CppTools::ProjectPartBuilder &ppBuilder);
 
     static Utils::FileName
     shadowBuildDirectory(const Utils::FileName &projectFilePath, const ProjectExplorer::Kit *k,
