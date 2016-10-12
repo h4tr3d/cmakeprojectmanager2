@@ -347,9 +347,14 @@ void BuildDirManager::parse()
     if (mustUpdate) {
         startCMake(tool, generatorArgs, CMakeConfig(), CMakeToolchainInfo());
     } else {
+        // TODO: provide more clean solution
+#if 0
         extractData();
         m_hasData = true;
         emit dataAvailable();
+#else
+        startTreeBuilder();
+#endif
     }
 }
 
