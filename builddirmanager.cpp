@@ -579,6 +579,7 @@ void BuildDirManager::startTreeBuilder()
     m_treeBuilder = new TreeBuilder(this);
 
     connect(m_treeBuilder, &TreeBuilder::parsingFinished, [this]() {
+        qDeleteAll(m_treeFiles);
         m_treeFiles = m_treeBuilder->fileNodes();
         cleanUpTreeBuilder();
         completeParsing();
