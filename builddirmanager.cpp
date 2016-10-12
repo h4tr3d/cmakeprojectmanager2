@@ -191,9 +191,9 @@ const CMakeToolchainInfo &BuildDirManager::cmakeToolchainInfo() const
 
 bool BuildDirManager::isParsing() const
 {
-    if (m_cmakeProcess)
-        return m_cmakeProcess->state() != QProcess::NotRunning;
-    return false;
+    const bool parsingTree = m_treeBuilder && m_treeBuilder->isParsing();
+    const bool parsingCMake = m_cmakeProcess && m_cmakeProcess->state() != QProcess::NotRunning;
+    return parsingTree || parsingCMake;
 }
 
 void BuildDirManager::cmakeFilesChanged()
