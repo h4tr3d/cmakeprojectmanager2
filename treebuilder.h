@@ -78,6 +78,8 @@ private:
     QFutureWatcher<void> m_watcher;
     int m_futureCount = 0;
 
+    bool m_parsing = false;
+
 #if 0
     QList<ProjectExplorer::Glob> m_hideFilesFilter;
     QList<ProjectExplorer::Glob> m_showFilesFilter;

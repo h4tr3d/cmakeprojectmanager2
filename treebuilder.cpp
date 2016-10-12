@@ -83,6 +83,7 @@ void TreeBuilder::startParsing(const Utils::FileName &baseDir)
     m_filesForFuture.clear();
     m_pathsForFuture.clear();
 
+    m_parsing = true;
     m_watcher.setFuture(Utils::runAsync(&TreeBuilder::run, this));
 }
 
@@ -125,6 +126,7 @@ void TreeBuilder::buildTreeFinished()
     m_filesForFuture.clear();
     m_pathsForFuture.clear();
 
+    m_parsing = false;
     emit parsingFinished();
 }
 
@@ -141,7 +143,7 @@ void TreeBuilder::wait()
 
 bool TreeBuilder::isParsing() const
 {
-    return m_watcher.isStarted() || m_watcher.isRunning();
+    return m_parsing;
 }
 
 QFuture<void> TreeBuilder::future() const
@@ -259,9 +261,11 @@ bool TreeBuilder::isValidFile(const QFileInfo &fileInfo)
         }
     }
 
+#if 0
     if (!isValid) {
         qDebug() << "Skip file:" << fileInfo.filePath();
     }
+#endif
 
     return isValid;
 }

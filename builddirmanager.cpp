@@ -462,6 +462,7 @@ void BuildDirManager::extractData()
     auto extractTreeData = [this] (void*) {
         // Build file system tree
         auto treeFiles = m_treeBuilder->fileNodes();
+        qDebug() << "Extract data," << "Tree:" << treeFiles.count() << "CMake:" << m_files.count();
         m_files = composeProjectTree(m_files, treeFiles);
     };
     std::unique_ptr<void, decltype(extractTreeData)> scopeExitRun{reinterpret_cast<void*>(1), extractTreeData};
