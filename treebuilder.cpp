@@ -34,6 +34,12 @@ namespace CMakeProjectManager {
 
 namespace {
 
+Utils::MimeType getFileMimeType(const QString &path)
+{
+    Utils::MimeDatabase mdb;
+    return mdb.mimeTypeForFile(path);
+}
+
 // TODO This code taken from projectnodes.cpp and it marked as HACK. Wait for more clean solution.
 FileType getFileType(const QString &file)
 {
@@ -228,7 +234,36 @@ bool TreeBuilder::isValidDir(const QFileInfo &fileInfo)
 
 bool TreeBuilder::isValidFile(const QFileInfo &fileInfo)
 {
-    return !fileInfo.fileName().endsWith(QLatin1String("CMakeLists.txt.user"));
+    auto fn = fileInfo.fileName();
+    auto isValid =
+        !fn.endsWith(QLatin1String("CMakeLists.txt.user")) &&
+        !fn.endsWith(QLatin1String(".a")) &&
+        !fn.endsWith(QLatin1String(".o")) &&
+        !fn.endsWith(QLatin1String(".d")) &&
+        !fn.endsWith(QLatin1String(".exe")) &&
+        !fn.endsWith(QLatin1String(".dll")) &&
+        !fn.endsWith(QLatin1String(".obj")) &&
+        !fn.endsWith(QLatin1String(".elf"));
+
+    // Skip in general, all application/octet-stream files
+    // TODO be careful, some wrong "text" files can be reported as binary one
+    if (isValid) {
+        auto type = getFileMimeType(fileInfo.filePath());
+        if (type.isValid()) {
+            isValid = type.name() != QLatin1String("application/octet-stream");
+            if (!isValid) {
+                auto parents = type.parentMimeTypes();
+                // We still can edit it
+                isValid = parents.contains(QLatin1String("text/plain"));
+            }
+        }
+    }
+
+    if (!isValid) {
+        qDebug() << "Skip file:" << fileInfo.filePath();
+    }
+
+    return isValid;
 }
 
 #if 0
