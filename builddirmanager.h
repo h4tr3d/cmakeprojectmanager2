@@ -42,6 +42,8 @@
 #include <QSet>
 #include <QTimer>
 
+#include <memory>
+
 QT_FORWARD_DECLARE_CLASS(QTemporaryDir);
 QT_FORWARD_DECLARE_CLASS(QFileSystemWatcher);
 
@@ -126,9 +128,6 @@ private:
     void completeParsing();
 
     void startTreeBuilder();
-    void waitTreeBuilder();
-    void stopTreeBuilder();
-    void cleanUpTreeBuilder();
 
     QStringList getCXXFlagsFor(const CMakeBuildTarget &buildTarget, QHash<QString, QStringList> &cache);
     bool extractCXXFlagsFromMake(const CMakeBuildTarget &buildTarget, QHash<QString, QStringList> &cache);
@@ -141,13 +140,12 @@ private:
     QTemporaryDir *m_tempDir = nullptr;
     mutable CMakeConfig m_cmakeCache;
 
-    TreeBuilder *m_treeBuilder = nullptr;
+    std::unique_ptr<TreeBuilder> m_treeBuilder;
 
     QSet<Utils::FileName> m_cmakeFiles;
     QString m_projectName;
     QList<CMakeBuildTarget> m_buildTargets;
     QList<ProjectExplorer::FileNode *> m_files;
-    QList<ProjectExplorer::FileNode *> m_treeFiles;
 
     // For error reporting:
     ProjectExplorer::IOutputParser *m_parser = nullptr;

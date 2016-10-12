@@ -134,7 +134,8 @@ QList<FileNode*> composeProjectTree(QList<FileNode*> cmakefiles,
 // --------------------------------------------------------------------
 
 BuildDirManager::BuildDirManager(CMakeBuildConfiguration *bc) :
-    m_buildConfiguration(bc)
+    m_buildConfiguration(bc),
+    m_treeBuilder(new TreeBuilder(this))
 {
     QTC_ASSERT(bc, return);
     m_projectName = sourceDirectory().fileName();
@@ -144,6 +145,10 @@ BuildDirManager::BuildDirManager(CMakeBuildConfiguration *bc) :
     connect(&m_reparseTimer, &QTimer::timeout, this, &BuildDirManager::parse);
     connect(Core::EditorManager::instance(), &Core::EditorManager::aboutToSave,
             this, &BuildDirManager::handleDocumentSaves);
+
+    connect(m_treeBuilder.get(), &TreeBuilder::parsingFinished, [this]() {
+        completeParsing();
+    });
 }
 
 BuildDirManager::~BuildDirManager()
@@ -347,14 +352,9 @@ void BuildDirManager::parse()
     if (mustUpdate) {
         startCMake(tool, generatorArgs, CMakeConfig(), CMakeToolchainInfo());
     } else {
-        // TODO: provide more clean solution
-#if 0
         extractData();
         m_hasData = true;
         emit dataAvailable();
-#else
-        startTreeBuilder();
-#endif
     }
 }
 
@@ -403,7 +403,7 @@ CMakeConfig BuildDirManager::parsedConfiguration() const
 
 void BuildDirManager::stopProcess()
 {
-    stopTreeBuilder();
+    m_treeBuilder->cancel();
 
     if (!m_cmakeProcess)
         return;
@@ -417,6 +417,7 @@ void BuildDirManager::stopProcess()
     }
 
     cleanUpProcess();
+    m_treeBuilder->wait();
 
     if (!m_future)
       return;
@@ -460,8 +461,8 @@ void BuildDirManager::extractData()
     // Run this code on any scope exit
     auto extractTreeData = [this] (void*) {
         // Build file system tree
-        m_files = composeProjectTree(m_files, m_treeFiles);
-        m_treeFiles.clear();
+        auto treeFiles = m_treeBuilder->fileNodes();
+        m_files = composeProjectTree(m_files, treeFiles);
     };
     std::unique_ptr<void, decltype(extractTreeData)> scopeExitRun{reinterpret_cast<void*>(1), extractTreeData};
 
@@ -578,52 +579,13 @@ void BuildDirManager::startCMake(CMakeTool *tool, const QStringList &generatorAr
 
 void BuildDirManager::startTreeBuilder()
 {
-    QTC_ASSERT(!m_treeBuilder, return);
-
-    m_treeBuilder = new TreeBuilder(this);
-
-    connect(m_treeBuilder, &TreeBuilder::parsingFinished, [this]() {
-        qDeleteAll(m_treeFiles);
-        m_treeFiles = m_treeBuilder->fileNodes();
-        cleanUpTreeBuilder();
-        completeParsing();
-    });
-
-    //connect(m_treeBuilder, &TreeBuilder::parsingProgress, [this](const Utils::FileName &fn) {
-    //    Core::MessageManager::write(QString("Scan: %1").arg(fn.toString()));
-    //});
-
+    QTC_ASSERT(m_treeBuilder, return);
     // Start parsing, that mean future creation
     m_treeBuilder->startParsing(sourceDirectory());
 
     Core::ProgressManager::addTask(m_treeBuilder->future(),
                                    tr("Scanning tree \"%1\"").arg(m_buildConfiguration->target()->project()->displayName()),
                                    "CMake.Scanning");
-}
-
-void BuildDirManager::waitTreeBuilder()
-{
-    if (m_treeBuilder)
-        m_treeBuilder->wait();
-}
-
-void BuildDirManager::stopTreeBuilder()
-{
-    if (!m_treeBuilder)
-        return;
-
-    m_treeBuilder->cancel();
-    cleanUpTreeBuilder();
-}
-
-void BuildDirManager::cleanUpTreeBuilder()
-{
-    if (!m_treeBuilder)
-        return;
-
-    m_treeBuilder->cancel();
-    delete m_treeBuilder;
-    m_treeBuilder = nullptr;
 }
 
 void BuildDirManager::cmakeFinished(int code, QProcess::ExitStatus status)
@@ -687,7 +649,7 @@ void BuildDirManager::processCMakeError()
 
 void BuildDirManager::completeParsing()
 {
-    if (m_cmakeProcess || m_treeBuilder)
+    if (m_cmakeProcess || m_treeBuilder->isParsing())
         return;
 
     extractData(); // try even if cmake failed...
