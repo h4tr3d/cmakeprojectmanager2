@@ -457,6 +457,14 @@ void BuildDirManager::extractData()
 
     resetData();
 
+    // Run this code on any scope exit
+    auto extractTreeData = [this] (void*) {
+        // Build file system tree
+        m_files = composeProjectTree(m_files, m_treeFiles);
+        m_treeFiles.clear();
+    };
+    std::unique_ptr<void, decltype(extractTreeData)> scopeExitRun{reinterpret_cast<void*>(1), extractTreeData};
+
     m_projectName = sourceDirectory().fileName();
     m_files.append(new FileNode(topCMake, ProjectFileType, false));
     // Do not insert topCMake into m_cmakeFiles: The project already watches that!
@@ -494,10 +502,6 @@ void BuildDirManager::extractData()
     }
 
     m_buildTargets = cbpparser.buildTargets();
-    
-    // Build file system tree
-    m_files = composeProjectTree(m_files, m_treeFiles);
-    m_treeFiles.clear();
 }
 
 void BuildDirManager::startCMake(CMakeTool *tool, const QStringList &generatorArgs,
