@@ -61,6 +61,9 @@
 #include <QSet>
 #include <QTemporaryDir>
 
+#include <algorithm>
+#include <chrono>
+
 using namespace ProjectExplorer;
 
 // --------------------------------------------------------------------
@@ -115,6 +118,7 @@ QList<FileNode*> composeProjectTree(QList<FileNode*> cmakefiles,
     // Step 1: sort lists. treefiles already sorted
     Utils::sort(cmakefiles, sortNodesByPath);
 
+#if 1
     // Step 2: get only added files
     QList<ProjectExplorer::FileNode *> added;
     QList<ProjectExplorer::FileNode *> deleted;
@@ -125,6 +129,34 @@ QList<FileNode*> composeProjectTree(QList<FileNode*> cmakefiles,
     cmakefiles.append(added);
 
     return cmakefiles;
+#else
+    QList<FileNode*> added;
+    QList<FileNode*> clean;
+    QList<FileNode*> result;
+
+    // set_difference compose output from items that does not present in second sequence
+    std::set_difference(treefiles.begin(),
+                        treefiles.end(),
+                        cmakefiles.begin(),
+                        cmakefiles.end(),
+                        std::back_inserter(added),
+                        sortNodesByPath);
+    std::set_difference(treefiles.begin(),
+                        treefiles.end(),
+                        added.begin(),
+                        added.end(),
+                        std::back_inserter(clean),
+                        sortNodesByPath);
+    std::set_union(cmakefiles.begin(),
+                   cmakefiles.end(),
+                   added.begin(),
+                   added.end(),
+                   std::back_inserter(result),
+                   sortNodesByPath);
+    qDeleteAll(clean);
+
+    return result;
+#endif
 }
 
 } // ::anonymous
@@ -280,9 +312,14 @@ void BuildDirManager::generateProjectTree(CMakeProjectNode *root)
         m_watchedFiles.insert(cm);
     }
 
+    using namespace std::chrono;
+
+    auto tm = system_clock::now();
     QList<FileNode *> fileNodes = m_files;
     root->buildTree(fileNodes);
     m_files.clear(); // Some of the FileNodes in files() were deleted!
+    auto dist = system_clock::now() - tm;
+    qDebug() << "buildTree time:" << duration_cast<milliseconds>(dist).count();
 }
 
 QSet<Core::Id> BuildDirManager::updateCodeModel(CppTools::ProjectPartBuilder &ppBuilder)
@@ -494,9 +531,13 @@ void BuildDirManager::extractData()
     }
 
     m_buildTargets = cbpparser.buildTargets();
-    
+
     // Build file system tree
+    auto tm = std::chrono::system_clock::now();
     m_files = composeProjectTree(m_files, m_treeFiles);
+    auto dist = std::chrono::system_clock::now() - tm;
+    qDebug() << "composeProjectTree time:" << std::chrono::duration_cast<std::chrono::milliseconds>(dist).count();
+
     m_treeFiles.clear();
 }
 
