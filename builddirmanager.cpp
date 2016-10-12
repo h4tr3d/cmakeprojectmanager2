@@ -575,25 +575,12 @@ void BuildDirManager::startCMake(CMakeTool *tool, const QStringList &generatorAr
 void BuildDirManager::startTreeBuilder()
 {
     QTC_ASSERT(!m_treeBuilder, return);
-    QTC_ASSERT(!m_treeFuture, return);
 
     m_treeBuilder = new TreeBuilder(this);
-
-    m_treeFuture = new QFutureInterface<void>();
-    m_treeFuture->setProgressRange(0, 1);
-    Core::ProgressManager::addTask(m_treeFuture->future(),
-                                   tr("Scanning tree \"%1\"").arg(m_buildConfiguration->target()->project()->displayName()),
-                                   "CMake.Scanning");
 
     connect(m_treeBuilder, &TreeBuilder::parsingFinished, [this]() {
         m_treeFiles = m_treeBuilder->fileNodes();
         cleanUpTreeBuilder();
-
-        m_treeFuture->setProgressValue(1);
-        m_treeFuture->reportFinished();
-        delete m_treeFuture;
-        m_treeFuture = nullptr;
-
         completeParsing();
     });
 
@@ -601,7 +588,12 @@ void BuildDirManager::startTreeBuilder()
     //    Core::MessageManager::write(QString("Scan: %1").arg(fn.toString()));
     //});
 
+    // Start parsing, that mean future creation
     m_treeBuilder->startParsing(sourceDirectory());
+
+    Core::ProgressManager::addTask(m_treeBuilder->future(),
+                                   tr("Scanning tree \"%1\"").arg(m_buildConfiguration->target()->project()->displayName()),
+                                   "CMake.Scanning");
 }
 
 void BuildDirManager::waitTreeBuilder()
@@ -617,13 +609,6 @@ void BuildDirManager::stopTreeBuilder()
 
     m_treeBuilder->cancel();
     cleanUpTreeBuilder();
-
-    if (!m_treeFuture)
-        return;
-    m_treeFuture->reportCanceled();
-    m_treeFuture->reportFinished();
-    delete m_treeFuture;
-    m_treeFuture = nullptr;
 }
 
 void BuildDirManager::cleanUpTreeBuilder()

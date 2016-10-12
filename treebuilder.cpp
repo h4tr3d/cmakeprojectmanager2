@@ -83,21 +83,32 @@ void TreeBuilder::startParsing(const Utils::FileName &baseDir)
 void TreeBuilder::run(QFutureInterface<void> &fi)
 {
     m_futureCount = 0;
+    fi.setProgressRange(0, 10);
+
     buildTree(m_baseDir, fi, 5);
+
+    fi.setProgressValue(4);
 
     // Sort and prepare
 
     // Step 1: sort collections
     Utils::sort(m_filesForFuture);
-    if (fi.isCanceled())
+    if (fi.isCanceled())  {
+        fi.setProgressValue(10);
         return;
+    }
+    fi.setProgressValue(6);
 
     Utils::sort(m_pathsForFuture);
-    if (fi.isCanceled())
+    if (fi.isCanceled())  {
+        fi.setProgressValue(10);
         return;
+    }
+    fi.setProgressValue(8);
 
     // Step 2: remove dups
     m_paths = Utils::filteredUnique(m_pathsForFuture);
+    fi.setProgressValue(10);
 }
 
 void TreeBuilder::buildTreeFinished()
@@ -127,14 +138,9 @@ bool TreeBuilder::isParsing() const
     return m_watcher.isStarted() || m_watcher.isRunning();
 }
 
-const QFutureWatcher<void> &TreeBuilder::future() const
+QFuture<void> TreeBuilder::future() const
 {
-    return m_watcher;
-}
-
-QFutureWatcher<void> &TreeBuilder::future()
-{
-    return m_watcher;
+    return m_watcher.future();
 }
 
 void TreeBuilder::buildTree(const Utils::FileName &baseDir,
@@ -152,9 +158,10 @@ void TreeBuilder::buildTree(const Utils::FileName &baseDir,
         Utils::FileName fn = Utils::FileName(fileInfo);
         if (m_futureCount % 100) {
             emit parsingProgress(fn);
-            if (fi.isCanceled())
-                return;
         }
+
+        if (fi.isCanceled())
+            return;
 
         ++m_futureCount;
         if (fileInfo.isDir() && isValidDir(fileInfo)) {
