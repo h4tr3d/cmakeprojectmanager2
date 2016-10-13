@@ -819,7 +819,7 @@ void BuildDirManager::handleDocumentSaves(Core::IDocument *document)
 
     if (!m_cmakeFiles.contains(document->filePath()) ||
         m_buildConfiguration->target() != t ||
-        m_buildConfiguration == bc)
+        m_buildConfiguration != bc)
         return;
 
     m_reparseTimer.start(100);
