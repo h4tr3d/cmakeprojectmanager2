@@ -296,10 +296,12 @@ void BuildDirManager::generateProjectTree(CMakeProjectNode *root)
 QSet<Core::Id> BuildDirManager::updateCodeModel(CppTools::ProjectPartBuilder &ppBuilder)
 {
     QSet<Core::Id> languages;
-    ToolChain *tc = ToolChainKitInformation::toolChain(kit(), ToolChain::Language::Cxx);
+    ToolChain *tcCxx = ToolChainKitInformation::toolChain(kit(), ToolChain::Language::Cxx);
+    ToolChain *tcC = ToolChainKitInformation::toolChain(kit(), ToolChain::Language::C);
     const Utils::FileName sysroot = SysRootKitInformation::sysRoot(kit());
 
-    QHash<QString, QStringList> targetDataCache;
+    QHash<QString, QStringList> targetDataCacheCxx;
+    QHash<QString, QStringList> targetDataCacheC;
     foreach (const CMakeBuildTarget &cbt, buildTargets()) {
         if (cbt.targetType == UtilityType)
             continue;
@@ -307,10 +309,15 @@ QSet<Core::Id> BuildDirManager::updateCodeModel(CppTools::ProjectPartBuilder &pp
         // CMake shuffles the include paths that it reports via the CodeBlocks generator
         // So remove the toolchain include paths, so that at least those end up in the correct
         // place.
-        QStringList cxxflags = getCXXFlagsFor(cbt, targetDataCache);
+        auto cxxflags = getFlagsFor(cbt, targetDataCacheCxx, ToolChain::Language::Cxx);
+        auto cflags = getFlagsFor(cbt, targetDataCacheC, ToolChain::Language::C);
         QSet<QString> tcIncludes;
-        foreach (const HeaderPath &hp, tc->systemHeaderPaths(cxxflags, sysroot))
-            tcIncludes.insert(hp.path());
+        if (tcCxx)
+            foreach (const HeaderPath &hp, tcCxx->systemHeaderPaths(cxxflags, sysroot))
+                tcIncludes.insert(hp.path());
+        if (tcC)
+            foreach (const HeaderPath &hp, tcC->systemHeaderPaths(cflags, sysroot))
+                tcIncludes.insert(hp.path());
         QStringList includePaths;
         foreach (const QString &i, cbt.includeFiles) {
             if (!tcIncludes.contains(i))
@@ -318,7 +325,7 @@ QSet<Core::Id> BuildDirManager::updateCodeModel(CppTools::ProjectPartBuilder &pp
         }
         includePaths += buildDirectory().toString();
         ppBuilder.setIncludePaths(includePaths);
-        ppBuilder.setCFlags(cxxflags);
+        ppBuilder.setCFlags(cflags);
         ppBuilder.setCxxFlags(cxxflags);
         ppBuilder.setDefines(cbt.defines);
         ppBuilder.setDisplayName(cbt.title);
@@ -661,27 +668,42 @@ void BuildDirManager::completeParsing()
     emit dataAvailable();
 }
 
-QStringList BuildDirManager::getCXXFlagsFor(const CMakeBuildTarget &buildTarget,
-                                            QHash<QString, QStringList> &cache)
+QStringList BuildDirManager::getFlagsFor(const CMakeBuildTarget &buildTarget,
+                                         QHash<QString, QStringList> &cache,
+                                         ToolChain::Language lang)
 {
     // check cache:
     auto it = cache.constFind(buildTarget.title);
     if (it != cache.constEnd())
         return *it;
 
-    if (extractCXXFlagsFromMake(buildTarget, cache))
+    if (extractFlagsFromMake(buildTarget, cache, lang))
         return cache.value(buildTarget.title);
 
-    if (extractCXXFlagsFromNinja(buildTarget, cache))
+    if (extractFlagsFromNinja(buildTarget, cache, lang))
         return cache.value(buildTarget.title);
 
     cache.insert(buildTarget.title, QStringList());
     return QStringList();
 }
 
-bool BuildDirManager::extractCXXFlagsFromMake(const CMakeBuildTarget &buildTarget,
-                                              QHash<QString, QStringList> &cache)
+bool BuildDirManager::extractFlagsFromMake(const CMakeBuildTarget &buildTarget,
+                                           QHash<QString, QStringList> &cache,
+                                           ToolChain::Language lang)
 {
+    QString flagsPrefix;
+    switch (lang)
+    {
+    case ToolChain::Language::Cxx:
+        flagsPrefix = QLatin1String("CXX_FLAGS =");
+        break;
+    case ToolChain::Language::C:
+        flagsPrefix = QLatin1String("C_FLAGS =");
+        break;
+    default:
+        return false;
+    }
+
     QString makeCommand = QDir::fromNativeSeparators(buildTarget.makeCommand);
     int startIndex = makeCommand.indexOf('\"');
     int endIndex = makeCommand.indexOf('\"', startIndex + 1);
@@ -691,16 +713,29 @@ bool BuildDirManager::extractCXXFlagsFromMake(const CMakeBuildTarget &buildTarge
         int slashIndex = makefile.lastIndexOf('/');
         makefile.truncate(slashIndex);
         makefile.append("/CMakeFiles/" + buildTarget.title + ".dir/flags.make");
+        // Remove un-needed shell escaping:
+        makefile = makefile.remove("\\");
         QFile file(makefile);
         if (file.exists()) {
             file.open(QIODevice::ReadOnly | QIODevice::Text);
             QTextStream stream(&file);
             while (!stream.atEnd()) {
                 QString line = stream.readLine().trimmed();
-                if (line.startsWith("CXX_FLAGS =")) {
+                if (line.startsWith(flagsPrefix)) {
                     // Skip past =
-                    cache.insert(buildTarget.title,
-                                 line.mid(11).trimmed().split(' ', QString::SkipEmptyParts));
+                    auto flags =
+                        Utils::transform(line.mid(flagsPrefix.length()).trimmed().split(' ', QString::SkipEmptyParts), [](QString flag) -> QString {
+                            // Remove \' for function-style macrosses:
+                            // -D'MACRO()'=xxx
+                            // -D'MACRO()=xxx'
+                            // -D'MACRO()'
+                            return flag
+                                    .replace(QRegExp("^-D(\\s*)'([0-9a-ZA-Z_\\(\\)]+)'="),      "-D\\1\\2=")
+                                    .replace(QRegExp("^-D(\\s*)'([0-9a-ZA-Z_\\(\\)]+)=(.+)'$"), "-D\\1\\2=\\3")
+                                    .replace(QRegExp("^-D(\\s*)'([0-9a-ZA-Z_\\(\\)]+)'$"),      "-D\\1\\2");
+                        });
+                    cache.insert(buildTarget.title, flags);
+                    qDebug() << "Flags:" << (lang == ToolChain::Language::Cxx ? "C++" : "C") << flags;
                     return true;
                 }
             }
@@ -709,12 +744,26 @@ bool BuildDirManager::extractCXXFlagsFromMake(const CMakeBuildTarget &buildTarge
     return false;
 }
 
-bool BuildDirManager::extractCXXFlagsFromNinja(const CMakeBuildTarget &buildTarget,
-                                               QHash<QString, QStringList> &cache)
+bool BuildDirManager::extractFlagsFromNinja(const CMakeBuildTarget &buildTarget,
+                                            QHash<QString, QStringList> &cache,
+                                            ToolChain::Language lang)
 {
     Q_UNUSED(buildTarget)
     if (!cache.isEmpty()) // We fill the cache in one go!
         return false;
+
+    QString compilerPrefix;
+    switch (lang)
+    {
+    case ToolChain::Language::Cxx:
+        compilerPrefix = QLatin1String("CXX_COMPILER");
+        break;
+    case ToolChain::Language::C:
+        compilerPrefix = QLatin1String("C_COMPILER");
+        break;
+    default:
+        return false;
+    }
 
     // Attempt to find build.ninja file and obtain FLAGS (CXX_FLAGS) from there if no suitable flags.make were
     // found
@@ -748,7 +797,7 @@ bool BuildDirManager::extractCXXFlagsFromNinja(const CMakeBuildTarget &buildTarg
                 currentTarget = line.mid(pos + 1);
             }
         } else if (!currentTarget.isEmpty() && line.startsWith("build")) {
-            cxxFound = line.indexOf("CXX_COMPILER") != -1;
+            cxxFound = line.indexOf(compilerPrefix) != -1;
         } else if (cxxFound && line.startsWith("FLAGS =")) {
             // Skip past =
             cache.insert(currentTarget, line.mid(7).trimmed().split(' ', QString::SkipEmptyParts));

@@ -31,6 +31,7 @@
 #include "treebuilder.h"
 
 #include <projectexplorer/task.h>
+#include <projectexplorer/toolchain.h>
 
 #include <utils/environment.h>
 #include <utils/qtcprocess.h>
@@ -129,9 +130,9 @@ private:
 
     void startTreeBuilder();
 
-    QStringList getCXXFlagsFor(const CMakeBuildTarget &buildTarget, QHash<QString, QStringList> &cache);
-    bool extractCXXFlagsFromMake(const CMakeBuildTarget &buildTarget, QHash<QString, QStringList> &cache);
-    bool extractCXXFlagsFromNinja(const CMakeBuildTarget &buildTarget, QHash<QString, QStringList> &cache);
+    QStringList getFlagsFor(const CMakeBuildTarget &buildTarget, QHash<QString, QStringList> &cache, ProjectExplorer::ToolChain::Language lang);
+    bool extractFlagsFromMake(const CMakeBuildTarget &buildTarget, QHash<QString, QStringList> &cache, ProjectExplorer::ToolChain::Language lang);
+    bool extractFlagsFromNinja(const CMakeBuildTarget &buildTarget, QHash<QString, QStringList> &cache, ProjectExplorer::ToolChain::Language lang);
 
     bool m_hasData = false;
 
