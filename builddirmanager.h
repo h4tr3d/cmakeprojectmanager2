@@ -78,7 +78,6 @@ public:
 
     bool isParsing() const;
 
-    void parse();
     void clearCache();
     void forceReparse();
     void maybeForceReparse(); // Only reparse if the configuration has changed...
@@ -113,6 +112,8 @@ protected:
     const CMakeConfig intendedConfiguration() const;
 
 private:
+    void parse();
+
     void cmakeFilesChanged();
 
     void stopProcess();

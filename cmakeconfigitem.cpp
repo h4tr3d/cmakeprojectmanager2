@@ -136,7 +136,12 @@ QStringList CMakeConfigItem::cmakeSplitValue(const QString &in, bool keepEmpty)
 
 QString CMakeConfigItem::expandedValue(const ProjectExplorer::Kit *k) const
 {
-    return k->macroExpander()->expand(QString::fromUtf8(value));
+    return expandedValue(k->macroExpander());
+}
+
+QString CMakeConfigItem::expandedValue(const Utils::MacroExpander *expander) const
+{
+    return expander->expand(QString::fromUtf8(value));
 }
 
 std::function<bool (const CMakeConfigItem &a, const CMakeConfigItem &b)> CMakeConfigItem::sortOperator()
@@ -209,7 +214,7 @@ CMakeConfigItem CMakeConfigItem::fromString(const QString &s)
     return item;
 }
 
-QString CMakeConfigItem::toString() const
+QString CMakeConfigItem::toString(const Utils::MacroExpander *expander) const
 {
     if (key.isEmpty() || type == CMakeProjectManager::CMakeConfigItem::STATIC)
         return QString();
@@ -235,7 +240,14 @@ QString CMakeConfigItem::toString() const
         break;
     }
 
-    return QString::fromUtf8(key) + QLatin1Char(':') + typeStr + QLatin1Char('=') + QString::fromUtf8(value);
+    const QString expandedValue
+            = expander ? expander->expand(QString::fromUtf8(value)) : QString::fromUtf8(value);
+    return QString::fromUtf8(key) + QLatin1Char(':') + typeStr + QLatin1Char('=') + expandedValue;
+}
+
+QString CMakeConfigItem::toArgument(const Utils::MacroExpander *expander) const
+{
+    return "-D" + toString(expander);
 }
 
 bool CMakeConfigItem::operator==(const CMakeConfigItem &o) const

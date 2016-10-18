@@ -41,7 +41,6 @@ QT_END_NAMESPACE
 namespace CMakeProjectManager {
 
 namespace Internal {
-class CMakeFile;
 class CMakeBuildSettingsWidget;
 class CMakeBuildConfiguration;
 class CMakeProjectNode;
@@ -59,17 +58,17 @@ class CMAKE_EXPORT CMakeBuildTarget
 {
 public:
     QString title;
-    QString executable; // TODO: rename to output?
+    Utils::FileName executable; // TODO: rename to output?
     TargetType targetType = UtilityType;
-    QString workingDirectory;
-    QString sourceDirectory;
-    QString makeCommand;
+    Utils::FileName workingDirectory;
+    Utils::FileName sourceDirectory;
+    Utils::FileName makeCommand;
 
     // code model
-    QStringList includeFiles;
+    QList<Utils::FileName> includeFiles;
     QStringList compilerOptions;
     QByteArray defines;
-    QStringList files;
+    QList<Utils::FileName> files;
 
     void clear();
 };
@@ -133,7 +132,6 @@ private:
     QList<ProjectExplorer::ExtraCompiler *> m_extraCompilers;
 
     friend class Internal::CMakeBuildConfiguration;
-    friend class Internal::CMakeFile;
 };
 
 } // namespace CMakeProjectManager

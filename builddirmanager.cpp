@@ -72,31 +72,7 @@ namespace Internal {
 
 static QStringList toArguments(const CMakeConfig &config, const Kit *k) {
     return Utils::transform(config, [k](const CMakeConfigItem &i) -> QString {
-        QString a = QString::fromLatin1("-D");
-        a.append(QString::fromUtf8(i.key));
-        switch (i.type) {
-        case CMakeConfigItem::FILEPATH:
-            a.append(QLatin1String(":FILEPATH="));
-            break;
-        case CMakeConfigItem::PATH:
-            a.append(QLatin1String(":PATH="));
-            break;
-        case CMakeConfigItem::BOOL:
-            a.append(QLatin1String(":BOOL="));
-            break;
-        case CMakeConfigItem::STRING:
-            a.append(QLatin1String(":STRING="));
-            break;
-        case CMakeConfigItem::INTERNAL:
-            a.append(QLatin1String(":INTERNAL="));
-            break;
-        case CMakeConfigItem::STATIC:
-            a.append(QLatin1String(":STATIC="));
-            break;
-        }
-        a.append(i.expandedValue(k));
-
-        return a;
+        return i.toArgument(k->macroExpander());
     });
 }
 
@@ -308,13 +284,13 @@ QSet<Core::Id> BuildDirManager::updateCodeModel(CppTools::ProjectPartBuilder &pp
         // So remove the toolchain include paths, so that at least those end up in the correct
         // place.
         QStringList cxxflags = getCXXFlagsFor(cbt, targetDataCache);
-        QSet<QString> tcIncludes;
+        QSet<Utils::FileName> tcIncludes;
         foreach (const HeaderPath &hp, tc->systemHeaderPaths(cxxflags, sysroot))
-            tcIncludes.insert(hp.path());
+            tcIncludes.insert(Utils::FileName::fromString(hp.path()));
         QStringList includePaths;
-        foreach (const QString &i, cbt.includeFiles) {
+        foreach (const Utils::FileName &i, cbt.includeFiles) {
             if (!tcIncludes.contains(i))
-                includePaths.append(i);
+                includePaths.append(i.toString());
         }
         includePaths += buildDirectory().toString();
         ppBuilder.setIncludePaths(includePaths);
@@ -324,7 +300,8 @@ QSet<Core::Id> BuildDirManager::updateCodeModel(CppTools::ProjectPartBuilder &pp
         ppBuilder.setDisplayName(cbt.title);
 
         const QSet<Core::Id> partLanguages
-                = QSet<Core::Id>::fromList(ppBuilder.createProjectPartsForFiles(cbt.files));
+                = QSet<Core::Id>::fromList(ppBuilder.createProjectPartsForFiles(
+                                               Utils::transform(cbt.files, [](const Utils::FileName &fn) { return fn.toString(); })));
 
         languages.unite(partLanguages);
     }
@@ -475,10 +452,10 @@ void BuildDirManager::extractData()
     // Do not insert topCMake into m_cmakeFiles: The project already watches that!
 
     // Find cbp file
-    QString cbpFile = CMakeManager::findCbpFile(workDirectory().toString());
+    Utils::FileName cbpFile = Utils::FileName::fromString(CMakeManager::findCbpFile(workDirectory().toString()));
     if (cbpFile.isEmpty())
         return;
-    m_cmakeFiles.insert(Utils::FileName::fromString(cbpFile));
+    m_cmakeFiles.insert(cbpFile);
 
     // Add CMakeCache.txt file:
     Utils::FileName cacheFile = workDirectory();
@@ -488,8 +465,9 @@ void BuildDirManager::extractData()
 
     // setFolderName
     CMakeCbpParser cbpparser;
+    CMakeTool *cmake = CMakeKitInformation::cmakeTool(kit());
     // Parsing
-    if (!cbpparser.parseCbpFile(kit(), cbpFile, sourceDirectory().toString()))
+    if (!cbpparser.parseCbpFile(cmake->pathMapper(), cbpFile, sourceDirectory()))
         return;
 
     m_projectName = cbpparser.projectName();
@@ -682,7 +660,7 @@ QStringList BuildDirManager::getCXXFlagsFor(const CMakeBuildTarget &buildTarget,
 bool BuildDirManager::extractCXXFlagsFromMake(const CMakeBuildTarget &buildTarget,
                                               QHash<QString, QStringList> &cache)
 {
-    QString makeCommand = QDir::fromNativeSeparators(buildTarget.makeCommand);
+    QString makeCommand = buildTarget.makeCommand.toString();
     int startIndex = makeCommand.indexOf('\"');
     int endIndex = makeCommand.indexOf('\"', startIndex + 1);
     if (startIndex != -1 && endIndex != -1) {
@@ -720,7 +698,7 @@ bool BuildDirManager::extractCXXFlagsFromNinja(const CMakeBuildTarget &buildTarg
     // found
     // Get "all" target's working directory
     QByteArray ninjaFile;
-    QString buildNinjaFile = QDir::fromNativeSeparators(buildTargets().at(0).workingDirectory);
+    QString buildNinjaFile = buildTargets().at(0).workingDirectory.toString();
     buildNinjaFile += "/build.ninja";
     QFile buildNinja(buildNinjaFile);
     if (buildNinja.exists()) {
@@ -803,8 +781,9 @@ void BuildDirManager::checkConfiguration()
         QPointer<QMessageBox> box = new QMessageBox(Core::ICore::mainWindow());
         box->setText(tr("CMake configuration has changed on disk."));
         box->setInformativeText(tr("The CMakeCache.txt file has changed: %1").arg(table));
-        box->setStandardButtons(QMessageBox::Discard | QMessageBox::Apply);
-        box->setDefaultButton(QMessageBox::Discard);
+        auto *defaultButton = box->addButton(tr("Overwrite Changes in CMake"), QMessageBox::RejectRole);
+        box->addButton(tr("Apply Changes to Project"), QMessageBox::AcceptRole);
+        box->setDefaultButton(defaultButton);
 
         int ret = box->exec();
         if (ret == QMessageBox::Apply)
