@@ -61,6 +61,8 @@
 #include <QSet>
 #include <QTemporaryDir>
 
+#include <chrono>
+
 using namespace ProjectExplorer;
 
 // --------------------------------------------------------------------
@@ -98,10 +100,78 @@ QList<FileNode*> composeProjectTree(QList<FileNode*> cmakefiles,
     qDeleteAll(ProjectExplorer::subtractSortedList(treefiles, added, sortNodesByPath));
 
     // Step 3: now add new files to the cmakefiles. Note: using cmakefiles as a base is a good idea!
+    //         also, keep result sorted
+    auto count = cmakefiles.count();
     cmakefiles.append(added);
+    std::inplace_merge(cmakefiles.begin(), cmakefiles.begin() + count, cmakefiles.end(), sortNodesByPath);
 
     return cmakefiles;
 }
+
+FolderNode* findFolderFor(FolderNode *root, const QString& projectDir, const QStringList& path)
+{
+    auto folder = root;
+    auto currentPath = projectDir;
+
+    foreach (const QString &part, path) {
+        // Create relative path
+        if (!currentPath.isEmpty())
+            currentPath += QDir::separator();
+        currentPath += part;
+
+        // Find the child with the given name
+        QList<FolderNode *> subFolderNodes = folder->subFolderNodes();
+        auto predicate = [&part] (const FolderNode * f) {
+            return f->displayName() == part;
+        };
+        auto it = std::find_if(subFolderNodes.begin(), subFolderNodes.end(), predicate);
+
+        if (it != subFolderNodes.end()) {
+            folder = *it;
+            continue;
+        }
+
+        // Folder not found. Add it
+        QString newFolderPath = QDir::cleanPath(currentPath + QDir::separator() + part);
+        auto newFolder = new FolderNode(Utils::FileName::fromString(newFolderPath),
+                                        FolderNodeType,
+                                        part);
+        folder->addFolderNodes({newFolder});
+        folder = newFolder;
+    }
+    return folder;
+}
+
+void removeNodes(FolderNode* root, const QString& projectDir, const QList<FileNode*> &nodes)
+{
+    QStringList path;
+    foreach (const FileNode *node, nodes) {
+        path = QDir(projectDir).relativeFilePath(node->filePath().toString()).split(QDir::separator());
+        path.pop_back();
+        FolderNode *folder = findFolderFor(root, projectDir, path);
+
+        for (FileNode *fileNode : folder->fileNodes()) {
+            if (fileNode->filePath() == node->filePath()) {
+                folder->removeFileNodes({fileNode});
+                break;
+            }
+        }
+    }
+}
+
+void addNodes(FolderNode* root, const QString& projectDir, const QList<FileNode*> &nodes)
+{
+    QStringList path;
+    foreach (const FileNode *node, nodes) {
+        path = QDir(projectDir).relativeFilePath(node->filePath().toString()).split(QDir::separator());
+        path.pop_back();
+        FolderNode *folder = findFolderFor(root, projectDir, path);
+        // Make node copy
+        auto fileNode = new FileNode(node->filePath(), node->fileType(), node->isGenerated(), node->line());
+        folder->addFileNodes({fileNode});
+    }
+}
+
 
 } // ::anonymous
 
@@ -131,7 +201,6 @@ BuildDirManager::~BuildDirManager()
 {
     stopProcess();
     resetData();
-    qDeleteAll(m_watchedFiles);
     delete m_tempDir;
 }
 
@@ -264,9 +333,44 @@ void BuildDirManager::generateProjectTree(CMakeProjectNode *root)
         m_watchedFiles.insert(cm);
     }
 
+    auto tm = std::chrono::system_clock::now();
+
+#ifndef USE_OLD
+    auto buildTree = [this](FolderNode *root) {
+        auto fileNodes = Utils::transform(m_files, [](const FileNode* node) {
+            return new FileNode(node->filePath(), node->fileType(), node->isGenerated(), node->line());
+        });
+        root->buildTree(fileNodes);
+    };
+
+    auto project = static_cast<CMakeProject*>(m_buildConfiguration->target()->project());
+
+    if (project->files().empty()) {
+        qDebug() << "Full tree populate [0]";
+        buildTree(root);
+    } else {
+        QList<ProjectExplorer::FileNode *> added;
+        QList<ProjectExplorer::FileNode *> deleted;
+        ProjectExplorer::compareSortedLists(project->files(), m_files, deleted, added, sortNodesByPath);
+
+        if (added.count() + deleted.count() > m_files.count()/3) {
+            qDebug() << "Full tree populate [1]:" << "added:" << added.count() << "deleted:" << deleted.count() << "files:" << m_files.count() << "cur:" << project->files().count();
+            buildTree(root);
+        } else {
+            removeNodes(root, sourceDirectory().toString(), deleted);
+            addNodes(root, sourceDirectory().toString(), added);
+        }
+    }
+    project->setFiles(std::move(m_files));
+    m_files.clear();
+#else
     QList<FileNode *> fileNodes = m_files;
     root->buildTree(fileNodes);
     m_files.clear(); // Some of the FileNodes in files() were deleted!
+#endif
+
+    auto delta = std::chrono::system_clock::now() - tm;
+    qDebug() << "Tree generation time:" << std::chrono::duration_cast<std::chrono::milliseconds>(delta).count();
 }
 
 QSet<Core::Id> BuildDirManager::updateCodeModel(CppTools::ProjectPartBuilder &ppBuilder)
@@ -713,7 +817,7 @@ bool BuildDirManager::extractFlagsFromMake(const CMakeBuildTarget &buildTarget,
                                     .replace(QRegExp("^-D(\\s*)'([0-9a-ZA-Z_\\(\\)]+)'$"),      "-D\\1\\2");
                         });
                     cache.insert(buildTarget.title, flags);
-                    qDebug() << "Flags:" << (lang == ToolChain::Language::Cxx ? "C++" : "C") << flags;
+                    //qDebug() << "Flags:" << (lang == ToolChain::Language::Cxx ? "C++" : "C") << flags;
                     return true;
                 }
             }

@@ -85,6 +85,8 @@ public:
     QString displayName() const final;
 
     QStringList files(FilesMode fileMode) const final;
+    const QList<ProjectExplorer::FileNode* >& files() const;
+    void setFiles(QList<ProjectExplorer::FileNode*> &&nodes);
     QStringList buildTargetTitles(bool runnable = false) const;
     bool hasBuildTarget(const QString &title) const;
 
@@ -130,6 +132,8 @@ private:
     QList<CMakeBuildTarget> m_buildTargets;
     QFuture<void> m_codeModelFuture;
     QList<ProjectExplorer::ExtraCompiler *> m_extraCompilers;
+
+    QList<ProjectExplorer::FileNode* > m_files;
 
     friend class Internal::CMakeBuildConfiguration;
 };

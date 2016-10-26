@@ -92,6 +92,7 @@ CMakeProject::~CMakeProject()
     setRootProjectNode(nullptr);
     m_codeModelFuture.cancel();
     qDeleteAll(m_extraCompilers);
+    qDeleteAll(m_files);
 }
 
 void CMakeProject::updateProjectData()
@@ -264,6 +265,17 @@ QStringList CMakeProject::files(FilesMode fileMode) const
         }
     });
     return transform(nodes, [fileMode](const FileNode* fn) { return fn->filePath().toString(); });
+}
+
+const QList<FileNode *> &CMakeProject::files() const
+{
+    return m_files;
+}
+
+void CMakeProject::setFiles(QList<FileNode *> &&nodes)
+{
+    qDeleteAll(m_files);
+    m_files = std::move(nodes);
 }
 
 Project::RestoreResult CMakeProject::fromMap(const QVariantMap &map, QString *errorMessage)
