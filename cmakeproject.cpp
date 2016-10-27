@@ -56,6 +56,8 @@
 #include <QDir>
 #include <QSet>
 
+#include <chrono>
+
 using namespace ProjectExplorer;
 using namespace Utils;
 
@@ -247,24 +249,34 @@ QString CMakeProject::displayName() const
 
 QStringList CMakeProject::files(FilesMode fileMode) const
 {
-    const QList<FileNode *> nodes = filtered(rootProjectNode()->recursiveFileNodes(),
-                                             [fileMode](const FileNode *fn) {
-        if (fn->fileType() == UnknownFileType)
-            return false;
+    auto tm = std::chrono::system_clock::now();
+    if (!m_files.empty()) {
+        if (m_generatedFilesCache.empty() && m_sourceFilesCache.empty()) {
+            for (auto &node : m_files) {
+                if (node->fileType() == UnknownFileType)
+                    continue;
 
-        const bool isGenerated = fn->isGenerated();
-        switch (fileMode)
-        {
-        case Project::SourceFiles:
-            return !isGenerated;
-        case Project::GeneratedFiles:
-            return isGenerated;
-        case Project::AllFiles:
-        default:
-            return true;
+                const bool isGenerated = node->isGenerated();
+                if (isGenerated)
+                    m_generatedFilesCache.push_back(node->filePath().toString());
+                else
+                    m_sourceFilesCache.push_back(node->filePath().toString());
+            }
         }
-    });
-    return transform(nodes, [fileMode](const FileNode* fn) { return fn->filePath().toString(); });
+    }
+
+    auto delta = std::chrono::system_clock::now() - tm;
+    //qDebug() << "files():" << std::chrono::duration_cast<std::chrono::milliseconds>(delta).count();
+
+    switch (fileMode) {
+        case Project::GeneratedFiles:
+            return m_generatedFilesCache;
+        case Project::SourceFiles:
+            return m_sourceFilesCache;
+        case Project::AllFiles:
+            return m_sourceFilesCache + m_generatedFilesCache;
+    }
+    return QStringList();
 }
 
 const QList<FileNode *> &CMakeProject::files() const
@@ -276,6 +288,8 @@ void CMakeProject::setFiles(QList<FileNode *> &&nodes)
 {
     qDeleteAll(m_files);
     m_files = std::move(nodes);
+    m_generatedFilesCache.clear();
+    m_sourceFilesCache.clear();
 }
 
 Project::RestoreResult CMakeProject::fromMap(const QVariantMap &map, QString *errorMessage)

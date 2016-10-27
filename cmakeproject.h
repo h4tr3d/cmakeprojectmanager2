@@ -134,6 +134,8 @@ private:
     QList<ProjectExplorer::ExtraCompiler *> m_extraCompilers;
 
     QList<ProjectExplorer::FileNode* > m_files;
+    mutable QStringList m_sourceFilesCache;
+    mutable QStringList m_generatedFilesCache;
 
     friend class Internal::CMakeBuildConfiguration;
 };
