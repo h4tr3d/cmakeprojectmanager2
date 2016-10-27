@@ -329,40 +329,47 @@ void BuildDirManager::generateProjectTree(CMakeProjectNode *root, const QList<Fi
 
     // Compose lists
     auto tm = std::chrono::system_clock::now();
-    qDebug() << "Extract data," << "Tree:" << treeFiles.count() << "CMake:" << m_files.count();
-    m_files = composeProjectTree(m_files, treeFiles);
+
+    // Make local copy of cmake files
+    auto files = Utils::transform(m_files, [](const FileNode* node) {
+        return new FileNode(node->filePath(), node->fileType(), node->isGenerated(), node->line());
+    });
+
+    auto treeFilesCount = treeFiles.count();
+    auto cmakeFilesCount = m_files.count();
+    files = composeProjectTree(files, treeFiles);
+    qDebug() << "Extract data," << "Tree:" << treeFilesCount << "CMake:" << cmakeFilesCount << "Total:" << files.count();
     auto delta = std::chrono::system_clock::now() - tm;
     qDebug() << "Files composing time:" << std::chrono::duration_cast<std::chrono::milliseconds>(delta).count();
 
     tm = std::chrono::system_clock::now();
 #ifndef USE_OLD
-    auto buildTree = [this](FolderNode *root) {
-        auto fileNodes = Utils::transform(m_files, [](const FileNode* node) {
+    auto project = static_cast<CMakeProject*>(m_buildConfiguration->target()->project());
+
+    auto buildTree = [this,root,files] () {
+        auto nodes = Utils::transform(files, [](const FileNode* node) {
             return new FileNode(node->filePath(), node->fileType(), node->isGenerated(), node->line());
         });
-        root->buildTree(fileNodes);
+        root->buildTree(nodes);
     };
-
-    auto project = static_cast<CMakeProject*>(m_buildConfiguration->target()->project());
 
     if (project->files().empty()) {
         qDebug() << "Full tree populate [0]";
-        buildTree(root);
+        buildTree();
     } else {
         QList<ProjectExplorer::FileNode *> added;
         QList<ProjectExplorer::FileNode *> deleted;
-        ProjectExplorer::compareSortedLists(project->files(), m_files, deleted, added, sortNodesByPath);
+        ProjectExplorer::compareSortedLists(project->files(), files, deleted, added, sortNodesByPath);
 
-        if (added.count() + deleted.count() > m_files.count()/3) {
-            qDebug() << "Full tree populate [1]:" << "added:" << added.count() << "deleted:" << deleted.count() << "files:" << m_files.count() << "cur:" << project->files().count();
-            buildTree(root);
+        if (added.count() + deleted.count() > files.count()/3) {
+            qDebug() << "Full tree populate [1]:" << "added:" << added.count() << "deleted:" << deleted.count() << "files:" << files.count() << "cur:" << project->files().count();
+            buildTree();
         } else {
             removeNodes(root, sourceDirectory().toString(), deleted);
             addNodes(root, sourceDirectory().toString(), added);
         }
     }
-    project->setFiles(std::move(m_files));
-    m_files.clear();
+    project->setFiles(std::move(files));
 #else
     QList<FileNode *> fileNodes = m_files;
     root->buildTree(fileNodes);
