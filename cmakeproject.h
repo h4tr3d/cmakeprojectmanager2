@@ -26,6 +26,7 @@
 #pragma once
 
 #include "cmake_global.h"
+#include "treebuilder.h"
 
 #include <projectexplorer/extracompiler.h>
 #include <projectexplorer/project.h>
@@ -33,6 +34,8 @@
 #include <utils/fileutils.h>
 
 #include <QFuture>
+
+#include <memory>
 
 QT_BEGIN_NAMESPACE
 class QFileSystemWatcher;
@@ -115,6 +118,8 @@ protected:
 private:
     QList<CMakeBuildTarget> buildTargets() const;
 
+    void scanProjectTree();
+
     void handleActiveTargetChanged();
     void handleActiveBuildConfigurationChanged();
     void handleParsingStarted();
@@ -136,6 +141,8 @@ private:
     QList<ProjectExplorer::FileNode* > m_files;
     mutable QStringList m_sourceFilesCache;
     mutable QStringList m_generatedFilesCache;
+
+    std::unique_ptr<TreeBuilder> m_treeBuilder;
 
     friend class Internal::CMakeBuildConfiguration;
 };

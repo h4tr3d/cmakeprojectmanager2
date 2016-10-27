@@ -32,6 +32,7 @@
 #include "cmakerunconfiguration.h"
 #include "cmakeprojectmanager.h"
 
+#include <coreplugin/progressmanager/progressmanager.h>
 #include <cpptools/cppmodelmanager.h>
 #include <cpptools/generatedcodemodelsupport.h>
 #include <cpptools/projectinfo.h>
@@ -74,6 +75,7 @@ using namespace Internal;
   \class CMakeProject
 */
 CMakeProject::CMakeProject(CMakeManager *manager, const FileName &fileName)
+    : m_treeBuilder(new TreeBuilder(this))
 {
     setId(CMakeProjectManager::Constants::CMAKEPROJECT_ID);
     setProjectManager(manager);
@@ -87,6 +89,11 @@ CMakeProject::CMakeProject(CMakeManager *manager, const FileName &fileName)
     rootProjectNode()->setDisplayName(fileName.parentDir().fileName());
 
     connect(this, &CMakeProject::activeTargetChanged, this, &CMakeProject::handleActiveTargetChanged);
+    connect(m_treeBuilder.get(), &TreeBuilder::parsingFinished, this, [this]() {
+        updateProjectData();
+    });
+
+    scanProjectTree();
 }
 
 CMakeProject::~CMakeProject()
@@ -100,14 +107,30 @@ CMakeProject::~CMakeProject()
 void CMakeProject::updateProjectData()
 {
     auto cmakeBc = qobject_cast<CMakeBuildConfiguration *>(sender());
-    QTC_ASSERT(cmakeBc, return);
+    auto treeBuilder = qobject_cast<TreeBuilder *>(sender());
 
     Target *t = activeTarget();
-    if (!t || t->activeBuildConfiguration() != cmakeBc)
+    if (!t)
         return;
+
+    if (cmakeBc) {
+        if (t->activeBuildConfiguration() != cmakeBc)
+            return;
+    } else if (treeBuilder) {
+        cmakeBc = qobject_cast<CMakeBuildConfiguration*>(t->activeBuildConfiguration());
+    } else {
+        return;
+    }
+
+    QTC_ASSERT(cmakeBc, return);
+
+    if (m_treeBuilder->isParsing() || cmakeBc->isParsing())
+        return;
+
     Kit *k = t->kit();
 
-    cmakeBc->generateProjectTree(static_cast<CMakeProjectNode *>(rootProjectNode()));
+    cmakeBc->generateProjectTree(static_cast<CMakeProjectNode *>(rootProjectNode()),
+                                 m_treeBuilder->fileNodes());
 
     updateApplicationAndDeploymentTargets();
     updateTargetRunConfigurations(t);
@@ -224,6 +247,16 @@ QList<CMakeBuildTarget> CMakeProject::buildTargets() const
         bc = qobject_cast<CMakeBuildConfiguration *>(activeTarget()->activeBuildConfiguration());
 
     return bc ? bc->buildTargets() : QList<CMakeBuildTarget>();
+}
+
+void CMakeProject::scanProjectTree()
+{
+    if (m_treeBuilder->isParsing())
+        return;
+    m_treeBuilder->startParsing(projectDirectory());
+    Core::ProgressManager::addTask(m_treeBuilder->future(),
+                                   tr("Scanning tree \"%1\"").arg(displayName()),
+                                   "CMake.Scanning");
 }
 
 QStringList CMakeProject::buildTargetTitles(bool runnable) const

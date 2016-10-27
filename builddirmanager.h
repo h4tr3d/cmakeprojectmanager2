@@ -86,7 +86,7 @@ public:
     bool updateCMakeStateBeforeBuild();
     bool persistCMakeState();
 
-    void generateProjectTree(CMakeProjectNode *root);
+    void generateProjectTree(CMakeProjectNode *root, const QList<ProjectExplorer::FileNode *> &treeFiles);
     QSet<Core::Id> updateCodeModel(CppTools::ProjectPartBuilder &ppBuilder);
 
     QList<CMakeBuildTarget> buildTargets() const;
@@ -129,8 +129,6 @@ private:
 
     void completeParsing();
 
-    void startTreeBuilder();
-
     QStringList getFlagsFor(const CMakeBuildTarget &buildTarget, QHash<QString, QStringList> &cache, ProjectExplorer::ToolChain::Language lang);
     bool extractFlagsFromMake(const CMakeBuildTarget &buildTarget, QHash<QString, QStringList> &cache, ProjectExplorer::ToolChain::Language lang);
     bool extractFlagsFromNinja(const CMakeBuildTarget &buildTarget, QHash<QString, QStringList> &cache, ProjectExplorer::ToolChain::Language lang);
@@ -141,8 +139,6 @@ private:
     Utils::QtcProcess *m_cmakeProcess = nullptr;
     QTemporaryDir *m_tempDir = nullptr;
     mutable CMakeConfig m_cmakeCache;
-
-    std::unique_ptr<TreeBuilder> m_treeBuilder;
 
     QSet<Utils::FileName> m_cmakeFiles;
     QString m_projectName;

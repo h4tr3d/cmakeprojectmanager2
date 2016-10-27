@@ -172,7 +172,6 @@ void addNodes(FolderNode* root, const QString& projectDir, const QList<FileNode*
     }
 }
 
-
 } // ::anonymous
 
 // --------------------------------------------------------------------
@@ -180,8 +179,7 @@ void addNodes(FolderNode* root, const QString& projectDir, const QList<FileNode*
 // --------------------------------------------------------------------
 
 BuildDirManager::BuildDirManager(CMakeBuildConfiguration *bc) :
-    m_buildConfiguration(bc),
-    m_treeBuilder(new TreeBuilder(this))
+    m_buildConfiguration(bc)
 {
     QTC_ASSERT(bc, return);
     m_projectName = sourceDirectory().fileName();
@@ -191,10 +189,6 @@ BuildDirManager::BuildDirManager(CMakeBuildConfiguration *bc) :
     connect(&m_reparseTimer, &QTimer::timeout, this, &BuildDirManager::parse);
     connect(Core::EditorManager::instance(), &Core::EditorManager::aboutToSave,
             this, &BuildDirManager::handleDocumentSaves);
-
-    connect(m_treeBuilder.get(), &TreeBuilder::parsingFinished, [this]() {
-        completeParsing();
-    });
 }
 
 BuildDirManager::~BuildDirManager()
@@ -241,9 +235,9 @@ const CMakeToolchainInfo &BuildDirManager::cmakeToolchainInfo() const
 
 bool BuildDirManager::isParsing() const
 {
-    const bool parsingTree = m_treeBuilder && m_treeBuilder->isParsing();
-    const bool parsingCMake = m_cmakeProcess && m_cmakeProcess->state() != QProcess::NotRunning;
-    return parsingTree || parsingCMake;
+    if (m_cmakeProcess)
+        return m_cmakeProcess->state() != QProcess::NotRunning;
+    return false;
 }
 
 void BuildDirManager::cmakeFilesChanged()
@@ -306,7 +300,7 @@ bool BuildDirManager::persistCMakeState()
     return true;
 }
 
-void BuildDirManager::generateProjectTree(CMakeProjectNode *root)
+void BuildDirManager::generateProjectTree(CMakeProjectNode *root, const QList<FileNode *> &treeFiles)
 {
     root->setDisplayName(m_projectName);
 
@@ -333,8 +327,14 @@ void BuildDirManager::generateProjectTree(CMakeProjectNode *root)
         m_watchedFiles.insert(cm);
     }
 
+    // Compose lists
     auto tm = std::chrono::system_clock::now();
+    qDebug() << "Extract data," << "Tree:" << treeFiles.count() << "CMake:" << m_files.count();
+    m_files = composeProjectTree(m_files, treeFiles);
+    auto delta = std::chrono::system_clock::now() - tm;
+    qDebug() << "Files composing time:" << std::chrono::duration_cast<std::chrono::milliseconds>(delta).count();
 
+    tm = std::chrono::system_clock::now();
 #ifndef USE_OLD
     auto buildTree = [this](FolderNode *root) {
         auto fileNodes = Utils::transform(m_files, [](const FileNode* node) {
@@ -369,7 +369,7 @@ void BuildDirManager::generateProjectTree(CMakeProjectNode *root)
     m_files.clear(); // Some of the FileNodes in files() were deleted!
 #endif
 
-    auto delta = std::chrono::system_clock::now() - tm;
+    delta = std::chrono::system_clock::now() - tm;
     qDebug() << "Tree generation time:" << std::chrono::duration_cast<std::chrono::milliseconds>(delta).count();
 }
 
@@ -443,9 +443,7 @@ void BuildDirManager::parse()
     if (mustUpdate) {
         startCMake(tool, generatorArgs, CMakeConfig(), CMakeToolchainInfo());
     } else {
-        extractData();
-        m_hasData = true;
-        emit dataAvailable();
+        completeParsing();
     }
 }
 
@@ -494,8 +492,6 @@ CMakeConfig BuildDirManager::parsedConfiguration() const
 
 void BuildDirManager::stopProcess()
 {
-    m_treeBuilder->cancel();
-
     if (!m_cmakeProcess)
         return;
 
@@ -508,7 +504,6 @@ void BuildDirManager::stopProcess()
     }
 
     cleanUpProcess();
-    m_treeBuilder->wait();
 
     if (!m_future)
       return;
@@ -548,15 +543,6 @@ void BuildDirManager::extractData()
             = Utils::FileName::fromString(sourceDirectory().toString() + QLatin1String("/CMakeLists.txt"));
 
     resetData();
-
-    // Run this code on any scope exit
-    auto extractTreeData = [this] (void*) {
-        // Build file system tree
-        auto treeFiles = m_treeBuilder->fileNodes();
-        qDebug() << "Extract data," << "Tree:" << treeFiles.count() << "CMake:" << m_files.count();
-        m_files = composeProjectTree(m_files, treeFiles);
-    };
-    std::unique_ptr<void, decltype(extractTreeData)> scopeExitRun{reinterpret_cast<void*>(1), extractTreeData};
 
     m_projectName = sourceDirectory().fileName();
     m_files.append(new FileNode(topCMake, ProjectFileType, false));
@@ -666,19 +652,7 @@ void BuildDirManager::startCMake(CMakeTool *tool, const QStringList &generatorAr
 
     m_cmakeProcess->setCommand(tool->cmakeExecutable().toString(), args);
     m_cmakeProcess->start();
-    startTreeBuilder();
     emit configurationStarted();
-}
-
-void BuildDirManager::startTreeBuilder()
-{
-    QTC_ASSERT(m_treeBuilder, return);
-    // Start parsing, that mean future creation
-    m_treeBuilder->startParsing(sourceDirectory());
-
-    Core::ProgressManager::addTask(m_treeBuilder->future(),
-                                   tr("Scanning tree \"%1\"").arg(m_buildConfiguration->target()->project()->displayName()),
-                                   "CMake.Scanning");
 }
 
 void BuildDirManager::cmakeFinished(int code, QProcess::ExitStatus status)
@@ -742,9 +716,6 @@ void BuildDirManager::processCMakeError()
 
 void BuildDirManager::completeParsing()
 {
-    if (m_cmakeProcess || m_treeBuilder->isParsing())
-        return;
-
     extractData(); // try even if cmake failed...
     m_hasData = true;
     emit dataAvailable();
