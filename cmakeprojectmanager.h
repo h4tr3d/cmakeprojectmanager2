@@ -61,10 +61,13 @@ private:
     void updateCmakeActions();
     void clearCMakeCache(ProjectExplorer::Project *project);
     void runCMake(ProjectExplorer::Project *project);
+    void rescanProject(ProjectExplorer::Project *project);
 
     QAction *m_runCMakeAction;
     QAction *m_clearCMakeCacheAction;
     QAction *m_runCMakeActionContextMenu;
+    QAction *m_rescanProjectAction;
+    QAction *m_rescanProjectContextMenuAction;
 };
 
 } // namespace Internal

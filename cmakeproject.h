@@ -106,6 +106,7 @@ public:
     bool supportsKit(ProjectExplorer::Kit *k, QString *errorMessage = 0) const final;
 
     void runCMake();
+    void scanProjectTree();
 
 signals:
     /// emitted when cmake is running:
@@ -117,8 +118,6 @@ protected:
 
 private:
     QList<CMakeBuildTarget> buildTargets() const;
-
-    void scanProjectTree();
 
     void handleActiveTargetChanged();
     void handleActiveBuildConfigurationChanged();

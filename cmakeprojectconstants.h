@@ -38,6 +38,8 @@ const char CMAKE_EDITOR_DISPLAY_NAME[] = QT_TRANSLATE_NOOP("CMakeProjectManager:
 const char RUNCMAKE[] = "CMakeProject.RunCMake";
 const char CLEARCMAKECACHE[] = "CMakeProject.ClearCache";
 const char RUNCMAKECONTEXTMENU[] = "CMakeProject.RunCMakeContextMenu";
+const char RESCANPROJECT[] = "CMakeProject.RescanProject";
+const char RESCANPROJECTCONTEXTMENU[] = "CMakeProject.RescanProjectContextMenu";
 
 // Project
 const char CMAKEPROJECT_ID[] = "CMakeProjectManager.CMakeProject";

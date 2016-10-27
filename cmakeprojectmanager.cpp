@@ -56,7 +56,9 @@ using namespace CMakeProjectManager::Internal;
 CMakeManager::CMakeManager() :
     m_runCMakeAction(new QAction(QIcon(), tr("Run CMake"), this)),
     m_clearCMakeCacheAction(new QAction(QIcon(), tr("Clear CMake Configuration"), this)),
-    m_runCMakeActionContextMenu(new QAction(QIcon(), tr("Run CMake"), this))
+    m_runCMakeActionContextMenu(new QAction(QIcon(), tr("Run CMake"), this)),
+    m_rescanProjectAction(new QAction(QIcon(), tr("Rescan project"), this)),
+    m_rescanProjectContextMenuAction(new QAction(QIcon(), tr("Rescan project"),this))
 {
     Core::ActionContainer *mbuild =
             Core::ActionManager::actionContainer(ProjectExplorer::Constants::M_BUILDPROJECT);
@@ -93,6 +95,23 @@ CMakeManager::CMakeManager() :
         runCMake(ProjectTree::currentProject());
     });
 
+    command = Core::ActionManager::registerAction(m_rescanProjectAction,
+                                                  Constants::RESCANPROJECT, globalContext);
+    command->setAttribute(Core::Command::CA_Hide);
+    mbuild->addAction(command, ProjectExplorer::Constants::G_BUILD_DEPLOY);
+    connect(m_rescanProjectAction, &QAction::triggered, [this]() {
+        rescanProject(ProjectTree::currentProject());
+    });
+
+    command = Core::ActionManager::registerAction(m_rescanProjectContextMenuAction,
+                                                  Constants::RESCANPROJECTCONTEXTMENU, projectContext);
+    command->setAttribute(Core::Command::CA_Hide);
+    mproject->addAction(command, ProjectExplorer::Constants::G_PROJECT_BUILD);
+    msubproject->addAction(command, ProjectExplorer::Constants::G_PROJECT_BUILD);
+    connect(m_rescanProjectContextMenuAction, &QAction::triggered, [this]() {
+        rescanProject(ProjectTree::currentProject());
+    });
+
     connect(SessionManager::instance(), &SessionManager::startupProjectChanged,
             this, &CMakeManager::updateCmakeActions);
     connect(BuildManager::instance(), &BuildManager::buildStateChanged,
@@ -107,6 +126,7 @@ void CMakeManager::updateCmakeActions()
     const bool visible = project && !BuildManager::isBuilding(project);
     m_runCMakeAction->setVisible(visible);
     m_clearCMakeCacheAction->setVisible(visible);
+    m_rescanProjectAction->setVisible(visible);
 }
 
 void CMakeManager::clearCMakeCache(Project *project)
@@ -132,6 +152,17 @@ void CMakeManager::runCMake(Project *project)
         return;
 
     cmakeProject->runCMake();
+}
+
+void CMakeManager::rescanProject(Project *project)
+{
+    if (!project)
+        return;
+    CMakeProject *cmakeProject = qobject_cast<CMakeProject *>(project);
+    if (!cmakeProject || !cmakeProject->activeTarget() || !cmakeProject->activeTarget()->activeBuildConfiguration())
+        return;
+
+    cmakeProject->scanProjectTree();
 }
 
 Project *CMakeManager::openProject(const QString &fileName, QString *errorString)
