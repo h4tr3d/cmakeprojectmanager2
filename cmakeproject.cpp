@@ -89,7 +89,7 @@ CMakeProject::CMakeProject(CMakeManager *manager, const FileName &fileName)
     rootProjectNode()->setDisplayName(fileName.parentDir().fileName());
 
     connect(this, &CMakeProject::activeTargetChanged, this, &CMakeProject::handleActiveTargetChanged);
-    connect(m_treeBuilder.get(), &TreeBuilder::parsingFinished, this, [this]() {
+    connect(m_treeBuilder.get(), &TreeBuilder::scanningFinished, this, [this]() {
         updateProjectData();
     });
 
@@ -124,7 +124,7 @@ void CMakeProject::updateProjectData()
 
     QTC_ASSERT(cmakeBc, return);
 
-    if (m_treeBuilder->isParsing() || cmakeBc->isParsing())
+    if (m_treeBuilder->isScanning() || cmakeBc->isParsing())
         return;
 
     Kit *k = t->kit();
@@ -251,9 +251,9 @@ QList<CMakeBuildTarget> CMakeProject::buildTargets() const
 
 void CMakeProject::scanProjectTree()
 {
-    if (m_treeBuilder->isParsing())
+    if (m_treeBuilder->isScanning())
         return;
-    m_treeBuilder->startParsing(projectDirectory());
+    m_treeBuilder->startScanning(projectDirectory());
     Core::ProgressManager::addTask(m_treeBuilder->future(),
                                    tr("Scanning tree \"%1\"").arg(displayName()),
                                    "CMake.Scanning");

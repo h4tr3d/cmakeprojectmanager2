@@ -74,7 +74,7 @@ TreeBuilder::TreeBuilder(QObject *parent)
             this, &TreeBuilder::buildTreeFinished);
 }
 
-void TreeBuilder::startParsing(const Utils::FileName &baseDir)
+void TreeBuilder::startScanning(const Utils::FileName &baseDir)
 {
     m_watcher.cancel();
     m_watcher.waitForFinished();
@@ -127,7 +127,7 @@ void TreeBuilder::buildTreeFinished()
     m_pathsForFuture.clear();
 
     m_parsing = false;
-    emit parsingFinished();
+    emit scanningFinished();
 }
 
 void TreeBuilder::cancel()
@@ -141,7 +141,7 @@ void TreeBuilder::wait()
     m_watcher.waitForFinished();
 }
 
-bool TreeBuilder::isParsing() const
+bool TreeBuilder::isScanning() const
 {
     return m_parsing;
 }
@@ -165,7 +165,7 @@ void TreeBuilder::buildTree(const Utils::FileName &baseDir,
     foreach (const QFileInfo &fileInfo, fileInfoList) {
         Utils::FileName fn = Utils::FileName(fileInfo);
         if (m_futureCount % 100) {
-            emit parsingProgress(fn);
+            emit scanningProgress(fn);
         }
 
         if (fi.isCanceled())

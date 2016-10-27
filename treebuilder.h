@@ -37,11 +37,11 @@ public:
 
     QList<ProjectExplorer::FileNode*> fileNodes() const;
 
-    void startParsing(const Utils::FileName &baseDir);
+    void startScanning(const Utils::FileName &baseDir);
     void cancel();
     void wait();
 
-    bool isParsing() const;
+    bool isScanning() const;
 
     QFuture<void> future() const;
 
@@ -50,8 +50,8 @@ public:
 #endif
 
 signals:
-    void parsingFinished();
-    void parsingProgress(const Utils::FileName &fileName);
+    void scanningFinished();
+    void scanningProgress(const Utils::FileName &fileName);
 
 private:
     void buildTreeFinished();
