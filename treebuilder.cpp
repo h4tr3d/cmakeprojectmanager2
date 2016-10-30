@@ -123,6 +123,9 @@ void TreeBuilder::buildTreeFinished()
     m_files = std::move(m_filesForFuture);
     m_paths = std::move(m_pathsForFuture);
 
+    m_cacheKey.clear();
+    m_cachedItems.clear();
+
     m_filesForFuture.clear();
     m_pathsForFuture.clear();
 
@@ -210,12 +213,46 @@ QList<FileNode *> TreeBuilder::fileNodes() const
         if (fileName.endsWith(QLatin1String("CMakeLists.txt")))
             node = new ProjectExplorer::FileNode(fileName, ProjectExplorer::ProjectFileType, false);
         else {
-            ProjectExplorer::FileType fileType = getFileType(fileName.fileName());
+            ProjectExplorer::FileType fileType = getFileType(fileName.toString());
             node = new ProjectExplorer::FileNode(fileName, fileType, generated);
         }
 
         return node;
     });
+}
+
+QSet<Utils::FileName> TreeBuilder::directoryItems(const Utils::FileName &directory) const
+{
+    // Speed up quick requiest
+    if (m_cacheKey.count() || directory == m_cacheKey)
+        return m_cachedItems;
+
+    QSet<Utils::FileName> result;
+    for (const auto &list : {m_files, m_paths}) {
+        for (const auto& fn : list) {
+            if (fn.toString().startsWith(directory.toString())) {
+                auto from = directory.toString().length();
+                from++; // Skip '/'
+
+                if (from >= fn.toString().length())
+                    continue;
+
+                auto index = fn.toString().indexOf('/', from);
+                int count = -1;
+                if (index != -1) {
+                    count = index - from;
+                }
+
+                result.insert(Utils::FileName::fromString(fn.toString().mid(from, count)));
+            }
+        }
+    }
+
+    // Cache last requiest
+    m_cacheKey = directory;
+    m_cachedItems = result;
+
+    return result;
 }
 
 bool TreeBuilder::isValidDir(const QFileInfo &fileInfo)

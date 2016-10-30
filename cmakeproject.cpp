@@ -64,6 +64,8 @@ using namespace Utils;
 
 namespace CMakeProjectManager {
 
+const int MIN_TIME_BETWEEN_TREE_SCANS = 4500;
+
 using namespace Internal;
 
 // QtCreator CMake Generator wishlist:
@@ -89,9 +91,11 @@ CMakeProject::CMakeProject(CMakeManager *manager, const FileName &fileName)
     rootProjectNode()->setDisplayName(fileName.parentDir().fileName());
 
     connect(this, &CMakeProject::activeTargetChanged, this, &CMakeProject::handleActiveTargetChanged);
-    connect(m_treeBuilder.get(), &TreeBuilder::scanningFinished, this, [this]() {
-        updateProjectData();
-    });
+    connect(m_treeBuilder.get(), &TreeBuilder::scanningFinished, this, &CMakeProject::handleScanningFinished);
+    connect(&m_treeWatcher, &QFileSystemWatcher::directoryChanged, this, &CMakeProject::handleDirectoryChange);
+    connect(&m_treeScanTimer, &QTimer::timeout, this, &CMakeProject::scanProjectTree);
+
+    m_treeScanTimer.setSingleShot(true);
 
     scanProjectTree();
 }
@@ -247,6 +251,70 @@ QList<CMakeBuildTarget> CMakeProject::buildTargets() const
         bc = qobject_cast<CMakeBuildConfiguration *>(activeTarget()->activeBuildConfiguration());
 
     return bc ? bc->buildTargets() : QList<CMakeBuildTarget>();
+}
+
+void CMakeProject::handleScanningFinished()
+{
+    m_lastTreeScan.start();
+    auto paths = m_treeBuilder->paths();
+    for (auto &path : paths)
+        m_treeWatcher.addPath(path.toString());
+    m_treeWatcher.addPath(projectDirectory().toString());
+    updateProjectData();
+}
+
+void CMakeProject::handleDirectoryChange(QString path)
+{
+    // QFileSystemWatcher so ugly to use: it can't be configure to handle only file/dir Add, Remove,
+    // Rename, it alway handle FileChanged too. But we must not rescan tree on every file save.
+    // Possible replaces:
+    //   * https://bitbucket.org/SpartanJ/efsw/overview
+    //   * http://emcrisostomo.github.io/fswatch/
+    // Currently use hack:
+    //  1. Request Tree Scanner nodes for changed path
+    //  2. Request current directory nodes
+    //  3. And compare it
+    // If nodes list differ it means, that file added, removed of renemed, but not changed.
+    // In future it can be optimized: replace full rescan with partial one.
+
+    //qDebug() << "Changes [0]:" << path;
+
+    auto cachedItems = m_treeBuilder->directoryItems(FileName::fromString(path));
+    //qDebug() << "Scanner dir entries:" << cachedItems;
+
+    auto dir = QDir(path);
+    if (dir.exists()) {
+        auto currentList = dir.entryList(QDir::Files |
+                                         QDir::Dirs |
+                                         QDir::NoDotAndDotDot |
+                                         QDir::NoSymLinks);
+        QSet<FileName> currentItems = transform(currentList.toSet(), [](const QString& fn) {
+            return FileName::fromString(fn);
+        });
+
+        //qDebug() << "Current dir entries:" << currentItems;
+
+        auto removed = cachedItems - currentItems;
+        auto added = currentItems - cachedItems;
+
+        if (!removed.empty() || !added.empty()) {
+            //qDebug() << "Chanes [1]:" << path;
+            scheduleScanProjectTree();
+        }
+    }
+}
+
+void CMakeProject::scheduleScanProjectTree()
+{
+    auto elapsedTime = m_lastTreeScan.elapsed();
+    if (elapsedTime < MIN_TIME_BETWEEN_TREE_SCANS) {
+        if (!m_treeScanTimer.isActive()) {
+            m_treeScanTimer.setInterval(MIN_TIME_BETWEEN_TREE_SCANS - elapsedTime);
+            m_treeScanTimer.start();
+        }
+    } else {
+        scanProjectTree();
+    }
 }
 
 void CMakeProject::scanProjectTree()

@@ -37,6 +37,8 @@ public:
 
     QList<ProjectExplorer::FileNode*> fileNodes() const;
 
+    QSet<Utils::FileName> directoryItems(const Utils::FileName &directory) const;
+
     void startScanning(const Utils::FileName &baseDir);
     void cancel();
     void wait();
@@ -79,6 +81,9 @@ private:
     int m_futureCount = 0;
 
     bool m_parsing = false;
+
+    mutable QSet<Utils::FileName> m_cachedItems;
+    mutable Utils::FileName       m_cacheKey;
 
 #if 0
     QList<ProjectExplorer::Glob> m_hideFilesFilter;

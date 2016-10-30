@@ -34,6 +34,9 @@
 #include <utils/fileutils.h>
 
 #include <QFuture>
+#include <QFileSystemWatcher>
+#include <QTimer>
+#include <QElapsedTimer>
 
 #include <memory>
 
@@ -118,6 +121,9 @@ protected:
 
 private:
     QList<CMakeBuildTarget> buildTargets() const;
+    void handleScanningFinished();
+    void handleDirectoryChange(QString path);
+    void scheduleScanProjectTree();
 
     void handleActiveTargetChanged();
     void handleActiveBuildConfigurationChanged();
@@ -142,6 +148,9 @@ private:
     mutable QStringList m_generatedFilesCache;
 
     std::unique_ptr<TreeBuilder> m_treeBuilder;
+    QFileSystemWatcher m_treeWatcher;
+    QElapsedTimer m_lastTreeScan;
+    QTimer m_treeScanTimer;
 
     friend class Internal::CMakeBuildConfiguration;
 };
