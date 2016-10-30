@@ -134,7 +134,7 @@ void CMakeProject::updateProjectData()
     Kit *k = t->kit();
 
     cmakeBc->generateProjectTree(static_cast<CMakeProjectNode *>(rootProjectNode()),
-                                 m_treeBuilder->fileNodes());
+                                 TreeBuilder::fileNodes(m_treeFiles));
 
     updateApplicationAndDeploymentTargets();
     updateTargetRunConfigurations(t);
@@ -255,11 +255,19 @@ QList<CMakeBuildTarget> CMakeProject::buildTargets() const
 
 void CMakeProject::handleScanningFinished()
 {
+    m_cacheKey.clear();
+    m_cachedItems.clear();
+
     m_lastTreeScan.start();
-    auto paths = m_treeBuilder->paths();
-    for (auto &path : paths)
+
+    m_treePaths = m_treeBuilder->paths();
+    for (auto &path : m_treePaths)
         m_treeWatcher.addPath(path.toString());
     m_treeWatcher.addPath(projectDirectory().toString());
+
+    m_treeFiles = m_treeBuilder->files();
+    m_treeFiles.clear();
+
     updateProjectData();
 }
 
@@ -279,7 +287,7 @@ void CMakeProject::handleDirectoryChange(QString path)
 
     //qDebug() << "Changes [0]:" << path;
 
-    auto cachedItems = m_treeBuilder->directoryItems(FileName::fromString(path));
+    auto cachedItems = directoryEntries(FileName::fromString(path));
     //qDebug() << "Scanner dir entries:" << cachedItems;
 
     auto dir = QDir(path);
@@ -301,7 +309,44 @@ void CMakeProject::handleDirectoryChange(QString path)
             //qDebug() << "Chanes [1]:" << path;
             scheduleScanProjectTree();
         }
+    } else {
+        // Directory removed, rescan tree
+        scheduleScanProjectTree();
     }
+}
+
+QSet<FileName> CMakeProject::directoryEntries(const FileName &directory) const
+{
+    // Speed up quick requiest
+    if (m_cacheKey.count() || directory == m_cacheKey)
+        return m_cachedItems;
+
+    QSet<Utils::FileName> result;
+    for (const auto &list : {m_treeFiles, m_treePaths}) {
+        for (const auto& fn : list) {
+            if (fn.toString().startsWith(directory.toString())) {
+                auto from = directory.toString().length();
+                from++; // Skip '/'
+
+                if (from >= fn.toString().length())
+                    continue;
+
+                auto index = fn.toString().indexOf('/', from);
+                int count = -1;
+                if (index != -1) {
+                    count = index - from;
+                }
+
+                result.insert(Utils::FileName::fromString(fn.toString().mid(from, count)));
+            }
+        }
+    }
+
+    // Cache last requiest
+    m_cacheKey = directory;
+    m_cachedItems = result;
+
+    return result;
 }
 
 void CMakeProject::scheduleScanProjectTree()

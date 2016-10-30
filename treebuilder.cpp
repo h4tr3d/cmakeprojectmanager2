@@ -123,9 +123,6 @@ void TreeBuilder::buildTreeFinished()
     m_files = std::move(m_filesForFuture);
     m_paths = std::move(m_pathsForFuture);
 
-    m_cacheKey.clear();
-    m_cachedItems.clear();
-
     m_filesForFuture.clear();
     m_pathsForFuture.clear();
 
@@ -199,9 +196,20 @@ Utils::FileNameList TreeBuilder::paths() const
     return m_paths;
 }
 
+void TreeBuilder::clear()
+{
+    m_files.clear();
+    m_paths.clear();
+}
+
 QList<FileNode *> TreeBuilder::fileNodes() const
 {
-    return Utils::transform(m_files, [](const Utils::FileName &fileName) {
+    return fileNodes(m_files);
+}
+
+QList<FileNode *> TreeBuilder::fileNodes(const Utils::FileNameList &files)
+{
+    return Utils::transform(files, [](const Utils::FileName &fileName) {
         ProjectExplorer::FileNode *node = 0;
         bool generated = false;
         QString onlyFileName = fileName.fileName();
@@ -219,40 +227,6 @@ QList<FileNode *> TreeBuilder::fileNodes() const
 
         return node;
     });
-}
-
-QSet<Utils::FileName> TreeBuilder::directoryItems(const Utils::FileName &directory) const
-{
-    // Speed up quick requiest
-    if (m_cacheKey.count() || directory == m_cacheKey)
-        return m_cachedItems;
-
-    QSet<Utils::FileName> result;
-    for (const auto &list : {m_files, m_paths}) {
-        for (const auto& fn : list) {
-            if (fn.toString().startsWith(directory.toString())) {
-                auto from = directory.toString().length();
-                from++; // Skip '/'
-
-                if (from >= fn.toString().length())
-                    continue;
-
-                auto index = fn.toString().indexOf('/', from);
-                int count = -1;
-                if (index != -1) {
-                    count = index - from;
-                }
-
-                result.insert(Utils::FileName::fromString(fn.toString().mid(from, count)));
-            }
-        }
-    }
-
-    // Cache last requiest
-    m_cacheKey = directory;
-    m_cachedItems = result;
-
-    return result;
 }
 
 bool TreeBuilder::isValidDir(const QFileInfo &fileInfo)

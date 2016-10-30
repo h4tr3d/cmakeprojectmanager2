@@ -123,6 +123,8 @@ private:
     QList<CMakeBuildTarget> buildTargets() const;
     void handleScanningFinished();
     void handleDirectoryChange(QString path);
+
+    QSet<Utils::FileName> directoryEntries(const Utils::FileName &directory) const;
     void scheduleScanProjectTree();
 
     void handleActiveTargetChanged();
@@ -148,6 +150,10 @@ private:
     mutable QStringList m_generatedFilesCache;
 
     std::unique_ptr<TreeBuilder> m_treeBuilder;
+    Utils::FileNameList m_treeFiles;
+    Utils::FileNameList m_treePaths;
+    mutable QSet<Utils::FileName> m_cachedItems;
+    mutable Utils::FileName m_cacheKey;
     QFileSystemWatcher m_treeWatcher;
     QElapsedTimer m_lastTreeScan;
     QTimer m_treeScanTimer;
