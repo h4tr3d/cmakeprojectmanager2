@@ -124,7 +124,11 @@ private:
     void handleScanningFinished();
     void handleDirectoryChange(QString path);
 
+    Utils::FileNameList directoryList(const Utils::FileNameList &paths) const;
     QSet<Utils::FileName> directoryEntries(const Utils::FileName &directory) const;
+    void addFilesCommon(const QStringList &filePaths);
+    void eraseFilesCommon(const QStringList &filePaths);
+    void renameFileCommon(const QString &filePath, const QString &newFilePath);
     void scheduleScanProjectTree();
 
     void handleActiveTargetChanged();

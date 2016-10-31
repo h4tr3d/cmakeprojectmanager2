@@ -266,7 +266,7 @@ void CMakeProject::handleScanningFinished()
     m_treeWatcher.addPath(projectDirectory().toString());
 
     m_treeFiles = m_treeBuilder->files();
-    m_treeFiles.clear();
+    m_treeBuilder->clear();
 
     updateProjectData();
 }
@@ -315,6 +315,34 @@ void CMakeProject::handleDirectoryChange(QString path)
     }
 }
 
+FileNameList CMakeProject::directoryList(const FileNameList &paths) const
+{
+    QList<FileName> dirs;
+    for (const auto& path : paths) {
+        auto fi = path.toFileInfo();
+        auto insertPath = path;
+
+        if (!fi.isDir()) {
+            insertPath = FileName::fromString(fi.absolutePath());
+        }
+
+        // Omit dups
+        if (dirs.count()) {
+            // Path objects already sorted
+            if (dirs.last() != insertPath)
+                dirs.append(insertPath);
+        } else {
+            dirs.append(insertPath);
+        }
+    }
+
+    Q_ASSERT(isSorted(dirs, [](const FileName& lhs, const FileName& rhs) {
+        return lhs < rhs;
+    }));
+
+    return dirs;
+}
+
 QSet<FileName> CMakeProject::directoryEntries(const FileName &directory) const
 {
     // Speed up quick requiest
@@ -347,6 +375,76 @@ QSet<FileName> CMakeProject::directoryEntries(const FileName &directory) const
     m_cachedItems = result;
 
     return result;
+}
+
+void CMakeProject::addFilesCommon(const QStringList &filePaths)
+{
+    auto paths = transform(filePaths, [](const QString &fn) {
+        return FileName::fromString(fn);
+    });
+
+    sort(paths);
+    auto oldSize = m_treeFiles.size();
+    m_treeFiles.append(paths);
+    std::inplace_merge(m_treeFiles.begin(),
+                       m_treeFiles.begin() + oldSize,
+                       m_treeFiles.end());
+
+    auto dirs = directoryList(paths);
+
+    // Append dirs to watcher, ignores if already present
+    m_treeWatcher.addPaths(transform(dirs, [](const FileName &path) {
+        return path.toString();
+    }));
+
+    oldSize = m_treePaths.size();
+    std::inplace_merge(m_treePaths.begin(),
+                       m_treePaths.begin() + oldSize,
+                       m_treePaths.end());
+    m_treePaths = filteredUnique(m_treePaths);
+}
+
+void CMakeProject::eraseFilesCommon(const QStringList &filePaths)
+{
+    auto paths = transform(filePaths, [](const QString &fn) {
+        return FileName::fromString(fn);
+    });
+
+    sort(paths);
+
+    FileNameList filtered;
+    filtered.reserve(m_treeFiles.size());
+    std::set_difference(m_treeFiles.begin(),
+                        m_treeFiles.end(),
+                        paths.begin(),
+                        paths.end(),
+                        std::back_inserter(filtered));
+
+    m_treeFiles = filtered;
+
+    // Process paths
+    auto dirs = directoryList(paths);
+
+    FileNameList directoryFiltered;
+    directoryFiltered.reserve(m_treePaths.size());
+    std::set_difference(m_treePaths.begin(),
+                        m_treePaths.end(),
+                        dirs.begin(),
+                        dirs.end(),
+                        std::back_inserter(directoryFiltered));
+
+    m_treePaths = directoryFiltered;
+}
+
+void CMakeProject::renameFileCommon(const QString &filePath, const QString &newFilePath)
+{
+#define STUPID_RENAME
+#ifdef STUPID_RENAME
+    eraseFilesCommon(QStringList(filePath));
+    addFilesCommon(QStringList(newFilePath));
+#else
+    // TODO
+#endif
 }
 
 void CMakeProject::scheduleScanProjectTree()
@@ -678,7 +776,7 @@ void CMakeBuildTarget::clear()
 
 bool CMakeProject::addFiles(const QStringList &filePaths)
 {
-    Q_UNUSED(filePaths);
+    addFilesCommon(filePaths);
     // If globbing is used, watched does not know about new files, so force rebuilding
     runCMake();
     return true;
@@ -686,7 +784,7 @@ bool CMakeProject::addFiles(const QStringList &filePaths)
 
 bool CMakeProject::eraseFiles(const QStringList &filePaths)
 {
-    Q_UNUSED(filePaths);
+    eraseFilesCommon(filePaths);
     // FIXME force only when really needed
     runCMake();
     return true;
@@ -694,8 +792,7 @@ bool CMakeProject::eraseFiles(const QStringList &filePaths)
 
 bool CMakeProject::renameFile(const QString &filePath, const QString &newFilePath)
 {
-    Q_UNUSED(filePath);
-    Q_UNUSED(newFilePath);
+    renameFileCommon(filePath, newFilePath);
     // FIXME force only when really needed
     runCMake();
     return true;
