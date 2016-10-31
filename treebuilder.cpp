@@ -231,6 +231,9 @@ QList<FileNode *> TreeBuilder::fileNodes(const Utils::FileNameList &files)
 
 bool TreeBuilder::isValidDir(const QFileInfo &fileInfo)
 {
+    if (!fileInfo.isDir())
+        return false;
+
     const QString fileName = fileInfo.fileName();
     const QString suffix = fileInfo.suffix();
 
@@ -247,9 +250,13 @@ bool TreeBuilder::isValidDir(const QFileInfo &fileInfo)
 
 bool TreeBuilder::isValidFile(const QFileInfo &fileInfo)
 {
+    if (!fileInfo.isFile())
+        return false;
+
     auto fn = fileInfo.fileName();
     auto isValid =
         !fn.endsWith(QLatin1String("CMakeLists.txt.user")) &&
+        !fn.endsWith(QLatin1String(".autosave")) &&
         !fn.endsWith(QLatin1String(".a")) &&
         !fn.endsWith(QLatin1String(".o")) &&
         !fn.endsWith(QLatin1String(".d")) &&

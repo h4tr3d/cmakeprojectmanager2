@@ -262,7 +262,9 @@ void CMakeProject::handleScanningFinished()
 
     m_treePaths = m_treeBuilder->paths();
     for (auto &path : m_treePaths)
-        m_treeWatcher.addPath(path.toString());
+        if (path.toFileInfo().exists())
+            m_treeWatcher.addPath(path.toString());
+
     m_treeWatcher.addPath(projectDirectory().toString());
 
     m_treeFiles = m_treeBuilder->files();
@@ -285,10 +287,7 @@ void CMakeProject::handleDirectoryChange(QString path)
     // If nodes list differ it means, that file added, removed of renemed, but not changed.
     // In future it can be optimized: replace full rescan with partial one.
 
-    //qDebug() << "Changes [0]:" << path;
-
     auto cachedItems = directoryEntries(FileName::fromString(path));
-    //qDebug() << "Scanner dir entries:" << cachedItems;
 
     auto dir = QDir(path);
     if (dir.exists()) {
@@ -296,17 +295,21 @@ void CMakeProject::handleDirectoryChange(QString path)
                                          QDir::Dirs |
                                          QDir::NoDotAndDotDot |
                                          QDir::NoSymLinks);
-        QSet<FileName> currentItems = transform(currentList.toSet(), [](const QString& fn) {
-            return FileName::fromString(fn);
-        });
 
-        //qDebug() << "Current dir entries:" << currentItems;
+        QSet<FileName> currentItems;
+        for (const auto& fn : currentList) {
+            QFileInfo fi{path + '/' + fn};
+            if (TreeBuilder::isValidFile(fi) || TreeBuilder::isValidDir(fi))
+                currentItems.insert(FileName::fromString(fn));
+        }
 
         auto removed = cachedItems - currentItems;
         auto added = currentItems - cachedItems;
 
         if (!removed.empty() || !added.empty()) {
-            //qDebug() << "Chanes [1]:" << path;
+            qDebug() << "Scanner dir entries:" << cachedItems;
+            qDebug() << "Current dir entries:" << currentItems;
+            qDebug() << "Changed:" << path;
             scheduleScanProjectTree();
         }
     } else {
@@ -346,7 +349,7 @@ FileNameList CMakeProject::directoryList(const FileNameList &paths) const
 QSet<FileName> CMakeProject::directoryEntries(const FileName &directory) const
 {
     // Speed up quick requiest
-    if (m_cacheKey.count() || directory == m_cacheKey)
+    if (m_cacheKey.count() && directory == m_cacheKey)
         return m_cachedItems;
 
     QSet<Utils::FileName> result;

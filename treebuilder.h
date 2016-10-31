@@ -48,6 +48,9 @@ public:
 
     QFuture<void> future() const;
 
+    static bool isValidDir(const QFileInfo &fileInfo);
+    static bool isValidFile(const QFileInfo &fileInfo);
+
 #if 0
     void applyFilter(const QString &selectFilesfilter, const QString &hideFilesfilter);
 #endif
@@ -64,9 +67,6 @@ private:
 
     void run(QFutureInterface<void> &fi);
     void buildTree(const Utils::FileName &baseDir, QFutureInterface<void> &fi, int symlinkDepth);
-
-    bool isValidDir(const QFileInfo &fileInfo);
-    bool isValidFile(const QFileInfo &fileInfo);
 
 private:
     // Used in the future thread need to all not used after calling startParsing
