@@ -130,7 +130,13 @@ void CMakeProject::updateProjectData()
 
     QTC_ASSERT(cmakeBc, return);
 
-    if (m_treeBuilder->isScanning() || cmakeBc->isParsing())
+    // Initially, populate project tree by the CMake parsing data if it already done to allow user
+    // begin work with project and update project tree with file system files when scanning completes.
+    // Do not use file system data as a initial project tree: we have no information about targets,
+    // flags and so on from build system, so parsing will be ugly and navigation too.
+    const auto cacheEmpty = m_sourceFilesCache.empty() && m_generatedFilesCache.empty();
+    if ((m_treeBuilder->isScanning() || cmakeBc->isParsing()) &&
+        (cmakeBc->isParsing() || !cacheEmpty))
         return;
 
     Kit *k = t->kit();
