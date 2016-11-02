@@ -26,7 +26,7 @@
 #pragma once
 
 #include "cmake_global.h"
-#include "treebuilder.h"
+#include "cmakeprojectnodes.h"
 
 #include <projectexplorer/extracompiler.h>
 #include <projectexplorer/project.h>
@@ -51,6 +51,8 @@ class CMakeBuildSettingsWidget;
 class CMakeBuildConfiguration;
 class CMakeProjectNode;
 class CMakeManager;
+class TreeBuilder;
+struct FileNodeInfo;
 } // namespace Internal
 
 enum TargetType {
@@ -91,8 +93,7 @@ public:
     QString displayName() const final;
 
     QStringList files(FilesMode fileMode) const final;
-    const QList<ProjectExplorer::FileNode* >& files() const;
-    void setFiles(QList<ProjectExplorer::FileNode*> &&nodes);
+    void updateFilesCache(const QList<ProjectExplorer::FileNode*> &nodes) const;
     QStringList buildTargetTitles(bool runnable = false) const;
     bool hasBuildTarget(const QString &title) const;
 
@@ -124,7 +125,7 @@ private:
     void handleScanningFinished();
     void handleDirectoryChange(QString path);
 
-    Utils::FileNameList directoryList(const Utils::FileNameList &paths) const;
+    Utils::FileNameList directoryList(const QList<Internal::FileNodeInfo> &paths) const;
     QSet<Utils::FileName> directoryEntries(const Utils::FileName &directory) const;
     void addFilesCommon(const QStringList &filePaths);
     void eraseFilesCommon(const QStringList &filePaths);
@@ -149,16 +150,17 @@ private:
     QFuture<void> m_codeModelFuture;
     QList<ProjectExplorer::ExtraCompiler *> m_extraCompilers;
 
-    QList<ProjectExplorer::FileNode* > m_files;
     mutable QStringList m_sourceFilesCache;
     mutable QStringList m_generatedFilesCache;
 
-    std::unique_ptr<TreeBuilder> m_treeBuilder;
-    Utils::FileNameList m_treeFiles;
+    std::unique_ptr<Internal::TreeBuilder> m_treeBuilder;
+    QList<Internal::FileNodeInfo> m_treeFiles;
     Utils::FileNameList m_treePaths;
     mutable QSet<Utils::FileName> m_cachedItems;
     mutable Utils::FileName m_cacheKey;
+#ifdef USE_TREE_WATCHER
     QFileSystemWatcher m_treeWatcher;
+#endif
     QElapsedTimer m_lastTreeScan;
     QTimer m_treeScanTimer;
 

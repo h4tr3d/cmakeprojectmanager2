@@ -90,16 +90,15 @@ bool sortNodesByPath(Node *a, Node *b)
 QList<FileNode*> composeProjectTree(QList<FileNode*> cmakefiles,
                                     QList<FileNode*> treefiles)
 {
-    // Step 1: sort lists. treefiles already sorted
-    Utils::sort(cmakefiles, sortNodesByPath);
+    // Assume: both input lists is sorted
 
-    // Step 2: get only added files
+    // Step 1: get only added files
     QList<ProjectExplorer::FileNode *> added;
     QList<ProjectExplorer::FileNode *> deleted;
     ProjectExplorer::compareSortedLists(cmakefiles, treefiles, deleted, added, sortNodesByPath);
     qDeleteAll(ProjectExplorer::subtractSortedList(treefiles, added, sortNodesByPath));
 
-    // Step 3: now add new files to the cmakefiles. Note: using cmakefiles as a base is a good idea!
+    // Step 2: now add new files to the cmakefiles. Note: using cmakefiles as a base is a good idea!
     //         also, keep result sorted
     auto count = cmakefiles.count();
     cmakefiles.append(added);
@@ -107,71 +106,6 @@ QList<FileNode*> composeProjectTree(QList<FileNode*> cmakefiles,
 
     return cmakefiles;
 }
-
-FolderNode* findFolderFor(FolderNode *root, const QString& projectDir, const QStringList& path)
-{
-    auto folder = root;
-    auto currentPath = projectDir;
-
-    foreach (const QString &part, path) {
-        // Create relative path
-        if (!currentPath.isEmpty())
-            currentPath += QDir::separator();
-        currentPath += part;
-
-        // Find the child with the given name
-        QList<FolderNode *> subFolderNodes = folder->subFolderNodes();
-        auto predicate = [&part] (const FolderNode * f) {
-            return f->displayName() == part;
-        };
-        auto it = std::find_if(subFolderNodes.begin(), subFolderNodes.end(), predicate);
-
-        if (it != subFolderNodes.end()) {
-            folder = *it;
-            continue;
-        }
-
-        // Folder not found. Add it
-        QString newFolderPath = QDir::cleanPath(currentPath + QDir::separator() + part);
-        auto newFolder = new FolderNode(Utils::FileName::fromString(newFolderPath),
-                                        FolderNodeType,
-                                        part);
-        folder->addFolderNodes({newFolder});
-        folder = newFolder;
-    }
-    return folder;
-}
-
-void removeNodes(FolderNode* root, const QString& projectDir, const QList<FileNode*> &nodes)
-{
-    QStringList path;
-    foreach (const FileNode *node, nodes) {
-        path = QDir(projectDir).relativeFilePath(node->filePath().toString()).split(QDir::separator());
-        path.pop_back();
-        FolderNode *folder = findFolderFor(root, projectDir, path);
-
-        for (FileNode *fileNode : folder->fileNodes()) {
-            if (fileNode->filePath() == node->filePath()) {
-                folder->removeFileNodes({fileNode});
-                break;
-            }
-        }
-    }
-}
-
-void addNodes(FolderNode* root, const QString& projectDir, const QList<FileNode*> &nodes)
-{
-    QStringList path;
-    foreach (const FileNode *node, nodes) {
-        path = QDir(projectDir).relativeFilePath(node->filePath().toString()).split(QDir::separator());
-        path.pop_back();
-        FolderNode *folder = findFolderFor(root, projectDir, path);
-        // Make node copy
-        auto fileNode = new FileNode(node->filePath(), node->fileType(), node->isGenerated(), node->line());
-        folder->addFileNodes({fileNode});
-    }
-}
-
 } // ::anonymous
 
 // --------------------------------------------------------------------
@@ -275,7 +209,6 @@ void BuildDirManager::resetData()
     m_cmakeCache.clear();
     m_projectName.clear();
     m_buildTargets.clear();
-    qDeleteAll(m_files);
     m_files.clear();
 }
 
@@ -300,7 +233,7 @@ bool BuildDirManager::persistCMakeState()
     return true;
 }
 
-void BuildDirManager::generateProjectTree(CMakeProjectNode *root, const QList<FileNode *> &treeFiles)
+void BuildDirManager::generateProjectTree(CMakeProjectNode *root, const QList<FileNodeInfo> &treeFiles)
 {
     root->setDisplayName(m_projectName);
 
@@ -330,51 +263,27 @@ void BuildDirManager::generateProjectTree(CMakeProjectNode *root, const QList<Fi
     // Compose lists
     auto tm = std::chrono::system_clock::now();
 
-    // Make local copy of cmake files
-    auto files = Utils::transform(m_files, [](const FileNode* node) {
-        return new FileNode(node->filePath(), node->fileType(), node->isGenerated(), node->line());
+    // Create nodes
+    auto cmakeFileNodes = Utils::transform(m_files, [](const FileNodeInfo& node) {
+        return new FileNode(node.filePath, node.fileType, node.generated);
+    });
+
+    auto treeFileNodes = Utils::transform(treeFiles, [](const FileNodeInfo& node) {
+        return new FileNode(node.filePath, node.fileType, node.generated);
     });
 
     auto treeFilesCount = treeFiles.count();
     auto cmakeFilesCount = m_files.count();
-    files = composeProjectTree(files, treeFiles);
-    qDebug() << "Extract data," << "Tree:" << treeFilesCount << "CMake:" << cmakeFilesCount << "Total:" << files.count();
+    cmakeFileNodes = composeProjectTree(cmakeFileNodes, treeFileNodes);
+    qDebug() << "Extract data," << "Tree:" << treeFilesCount << "CMake:" << cmakeFilesCount << "Total:" << cmakeFileNodes.count();
     auto delta = std::chrono::system_clock::now() - tm;
     qDebug() << "Files composing time:" << std::chrono::duration_cast<std::chrono::milliseconds>(delta).count();
 
     tm = std::chrono::system_clock::now();
-#ifndef USE_OLD
+
     auto project = static_cast<CMakeProject*>(m_buildConfiguration->target()->project());
-
-    auto buildTree = [this,root,files] () {
-        auto nodes = Utils::transform(files, [](const FileNode* node) {
-            return new FileNode(node->filePath(), node->fileType(), node->isGenerated(), node->line());
-        });
-        root->buildTree(nodes);
-    };
-
-    if (project->files().empty()) {
-        qDebug() << "Full tree populate [0]";
-        buildTree();
-    } else {
-        QList<ProjectExplorer::FileNode *> added;
-        QList<ProjectExplorer::FileNode *> deleted;
-        ProjectExplorer::compareSortedLists(project->files(), files, deleted, added, sortNodesByPath);
-
-        if (added.count() + deleted.count() > files.count()/3) {
-            qDebug() << "Full tree populate [1]:" << "added:" << added.count() << "deleted:" << deleted.count() << "files:" << files.count() << "cur:" << project->files().count();
-            buildTree();
-        } else {
-            removeNodes(root, sourceDirectory().toString(), deleted);
-            addNodes(root, sourceDirectory().toString(), added);
-        }
-    }
-    project->setFiles(std::move(files));
-#else
-    QList<FileNode *> fileNodes = m_files;
-    root->buildTree(fileNodes);
-    m_files.clear(); // Some of the FileNodes in files() were deleted!
-#endif
+    project->updateFilesCache(cmakeFileNodes);
+    root->buildTree(cmakeFileNodes);
 
     delta = std::chrono::system_clock::now() - tm;
     qDebug() << "Tree generation time:" << std::chrono::duration_cast<std::chrono::milliseconds>(delta).count();
@@ -551,8 +460,19 @@ void BuildDirManager::extractData()
 
     resetData();
 
+    QList<ProjectExplorer::FileNode *> files;
+
+    auto onScopeExit = [&files, this](void*) {
+        m_files = Utils::transform(files, [](const ProjectExplorer::FileNode *node) {
+            return FileNodeInfo(node->filePath(), node->fileType(), node->isGenerated());
+        });
+        Utils::sort(m_files);
+        qDeleteAll(files);
+    };
+    auto scopeExitHolder = std::unique_ptr<void,decltype(onScopeExit)>(reinterpret_cast<void*>(1), onScopeExit);
+
     m_projectName = sourceDirectory().fileName();
-    m_files.append(new FileNode(topCMake, ProjectFileType, false));
+    files.append(new FileNode(topCMake, ProjectFileType, false));
     // Do not insert topCMake into m_cmakeFiles: The project already watches that!
 
     // Find cbp file
@@ -576,16 +496,16 @@ void BuildDirManager::extractData()
 
     m_projectName = cbpparser.projectName();
 
-    m_files = cbpparser.fileList();
+    files = cbpparser.fileList();
     if (cbpparser.hasCMakeFiles()) {
-        m_files.append(cbpparser.cmakeFileList());
+        files.append(cbpparser.cmakeFileList());
         foreach (const FileNode *node, cbpparser.cmakeFileList())
             m_cmakeFiles.insert(node->filePath());
     }
 
     // Make sure the top cmakelists.txt file is always listed:
-    if (!Utils::contains(m_files, [topCMake](FileNode *fn) { return fn->filePath() == topCMake; })) {
-        m_files.append(new FileNode(topCMake, ProjectFileType, false));
+    if (!Utils::contains(files, [topCMake](FileNode *fn) { return fn->filePath() == topCMake; })) {
+        files.append(new FileNode(topCMake, ProjectFileType, false));
     }
 
     m_buildTargets = cbpparser.buildTargets();

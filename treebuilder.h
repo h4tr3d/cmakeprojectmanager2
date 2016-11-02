@@ -17,6 +17,8 @@
 ****************************************************************************/
 #pragma once
 
+#include "cmakeprojectnodes.h"
+
 #include <projectexplorer/projectnodes.h>
 
 #include <QObject>
@@ -25,6 +27,8 @@
 
 namespace CMakeProjectManager {
 
+namespace Internal {
+
 class TreeBuilder : public QObject
 {
     Q_OBJECT
@@ -32,13 +36,13 @@ public:
     explicit TreeBuilder(QObject *parent = 0);
     ~TreeBuilder() override;
 
-    Utils::FileNameList files() const;
+    QList<FileNodeInfo> files() const;
     Utils::FileNameList paths() const;
 
     void clear();
 
-    QList<ProjectExplorer::FileNode*> fileNodes() const;
     static QList<ProjectExplorer::FileNode*> fileNodes(const Utils::FileNameList &files);
+    static FileNodeInfo fileNodeInfo(const Utils::FileName& fileName);
 
     void startScanning(const Utils::FileName &baseDir);
     void cancel();
@@ -72,12 +76,19 @@ private:
     // Used in the future thread need to all not used after calling startParsing
     Utils::FileName m_baseDir;
 
+#if 0
     Utils::FileNameList m_files;
     Utils::FileNameList m_filesForFuture;
 
     Utils::FileNameList m_paths;
     Utils::FileNameList m_pathsForFuture;
+#else
+    QList<FileNodeInfo> m_files;
+    QList<FileNodeInfo> m_filesForFuture;
 
+    Utils::FileNameList m_paths;
+    Utils::FileNameList m_pathsForFuture;
+#endif
     QFutureWatcher<void> m_watcher;
     int m_futureCount = 0;
 
@@ -89,5 +100,6 @@ private:
 #endif
 };
 
+} // mamespace Internal
 } // namespace CMakeProjectManager
 

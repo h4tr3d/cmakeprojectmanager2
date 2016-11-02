@@ -33,6 +33,26 @@ class CMakeProject;
 
 namespace Internal {
 
+struct FileNodeInfo
+{
+    FileNodeInfo() = default;
+    FileNodeInfo(const Utils::FileName &filePath, const ProjectExplorer::FileType fileType, bool generated)
+        : filePath(filePath),
+          fileType(fileType),
+          generated(generated)
+    {}
+
+    Utils::FileName filePath;
+    ProjectExplorer::FileType fileType = ProjectExplorer::UnknownFileType;
+    bool generated = false;
+};
+
+// For sorting operations
+inline bool operator<(const FileNodeInfo &lhs, const FileNodeInfo &rhs)
+{
+    return lhs.filePath < rhs.filePath;
+}
+
 class CMakeProjectNode : public ProjectExplorer::ProjectNode
 {
 public:

@@ -86,7 +86,7 @@ public:
     bool updateCMakeStateBeforeBuild();
     bool persistCMakeState();
 
-    void generateProjectTree(CMakeProjectNode *root, const QList<ProjectExplorer::FileNode *> &treeFiles);
+    void generateProjectTree(CMakeProjectNode *root, const QList<Internal::FileNodeInfo> &treeFiles);
     QSet<Core::Id> updateCodeModel(CppTools::ProjectPartBuilder &ppBuilder);
 
     QList<CMakeBuildTarget> buildTargets() const;
@@ -143,7 +143,7 @@ private:
     QSet<Utils::FileName> m_cmakeFiles;
     QString m_projectName;
     QList<CMakeBuildTarget> m_buildTargets;
-    QList<ProjectExplorer::FileNode *> m_files;
+    QList<Internal::FileNodeInfo> m_files;
 
     // For error reporting:
     ProjectExplorer::IOutputParser *m_parser = nullptr;

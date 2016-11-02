@@ -31,6 +31,7 @@
 #include "cmakeprojectnodes.h"
 #include "cmakerunconfiguration.h"
 #include "cmakeprojectmanager.h"
+#include "treebuilder.h"
 
 #include <coreplugin/progressmanager/progressmanager.h>
 #include <cpptools/cppmodelmanager.h>
@@ -92,7 +93,9 @@ CMakeProject::CMakeProject(CMakeManager *manager, const FileName &fileName)
 
     connect(this, &CMakeProject::activeTargetChanged, this, &CMakeProject::handleActiveTargetChanged);
     connect(m_treeBuilder.get(), &TreeBuilder::scanningFinished, this, &CMakeProject::handleScanningFinished);
+#ifdef USE_TREE_WATCHER
     connect(&m_treeWatcher, &QFileSystemWatcher::directoryChanged, this, &CMakeProject::handleDirectoryChange);
+#endif
     connect(&m_treeScanTimer, &QTimer::timeout, this, &CMakeProject::scanProjectTree);
 
     m_treeScanTimer.setSingleShot(true);
@@ -105,7 +108,6 @@ CMakeProject::~CMakeProject()
     setRootProjectNode(nullptr);
     m_codeModelFuture.cancel();
     qDeleteAll(m_extraCompilers);
-    qDeleteAll(m_files);
 }
 
 void CMakeProject::updateProjectData()
@@ -133,8 +135,7 @@ void CMakeProject::updateProjectData()
 
     Kit *k = t->kit();
 
-    cmakeBc->generateProjectTree(static_cast<CMakeProjectNode *>(rootProjectNode()),
-                                 TreeBuilder::fileNodes(m_treeFiles));
+    cmakeBc->generateProjectTree(static_cast<CMakeProjectNode *>(rootProjectNode()), m_treeFiles);
 
     updateApplicationAndDeploymentTargets();
     updateTargetRunConfigurations(t);
@@ -261,14 +262,15 @@ void CMakeProject::handleScanningFinished()
     m_lastTreeScan.start();
 
     m_treePaths = m_treeBuilder->paths();
+    m_treeFiles = m_treeBuilder->files();
+    m_treeBuilder->clear();
+
+#ifdef USE_TREE_WATCHER
     for (auto &path : m_treePaths)
         if (path.toFileInfo().exists())
             m_treeWatcher.addPath(path.toString());
-
     m_treeWatcher.addPath(projectDirectory().toString());
-
-    m_treeFiles = m_treeBuilder->files();
-    m_treeBuilder->clear();
+#endif
 
     updateProjectData();
 }
@@ -318,12 +320,12 @@ void CMakeProject::handleDirectoryChange(QString path)
     }
 }
 
-FileNameList CMakeProject::directoryList(const FileNameList &paths) const
+FileNameList CMakeProject::directoryList(const QList<FileNodeInfo> &paths) const
 {
     QList<FileName> dirs;
     for (const auto& path : paths) {
-        auto fi = path.toFileInfo();
-        auto insertPath = path;
+        auto fi = path.filePath.toFileInfo();
+        auto insertPath = path.filePath;
 
         if (!fi.isDir()) {
             insertPath = FileName::fromString(fi.absolutePath());
@@ -353,25 +355,29 @@ QSet<FileName> CMakeProject::directoryEntries(const FileName &directory) const
         return m_cachedItems;
 
     QSet<Utils::FileName> result;
-    for (const auto &list : {m_treeFiles, m_treePaths}) {
-        for (const auto& fn : list) {
-            if (fn.toString().startsWith(directory.toString())) {
-                auto from = directory.toString().length();
-                from++; // Skip '/'
 
-                if (from >= fn.toString().length())
-                    continue;
+    auto processFileName = [&result,&directory](const FileName& fn) {
+        if (fn.toString().startsWith(directory.toString())) {
+            auto from = directory.toString().length();
+            from++; // Skip '/'
 
-                auto index = fn.toString().indexOf('/', from);
-                int count = -1;
-                if (index != -1) {
-                    count = index - from;
-                }
+            if (from >= fn.toString().length())
+                return;
 
-                result.insert(Utils::FileName::fromString(fn.toString().mid(from, count)));
+            auto index = fn.toString().indexOf('/', from);
+            int count = -1;
+            if (index != -1) {
+                count = index - from;
             }
+
+            result.insert(Utils::FileName::fromString(fn.toString().mid(from, count)));
         }
-    }
+    };
+
+    for (const auto& fn : m_treeFiles)
+        processFileName(fn.filePath);
+    for (const auto& fn : m_treePaths)
+        processFileName(fn);
 
     // Cache last requiest
     m_cacheKey = directory;
@@ -380,10 +386,10 @@ QSet<FileName> CMakeProject::directoryEntries(const FileName &directory) const
     return result;
 }
 
-void CMakeProject::addFilesCommon(const QStringList &filePaths)
+void CMakeProject::addFilesCommon(const QStringList& filePaths)
 {
     auto paths = transform(filePaths, [](const QString &fn) {
-        return FileName::fromString(fn);
+        return TreeBuilder::fileNodeInfo(FileName::fromString(fn));
     });
 
     sort(paths);
@@ -395,12 +401,15 @@ void CMakeProject::addFilesCommon(const QStringList &filePaths)
 
     auto dirs = directoryList(paths);
 
+#ifdef USE_TREE_WATCHER
     // Append dirs to watcher, ignores if already present
     m_treeWatcher.addPaths(transform(dirs, [](const FileName &path) {
         return path.toString();
     }));
+#endif
 
     oldSize = m_treePaths.size();
+    m_treePaths.append(dirs);
     std::inplace_merge(m_treePaths.begin(),
                        m_treePaths.begin() + oldSize,
                        m_treePaths.end());
@@ -410,12 +419,12 @@ void CMakeProject::addFilesCommon(const QStringList &filePaths)
 void CMakeProject::eraseFilesCommon(const QStringList &filePaths)
 {
     auto paths = transform(filePaths, [](const QString &fn) {
-        return FileName::fromString(fn);
+        return TreeBuilder::fileNodeInfo(FileName::fromString(fn));
     });
 
     sort(paths);
 
-    FileNameList filtered;
+    QList<FileNodeInfo> filtered;
     filtered.reserve(m_treeFiles.size());
     std::set_difference(m_treeFiles.begin(),
                         m_treeFiles.end(),
@@ -496,24 +505,8 @@ QString CMakeProject::displayName() const
 
 QStringList CMakeProject::files(FilesMode fileMode) const
 {
-    auto tm = std::chrono::system_clock::now();
-    if (!m_files.empty()) {
-        if (m_generatedFilesCache.empty() && m_sourceFilesCache.empty()) {
-            for (auto &node : m_files) {
-                if (node->fileType() == UnknownFileType)
-                    continue;
-
-                const bool isGenerated = node->isGenerated();
-                if (isGenerated)
-                    m_generatedFilesCache.push_back(node->filePath().toString());
-                else
-                    m_sourceFilesCache.push_back(node->filePath().toString());
-            }
-        }
-    }
-
-    auto delta = std::chrono::system_clock::now() - tm;
-    //qDebug() << "files():" << std::chrono::duration_cast<std::chrono::milliseconds>(delta).count();
+    if (m_generatedFilesCache.empty() && m_sourceFilesCache.empty())
+        updateFilesCache(rootProjectNode()->recursiveFileNodes());
 
     switch (fileMode) {
         case Project::GeneratedFiles:
@@ -526,17 +519,18 @@ QStringList CMakeProject::files(FilesMode fileMode) const
     return QStringList();
 }
 
-const QList<FileNode *> &CMakeProject::files() const
+void CMakeProject::updateFilesCache(const QList<FileNode *> &nodes) const
 {
-    return m_files;
-}
-
-void CMakeProject::setFiles(QList<FileNode *> &&nodes)
-{
-    qDeleteAll(m_files);
-    m_files = std::move(nodes);
     m_generatedFilesCache.clear();
     m_sourceFilesCache.clear();
+    for (auto &node : nodes) {
+        if (node->fileType() == UnknownFileType)
+            continue;
+        if (node->isGenerated())
+            m_generatedFilesCache.push_back(node->filePath().toString());
+        else
+            m_sourceFilesCache.push_back(node->filePath().toString());
+    }
 }
 
 Project::RestoreResult CMakeProject::fromMap(const QVariantMap &map, QString *errorMessage)

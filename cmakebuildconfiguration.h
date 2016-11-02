@@ -86,7 +86,7 @@ public:
     void clearCache();
 
     QList<CMakeBuildTarget> buildTargets() const;
-    void generateProjectTree(CMakeProjectNode *root, const QList<ProjectExplorer::FileNode*> &treeFiles) const;
+    void generateProjectTree(CMakeProjectNode *root, const QList<Internal::FileNodeInfo> &treeFiles) const;
     QSet<Core::Id> updateCodeModel(CppTools::ProjectPartBuilder &ppBuilder);
 
     static Utils::FileName

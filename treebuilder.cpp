@@ -31,7 +31,7 @@
 using namespace ProjectExplorer;
 
 namespace CMakeProjectManager {
-
+namespace Internal {
 namespace {
 
 Utils::MimeType getFileMimeType(const QString &path)
@@ -63,6 +63,8 @@ FileType getFileType(const QString &file)
         return FormType;
     if (typeName == QLatin1String(ProjectExplorer::Constants::QML_MIMETYPE))
         return QMLType;
+    if (typeName == QLatin1String(ProjectExplorer::Constants::SCXML_MIMETYPE))
+        return StateChartType;
     return UnknownFileType;
 }
 } // ::anonymous
@@ -176,7 +178,8 @@ void TreeBuilder::buildTree(const Utils::FileName &baseDir,
             m_pathsForFuture.append(fn);
             buildTree(fn, fi, symlinkDepth - fileInfo.isSymLink());
         } else if (isValidFile(fileInfo)) {
-            m_filesForFuture.append(fn);
+            auto nodeInfo = fileNodeInfo(fn);
+            m_filesForFuture.append(std::move(nodeInfo));
         }
     }
 }
@@ -186,7 +189,7 @@ TreeBuilder::~TreeBuilder()
     cancel();
 }
 
-Utils::FileNameList TreeBuilder::files() const
+QList<FileNodeInfo> TreeBuilder::files() const
 {
     return m_files;
 }
@@ -202,31 +205,38 @@ void TreeBuilder::clear()
     m_paths.clear();
 }
 
-QList<FileNode *> TreeBuilder::fileNodes() const
-{
-    return fileNodes(m_files);
-}
-
 QList<FileNode *> TreeBuilder::fileNodes(const Utils::FileNameList &files)
 {
     return Utils::transform(files, [](const Utils::FileName &fileName) {
-        ProjectExplorer::FileNode *node = 0;
-        bool generated = false;
-        QString onlyFileName = fileName.fileName();
-        if (   (onlyFileName.startsWith(QLatin1String("moc_")) && onlyFileName.endsWith(QLatin1String(".cxx")))
-               || (onlyFileName.startsWith(QLatin1String("ui_")) && onlyFileName.endsWith(QLatin1String(".h")))
-               || (onlyFileName.startsWith(QLatin1String("qrc_")) && onlyFileName.endsWith(QLatin1String(".cxx"))))
-            generated = true;
-
-        if (fileName.endsWith(QLatin1String("CMakeLists.txt")))
-            node = new ProjectExplorer::FileNode(fileName, ProjectExplorer::ProjectFileType, false);
-        else {
-            ProjectExplorer::FileType fileType = getFileType(fileName.toString());
-            node = new ProjectExplorer::FileNode(fileName, fileType, generated);
-        }
-
-        return node;
+        auto nodeInfo = fileNodeInfo(fileName);
+        return new ProjectExplorer::FileNode(nodeInfo.filePath, nodeInfo.fileType, nodeInfo.generated);
     });
+}
+
+FileNodeInfo TreeBuilder::fileNodeInfo(const Utils::FileName &fileName)
+{
+    FileNodeInfo node;
+    bool generated = false;
+    QString onlyFileName = fileName.fileName();
+    if (   (onlyFileName.startsWith(QLatin1String("moc_")) && onlyFileName.endsWith(QLatin1String(".cxx")))
+           || (onlyFileName.startsWith(QLatin1String("ui_")) && onlyFileName.endsWith(QLatin1String(".h")))
+           || (onlyFileName.startsWith(QLatin1String("qrc_")) && onlyFileName.endsWith(QLatin1String(".cxx"))))
+        generated = true;
+
+    if (fileName.endsWith(QLatin1String("CMakeLists.txt"))) {
+        node = FileNodeInfo(fileName, ProjectExplorer::ProjectFileType, false);
+    } else {
+#if 1
+        ProjectExplorer::FileType fileType = getFileType(fileName.toString());
+#else
+        auto fileType = SourceType;
+        if (onlyFileName.endsWith(".qrc"))
+            fileType = ResourceType;
+#endif
+        node = FileNodeInfo(fileName, fileType, generated);
+    }
+
+    return node;
 }
 
 bool TreeBuilder::isValidDir(const QFileInfo &fileInfo)
@@ -323,4 +333,5 @@ void TreeBuilder::applyFilter(const QString &showFilesfilter, const QString &hid
 }
 #endif
 
+} // namespace Internal
 } // namespace CMakeProjectManager
