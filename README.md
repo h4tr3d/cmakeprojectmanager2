@@ -13,7 +13,7 @@ Main differents from original CMakeProject plugin:
   manualy describe this files in CMakeLists.txt.
 * You can rename files in file system from Qt Creator now.
 * You can erase files from files system from Qt Creator now.
-* Toolchain file overriding via dialog: inline (internal editing) and via pointing file.
+* Toolchain file overriding via dialog by pointing cmake toolchain file.
 
 Build plugin
 ------------
@@ -140,8 +140,6 @@ sudo apt-get install qtcreator-git qtcreator-git-plugin-cmake2
 
 TODO & Roadmap
 --------------
-
-No roadmap. Only needed features implemets. Code syncs regularry.
 
 Actual tasks and todo can be looks at the Issue page: https://github.com/h4tr3d/cmakeprojectmanager2/issues
 
