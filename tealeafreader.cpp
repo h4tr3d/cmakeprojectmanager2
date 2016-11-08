@@ -153,7 +153,7 @@ TeaLeafReader::TeaLeafReader()
 {
     connect(EditorManager::instance(), &EditorManager::aboutToSave,
             this, [this](const IDocument *document) {
-        if (m_cmakeFiles.contains(document->filePath()))
+        if (m_cmakeFiles.contains(document->filePath()) || !m_parameters.isAutorun)
             emit dirty();
     });
 }
