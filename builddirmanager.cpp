@@ -472,7 +472,7 @@ void BuildDirManager::extractData()
     auto scopeExitHolder = std::unique_ptr<void,decltype(onScopeExit)>(reinterpret_cast<void*>(1), onScopeExit);
 
     m_projectName = sourceDirectory().fileName();
-    files.append(new FileNode(topCMake, ProjectFileType, false));
+    files.append(new FileNode(topCMake, FileType::Project, false));
     // Do not insert topCMake into m_cmakeFiles: The project already watches that!
 
     // Find cbp file
@@ -505,7 +505,7 @@ void BuildDirManager::extractData()
 
     // Make sure the top cmakelists.txt file is always listed:
     if (!Utils::contains(files, [topCMake](FileNode *fn) { return fn->filePath() == topCMake; })) {
-        files.append(new FileNode(topCMake, ProjectFileType, false));
+        files.append(new FileNode(topCMake, FileType::Project, false));
     }
 
     m_buildTargets = cbpparser.buildTargets();

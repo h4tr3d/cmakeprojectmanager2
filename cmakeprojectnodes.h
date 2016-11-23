@@ -43,7 +43,7 @@ struct FileNodeInfo
     {}
 
     Utils::FileName filePath;
-    ProjectExplorer::FileType fileType = ProjectExplorer::UnknownFileType;
+    ProjectExplorer::FileType fileType = ProjectExplorer::FileType::Unknown;
     bool generated = false;
 };
 

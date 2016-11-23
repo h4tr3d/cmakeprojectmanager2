@@ -48,24 +48,24 @@ FileType getFileType(const QString &file)
     Utils::MimeDatabase mdb;
     const Utils::MimeType mt = mdb.mimeTypeForFile(file);
     if (!mt.isValid())
-        return UnknownFileType;
+        return FileType::Unknown;
 
     const QString typeName = mt.name();
     if (typeName == QLatin1String(ProjectExplorer::Constants::CPP_SOURCE_MIMETYPE)
         || typeName == QLatin1String(ProjectExplorer::Constants::C_SOURCE_MIMETYPE))
-        return SourceType;
+        return FileType::Source;
     if (typeName == QLatin1String(ProjectExplorer::Constants::CPP_HEADER_MIMETYPE)
         || typeName == QLatin1String(ProjectExplorer::Constants::C_HEADER_MIMETYPE))
-        return HeaderType;
+        return FileType::Header;
     if (typeName == QLatin1String(ProjectExplorer::Constants::RESOURCE_MIMETYPE))
-        return ResourceType;
+        return FileType::Resource;
     if (typeName == QLatin1String(ProjectExplorer::Constants::FORM_MIMETYPE))
-        return FormType;
+        return FileType::Form;
     if (typeName == QLatin1String(ProjectExplorer::Constants::QML_MIMETYPE))
-        return QMLType;
+        return FileType::QML;
     if (typeName == QLatin1String(ProjectExplorer::Constants::SCXML_MIMETYPE))
-        return StateChartType;
-    return UnknownFileType;
+        return FileType::StateChart;
+    return FileType::Unknown;
 }
 } // ::anonymous
 
@@ -224,14 +224,14 @@ FileNodeInfo TreeBuilder::fileNodeInfo(const Utils::FileName &fileName)
         generated = true;
 
     if (fileName.endsWith(QLatin1String("CMakeLists.txt"))) {
-        node = FileNodeInfo(fileName, ProjectExplorer::ProjectFileType, false);
+        node = FileNodeInfo(fileName, ProjectExplorer::FileType::Project, false);
     } else {
 #if 1
         ProjectExplorer::FileType fileType = getFileType(fileName.toString());
 #else
         auto fileType = SourceType;
         if (onlyFileName.endsWith(".qrc"))
-            fileType = ResourceType;
+            fileType = FileType::Resource;
 #endif
         node = FileNodeInfo(fileName, fileType, generated);
     }

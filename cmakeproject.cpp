@@ -530,7 +530,7 @@ void CMakeProject::updateFilesCache(const QList<FileNode *> &nodes) const
     m_generatedFilesCache.clear();
     m_sourceFilesCache.clear();
     for (auto &node : nodes) {
-        if (node->fileType() == UnknownFileType)
+        if (node->fileType() == FileType::Unknown)
             continue;
         if (node->isGenerated())
             m_generatedFilesCache.push_back(node->filePath().toString());
