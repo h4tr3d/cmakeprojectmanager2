@@ -31,6 +31,7 @@
 #include "cmakeprojectnodes.h"
 #include "cmakerunconfiguration.h"
 #include "cmakeprojectmanager.h"
+#include "cmaketool.h"
 #include "treebuilder.h"
 
 #include <coreplugin/progressmanager/progressmanager.h>
@@ -394,18 +395,32 @@ QSet<FileName> CMakeProject::directoryEntries(const FileName &directory) const
 
 void CMakeProject::addFilesCommon(const QStringList& filePaths)
 {
-    auto paths = transform(filePaths, [](const QString &fn) {
+    auto infos = transform(filePaths, [](const QString &fn) {
         return TreeBuilder::fileNodeInfo(FileName::fromString(fn));
     });
 
-    sort(paths);
+    sort(infos);
+
+    for (const auto& info : infos) {
+        auto fi = info.filePath.toFileInfo();
+        auto parent = fi.absolutePath();
+        auto folder = rootProjectNode()->recursiveFindOrCreateFolderNode(parent);
+        auto node = new FileNode(info.filePath, info.fileType, false);
+        folder->addFileNodes({node});
+    }
+
+    m_generatedFilesCache.clear();
+    m_sourceFilesCache.clear();
+
+#if 1
+    // Update tree without full rescan run
     auto oldSize = m_treeFiles.size();
-    m_treeFiles.append(paths);
+    m_treeFiles.append(infos);
     std::inplace_merge(m_treeFiles.begin(),
                        m_treeFiles.begin() + oldSize,
                        m_treeFiles.end());
 
-    auto dirs = directoryList(paths);
+    auto dirs = directoryList(infos);
 
 #ifdef USE_TREE_WATCHER
     // Append dirs to watcher, ignores if already present
@@ -420,28 +435,51 @@ void CMakeProject::addFilesCommon(const QStringList& filePaths)
                        m_treePaths.begin() + oldSize,
                        m_treePaths.end());
     m_treePaths = filteredUnique(m_treePaths);
+#endif
+
 }
 
 void CMakeProject::eraseFilesCommon(const QStringList &filePaths)
 {
-    auto paths = transform(filePaths, [](const QString &fn) {
+    auto infos = transform(filePaths, [](const QString &fn) {
         return TreeBuilder::fileNodeInfo(FileName::fromString(fn));
     });
 
-    sort(paths);
+    sort(infos);
 
+    for (const auto& info : infos) {
+        auto fi = info.filePath.toFileInfo();
+        auto parent = fi.absolutePath();
+
+        auto node = rootProjectNode()->recursiveFileNode(info.filePath);
+        if (!node)
+            continue;
+
+        auto folder = node->parentFolderNode();
+        if (!folder)
+            // TBD
+            continue;
+
+        folder->removeFileNodes({node});
+    }
+
+    m_generatedFilesCache.clear();
+    m_sourceFilesCache.clear();
+
+#if 1
+    // Update tree without full rescan run
     QList<FileNodeInfo> filtered;
     filtered.reserve(m_treeFiles.size());
     std::set_difference(m_treeFiles.begin(),
                         m_treeFiles.end(),
-                        paths.begin(),
-                        paths.end(),
+                        infos.begin(),
+                        infos.end(),
                         std::back_inserter(filtered));
 
     m_treeFiles = filtered;
 
     // Process paths
-    auto dirs = directoryList(paths);
+    auto dirs = directoryList(infos);
 
     FileNameList directoryFiltered;
     directoryFiltered.reserve(m_treePaths.size());
@@ -452,16 +490,32 @@ void CMakeProject::eraseFilesCommon(const QStringList &filePaths)
                         std::back_inserter(directoryFiltered));
 
     m_treePaths = directoryFiltered;
+#endif
 }
 
 void CMakeProject::renameFileCommon(const QString &filePath, const QString &newFilePath)
 {
-#define STUPID_RENAME
-#ifdef STUPID_RENAME
-    eraseFilesCommon(QStringList(filePath));
-    addFilesCommon(QStringList(newFilePath));
-#else
-    // TODO
+    auto info = TreeBuilder::fileNodeInfo(FileName::fromString(filePath));
+    auto fi = info.filePath.toFileInfo();
+    auto parent = fi.absolutePath();
+
+    auto node = rootProjectNode()->recursiveFileNode(info.filePath);
+    if (!node)
+        return;
+
+    node->setAbsoluteFilePathAndLine(FileName::fromString(newFilePath), -1);
+
+    m_generatedFilesCache.clear();
+    m_sourceFilesCache.clear();
+
+#if 1
+    // Update tree without full rescan run
+    auto it = std::lower_bound(m_treeFiles.begin(), m_treeFiles.end(), info);
+    if (it != m_treeFiles.end())
+        *it = TreeBuilder::fileNodeInfo(FileName::fromString(newFilePath));
+
+    // Keep tree sorted
+    sort(m_treeFiles);
 #endif
 }
 
@@ -777,41 +831,40 @@ void CMakeBuildTarget::clear()
     files.clear();
 }
 
-bool CMakeProject::maybeRunCMake()
+void CMakeProject::maybeRunCMake()
 {
-    const CMakeTool *tool = CMakeKitInformation::cmakeTool(m_buildConfiguration->target()->kit());
-    if (!tool->isAutoRun())
+    auto tgt = activeTarget();
+    if (!tgt)
         return;
+
+    auto tool = CMakeKitInformation::cmakeTool(tgt->kit());
+    if (!tool || !tool->isAutoRun())
+        return;
+
     runCMake();
 }
 
 bool CMakeProject::addFiles(const QStringList &filePaths)
 {
     addFilesCommon(filePaths);
-
     // If globbing is used, watched does not know about new files, so force rebuilding
     maybeRunCMake();
-
     return true;
 }
 
 bool CMakeProject::eraseFiles(const QStringList &filePaths)
 {
     eraseFilesCommon(filePaths);
-
     // If globbing is used, watched does not know about new files, so force rebuilding
     maybeRunCMake();
-
     return true;
 }
 
 bool CMakeProject::renameFile(const QString &filePath, const QString &newFilePath)
 {
     renameFileCommon(filePath, newFilePath);
-
     // If globbing is used, watched does not know about new files, so force rebuilding
     maybeRunCMake();
-
     return true;
 }
 
