@@ -163,6 +163,7 @@ void CMakeManager::rescanProject(Project *project)
         return;
 
     cmakeProject->scanProjectTree();
+    cmakeProject->runCMake();
 }
 
 Project *CMakeManager::openProject(const QString &fileName, QString *errorString)
