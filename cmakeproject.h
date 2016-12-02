@@ -143,6 +143,8 @@ private:
     void updateTargetRunConfigurations(ProjectExplorer::Target *t);
     void updateApplicationAndDeploymentTargets();
 
+    void maybeRunCMake();
+
     ProjectExplorer::Target *m_connectedTarget = nullptr;
 
     // TODO probably need a CMake specific node structure

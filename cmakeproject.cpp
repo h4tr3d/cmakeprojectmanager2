@@ -777,27 +777,41 @@ void CMakeBuildTarget::clear()
     files.clear();
 }
 
+bool CMakeProject::maybeRunCMake()
+{
+    const CMakeTool *tool = CMakeKitInformation::cmakeTool(m_buildConfiguration->target()->kit());
+    if (!tool->isAutoRun())
+        return;
+    runCMake();
+}
+
 bool CMakeProject::addFiles(const QStringList &filePaths)
 {
     addFilesCommon(filePaths);
+
     // If globbing is used, watched does not know about new files, so force rebuilding
-    runCMake();
+    maybeRunCMake();
+
     return true;
 }
 
 bool CMakeProject::eraseFiles(const QStringList &filePaths)
 {
     eraseFilesCommon(filePaths);
-    // FIXME force only when really needed
-    runCMake();
+
+    // If globbing is used, watched does not know about new files, so force rebuilding
+    maybeRunCMake();
+
     return true;
 }
 
 bool CMakeProject::renameFile(const QString &filePath, const QString &newFilePath)
 {
     renameFileCommon(filePath, newFilePath);
-    // FIXME force only when really needed
-    runCMake();
+
+    // If globbing is used, watched does not know about new files, so force rebuilding
+    maybeRunCMake();
+
     return true;
 }
 
