@@ -24,10 +24,13 @@
 ****************************************************************************/
 
 #include "cmakeprojectnodes.h"
-
 #include "cmakeprojectconstants.h"
+#include "cmakekitinformation.h"
+#include "cmaketool.h"
+#include "cmakeproject.h"
 
 #include <coreplugin/fileiconprovider.h>
+#include <projectexplorer/target.h>
 
 #include <utils/algorithm.h>
 
@@ -62,8 +65,9 @@ QList<ProjectExplorer::ProjectAction> CMakeInputsNode::supportedActions(ProjectE
     return QList<ProjectExplorer::ProjectAction>();
 }
 
-CMakeListsNode::CMakeListsNode(const Utils::FileName &cmakeListPath) :
-    ProjectExplorer::ProjectNode(cmakeListPath)
+CMakeListsNode::CMakeListsNode(const Utils::FileName &cmakeListPath, CMakeProject *project) :
+    ProjectExplorer::ProjectNode(cmakeListPath),
+    m_project(project)
 {
     static QIcon folderIcon;
     if (folderIcon.isNull()) {
@@ -83,7 +87,42 @@ bool CMakeListsNode::showInSimpleTree() const
 QList<ProjectExplorer::ProjectAction> CMakeListsNode::supportedActions(ProjectExplorer::Node *node) const
 {
     Q_UNUSED(node);
-    return QList<ProjectExplorer::ProjectAction>();
+    using ProjectActionList = QList<ProjectExplorer::ProjectAction>;
+
+    if (!m_project)
+        return ProjectActionList();
+
+    const auto t = m_project->activeTarget();
+    if (!t)
+        return ProjectActionList();
+
+    const auto kit = t->kit();
+
+    // Server mode reader is not supported yet
+    CMakeTool *cmake = CMakeKitInformation::cmakeTool(kit);
+    if (cmake->hasServerMode())
+        return ProjectActionList();
+
+    return ProjectActionList()
+            << ProjectExplorer::AddNewFile
+            << ProjectExplorer::EraseFile
+            << ProjectExplorer::Rename;
+}
+
+bool CMakeListsNode::addFiles(const QStringList &filePaths, QStringList *notAdded)
+{
+    Q_UNUSED(notAdded);
+    return m_project ? m_project->addFiles(filePaths) : false;
+}
+
+bool CMakeListsNode::deleteFiles(const QStringList &filePaths)
+{
+    return m_project ? m_project->eraseFiles(filePaths) : false;
+}
+
+bool CMakeListsNode::renameFile(const QString &filePath, const QString &newFilePath)
+{
+    return m_project ? m_project->renameFile(filePath, newFilePath) : false;
 }
 
 CMakeProjectNode::CMakeProjectNode(const Utils::FileName &directory) :

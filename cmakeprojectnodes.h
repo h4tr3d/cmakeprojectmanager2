@@ -46,10 +46,19 @@ public:
 class CMakeListsNode : public ProjectExplorer::ProjectNode
 {
 public:
-    CMakeListsNode(const Utils::FileName &cmakeListPath);
+    explicit CMakeListsNode(const Utils::FileName &cmakeListPath, CMakeProject *project = nullptr);
 
     bool showInSimpleTree() const final;
     QList<ProjectExplorer::ProjectAction> supportedActions(Node *node) const final;
+
+    CMakeProject* project() { return m_project; }
+
+    bool addFiles(const QStringList &filePaths, QStringList *notAdded) final;
+    bool deleteFiles(const QStringList &filePaths) final;
+    bool renameFile(const QString &filePath, const QString &newFilePath) final;
+
+private:
+    CMakeProject *m_project = nullptr;
 };
 
 class CMakeProjectNode : public ProjectExplorer::ProjectNode

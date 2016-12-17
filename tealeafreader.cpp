@@ -288,6 +288,9 @@ void TeaLeafReader::generateProjectTree(CMakeListsNode *root, const QList<const 
     QList<FileNode *> deleted; // Unused!
     ProjectExplorer::compareSortedLists(m_files, allFiles, deleted, added, Node::sortByPath);
 
+    // FIXME: keep this code commented. It is planed to make configurable behavior to display
+    //        all files or only CMake one
+#if 0
     QSet<FileName> allIncludePathSet;
     for (const CMakeBuildTarget &bt : m_buildTargets) {
         const QList<Utils::FileName> targetIncludePaths
@@ -307,6 +310,9 @@ void TeaLeafReader::generateProjectTree(CMakeListsNode *root, const QList<const 
     });
 
     QList<FileNode *> fileNodes = m_files + Utils::transform(missingHeaders, [](const FileNode *fn) { return new FileNode(*fn); });
+#else
+    QList<FileNode *> fileNodes = m_files + Utils::transform(added, [](const FileNode *fn) { return new FileNode(*fn); });
+#endif
 
     sanitizeTree(root); // Filter out duplicate nodes that e.g. the servermode reader introduces:
     root->buildTree(fileNodes, m_parameters.sourceDirectory);

@@ -32,6 +32,7 @@
 #include "cmakerunconfiguration.h"
 #include "cmakeprojectmanager.h"
 
+#include <coreplugin/icore.h>
 #include <coreplugin/progressmanager/progressmanager.h>
 #include <cpptools/cppmodelmanager.h>
 #include <cpptools/generatedcodemodelsupport.h>
@@ -57,6 +58,7 @@
 
 #include <QDir>
 #include <QSet>
+#include <QMessageBox>
 
 using namespace ProjectExplorer;
 using namespace Utils;
@@ -80,7 +82,7 @@ CMakeProject::CMakeProject(CMakeManager *manager, const FileName &fileName)
     setDocument(new TextEditor::TextDocument);
     document()->setFilePath(fileName);
 
-    setRootProjectNode(new CMakeListsNode(fileName));
+    setRootProjectNode(new CMakeListsNode(fileName, this));
     setProjectContext(Core::Context(CMakeProjectManager::Constants::PROJECTCONTEXT));
     setProjectLanguages(Core::Context(ProjectExplorer::Constants::LANG_CXX));
 
@@ -223,6 +225,22 @@ void CMakeProject::updateQmlJSCodeModel()
     modelManager->updateProjectInfo(projectInfo, this);
 }
 
+void CMakeProject::askRunCMake()
+{
+    QPointer<QMessageBox> box = new QMessageBox(Core::ICore::mainWindow());
+    box->setIcon(QMessageBox::Question);
+    box->setText(tr("Project file system tree changed."));
+    box->setInformativeText(tr("File system tree changed. The change does not affect CMake project targets.\n"
+                               "Edit appropriate CMakeLists.txt or run CMake now if project uses globbing expressions to collect files."));
+    box->addButton(tr("Run CMake Later"), QMessageBox::RejectRole);
+    auto defaultButton = box->addButton(tr("Run CMake Now"), QMessageBox::AcceptRole);
+    box->setDefaultButton(defaultButton);
+
+    int ret = box->exec();
+    if (ret == QMessageBox::Accepted)
+        runCMake();
+}
+
 bool CMakeProject::needsConfiguration() const
 {
     return targets().isEmpty();
@@ -267,6 +285,144 @@ void CMakeProject::buildCMakeTarget(const QString &buildTarget)
         bc->buildTarget(buildTarget);
 }
 
+bool CMakeProject::addFiles(const QStringList &filePaths)
+{
+    Utils::MimeDatabase mdb;
+    QList<const FileNode *> nodes; // nodes to store in persistent tree
+    for (auto &filePath : filePaths) {
+        const Utils::MimeType mimeType = mdb.mimeTypeForFile(filePath);
+        auto fn = FileName::fromString(filePath);
+        auto type = TreeScanner::genericFileType(mimeType, fn);
+        auto node = new FileNode(fn, type, false);
+        node->setEnabled(false);
+        nodes << node;
+
+        auto parent = node->filePath().parentDir();
+        auto folder = rootProjectNode()->recursiveFindOrCreateFolderNode(parent.toString(), projectDirectory());
+        folder->addFileNodes({new FileNode(*node)});
+    }
+
+    // Update tree without full rescan run
+    sort(nodes, Node::sortByPath);
+
+    auto oldSize = m_allFiles.size();
+    m_allFiles.append(nodes);
+    std::inplace_merge(m_allFiles.begin(),
+                       m_allFiles.begin() + oldSize,
+                       m_allFiles.end(),
+                       Node::sortByPath);
+
+    QTC_ASSERT(isSorted(m_allFiles, Node::sortByPath), return false);
+
+    askRunCMake();
+
+    return true;
+}
+
+bool CMakeProject::eraseFiles(const QStringList &filePaths)
+{
+    QList<const FileNode *> removed;
+    for (auto& filePath : filePaths) {
+        auto fn = FileName::fromString(filePath);
+        auto node = rootProjectNode()->recursiveFileNode(fn, projectDirectory());
+        if (!node)
+            return false;
+        auto folder = node->parentFolderNode();
+        if (!folder)
+            return false;
+
+        // To update list
+        removed << new FileNode(*node);
+
+        folder->removeFileNodes({node});
+    }
+
+    // Update tree without full rescan run
+    sort(removed, Node::sortByPath);
+
+    // Inplace change m_allFiles in one pass
+
+    auto it = std::lower_bound(m_allFiles.begin(), m_allFiles.end(), removed[0], Node::sortByPath);
+    QTC_ASSERT(it != m_allFiles.end(), return false);
+
+    int allIdx = static_cast<int>(std::distance(m_allFiles.begin(), it));
+    int remIdx = 0;
+    while (allIdx < m_allFiles.size() && remIdx < removed.size()) {
+        auto &allNode = m_allFiles[allIdx];
+        auto &removeNode = removed[remIdx];
+
+        if (Node::sortByPath(allNode, removeNode)) {
+            allIdx++;
+        } else if (Node::sortByPath(removeNode, allNode)) {
+            remIdx++;
+        } else {
+            delete allNode;
+            m_allFiles.removeAt(allIdx);
+            // We should not increment allIdx here
+            remIdx++;
+        }
+    }
+
+    QTC_ASSERT(isSorted(m_allFiles, Node::sortByPath), return false);
+
+    askRunCMake();
+
+    return true;
+}
+
+bool CMakeProject::renameFile(const QString &filePath, const QString &newFilePath)
+{
+    auto fn = FileName::fromString(filePath);
+    auto newfn = FileName::fromString(newFilePath);
+    auto node = rootProjectNode()->recursiveFileNode(fn, projectDirectory());
+    if (!node)
+        return false;
+
+    // Update tree without full rescan run
+    {
+        auto it = std::lower_bound(m_allFiles.begin(),
+                                   m_allFiles.end(),
+                                   node,
+                                   Node::sortByPath);
+        if (it == m_allFiles.end())
+            return false;
+
+        // Update data in scanned files and in the project tree
+        delete *it;
+        m_allFiles.removeAt(static_cast<int>(std::distance(m_allFiles.begin(), it)));
+
+        // We add only one new file. Use std::lower_bound to insert item to right place
+        auto toAdd = new FileNode(newfn, node->fileType(), false); // do not copy parent and other
+        toAdd->setEnabled(false);
+
+        it = std::lower_bound(m_allFiles.begin(),
+                              m_allFiles.end(),
+                              toAdd,
+                              Node::sortByPath);
+
+        m_allFiles.insert(it, toAdd);
+
+        QTC_ASSERT(isSorted(m_allFiles, Node::sortByPath), return false);
+    }
+
+    auto folder = rootProjectNode()->recursiveFindOrCreateFolderNode(newfn.parentDir().toString(), projectDirectory());
+    if (!folder)
+        return false;
+
+    if (folder != node->parentFolderNode()) {
+        // Rename with moving
+        folder->addFileNodes({ new FileNode(newfn, node->fileType(), false) });
+        auto old = node->parentFolderNode();
+        old->removeFileNodes({node});
+    } else {
+        node->setAbsoluteFilePathAndLine(newfn, -1);
+    }
+
+    askRunCMake();
+
+    return true;
+}
+
 QList<CMakeBuildTarget> CMakeProject::buildTargets() const
 {
     CMakeBuildConfiguration *bc = nullptr;
@@ -299,8 +455,12 @@ QString CMakeProject::displayName() const
 
 QStringList CMakeProject::files(FilesMode fileMode) const
 {
-    const QList<FileNode *> nodes = filtered(rootProjectNode()->recursiveFileNodes(),
-                                             [fileMode](const FileNode *fn) {
+    // Copy and filter in one pass. Useful for big trees
+    QStringList result;
+    auto valid = [fileMode](const FileNode *fn) {
+        // Skip unknown file types from caching
+        if (fn->fileType() == FileType::Unknown)
+            return false;
         const bool isGenerated = fn->isGenerated();
         switch (fileMode)
         {
@@ -312,8 +472,14 @@ QStringList CMakeProject::files(FilesMode fileMode) const
         default:
             return true;
         }
-    });
-    return transform(nodes, [fileMode](const FileNode* fn) { return fn->filePath().toString(); });
+    };
+
+    for (auto const& node : rootProjectNode()->recursiveFileNodes()) {
+        if (valid(node))
+            result.push_back(node->filePath().toString());
+    }
+
+    return result;
 }
 
 Project::RestoreResult CMakeProject::fromMap(const QVariantMap &map, QString *errorMessage)
@@ -392,7 +558,10 @@ void CMakeProject::handleParsingStarted()
 void CMakeProject::handleTreeScanningFinished()
 {
     qDeleteAll(m_allFiles);
-    m_allFiles = Utils::transform(m_treeScanner.release(), [](const FileNode *fn) { return fn; });
+    m_allFiles = Utils::transform(m_treeScanner.release(), [](FileNode *fn) -> const FileNode* {
+        fn->setEnabled(false);
+        return fn;
+    });
 
     auto t = activeTarget();
     if (!t)

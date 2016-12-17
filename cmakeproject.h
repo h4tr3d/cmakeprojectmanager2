@@ -102,6 +102,10 @@ public:
     // Context menu actions:
     void buildCMakeTarget(const QString &buildTarget);
 
+    bool addFiles(const QStringList &filePaths);
+    bool eraseFiles(const QStringList &filePaths);
+    bool renameFile(const QString &filePath, const QString &newFilePath);
+
 signals:
     /// emitted when cmake is running:
     void parsingStarted();
@@ -119,6 +123,8 @@ private:
     void handleTreeScanningFinished();
     void updateProjectData(Internal::CMakeBuildConfiguration *cmakeBc);
     void updateQmlJSCodeModel();
+
+    void askRunCMake();
 
     void createGeneratedCodeModelSupport();
     QStringList filesGeneratedFrom(const QString &sourceFile) const final;
