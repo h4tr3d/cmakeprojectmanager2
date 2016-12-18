@@ -1,6 +1,8 @@
 CMakeProjectManager2
 ====================
 
+**NOTE:** Project will be freezed for a long time. I prepare changes for propagating to the mainstream. I belief, that after moth or two this repo will not be required at all :-)
+
 Alternative CMake support for Qt Creator.
 
 Main differents from original CMakeProject plugin:
