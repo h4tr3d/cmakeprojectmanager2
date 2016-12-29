@@ -23,36 +23,51 @@ Build plugin
 This plugin is oriented to latest Git version of Qt Creator, sorry I use it and I have no time
 to support other stable versions.
 
-### Prepare Qt Creator (without Full Build)
+### Prepare Qt Creator
+
+If you have QtC binary installation that contains .pro/.pri and headers you should not do anythind. Just setup `QTC_BUILD` to the QtC Prefix (like `/opt/qtcreator-git`) and `QTC_SOURCE` to the directory, contains `qtcreator.pri` file (like `/usr/src/qtcreator-git`).
+
+Otherwise, you must get full copy of the Qt Creator from the Git, build it and install to some prefix.
 
 For example, all actions runs in directory `/tmp/qt-creator`
 
 - Take full Qt Creator source tree from Git:
-```bash
-git clone git://gitorious.org/qt-creator/qt-creator.git qt-creator
-```
-- Create Qt Crator build tree:
-```bash
-mkdir qt-creator-build
-cd qt-creator-build
-```
-- Create shadow build (I use Git-version of Qt for building, but you can use Qt from official site: simple change path to `qmake`):
-```bash
-/opt/qt-git/bin/qmake /tmp/qt-creator/qt-creator/qtcreator.pro
-```
-- *TODO: check, possible unneeded*. Don't start full build, but generating some files is requred (like ide_version.h):
-  - For Qt5 based builds (this call fails but needed files it generate):
-  ```bash
-  make sub-src-clean
-  ```
-  - For Qt4 based builds:
-  ```bash
-  make src/Makefile
-  make -C src plugins/Makefile
-  make -C src/plugins coreplugin/Makefile
-  ```
 
-Ok, Qt Creator source and build tree is prepared. Note, I think, that GIT version of Qt Creator already installed, for example to /opt/qtcreator-git
+    ```bash
+    git clone https://github.com/qtproject/qt-creator.git qt-creator
+    ```
+
+- Create Qt Crator build tree:
+
+   ```bash
+    mkdir qt-creator-build
+    cd qt-creator-build
+    ```
+
+- Create shadow build (if you use another Qt installation path, just provide correct path to the `qmake`):
+
+    ```bash
+    /opt/qt56/bin/qmake \
+	            IDE_PACKAGE_MODE=1 \
+              PREFIX=/opt/qtcreator-git \
+	            LLVM_INSTALL_DIR=/usr/lib/llvm-3.9 \ 
+              CONFIG+=qbs_enable_project_file_updates \
+              /tmp/qt-creator/qt-creator/qtcreator.pro
+    ```
+
+- Build and install it
+
+    ```bash
+    make -j8 && sudo make install
+    ```
+
+If you want to re-use binary QtC installation without full rebuild, you should do steps like previous but with minor differences:
+
+1. After repository clone you must checkout correct version of QtC.
+2. Qt version must be same to the Qt uses to build binary QtC.
+3. Options for the qmake must be same to the binary QtC one.
+4. Build step can be omited. (TODO: possible you should run `make sub-src-clean` in build dir to prepare some files).
+
 
 ### Build plugin
 - Change directory to `/tmp/qt-creator`
