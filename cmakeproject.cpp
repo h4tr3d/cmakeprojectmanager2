@@ -32,9 +32,11 @@
 #include "cmakerunconfiguration.h"
 #include "cmakeprojectmanager.h"
 
+#include <coreplugin/progressmanager/progressmanager.h>
 #include <cpptools/cppmodelmanager.h>
 #include <cpptools/generatedcodemodelsupport.h>
 #include <cpptools/projectinfo.h>
+#include <cpptools/cpptoolsconstants.h>
 #include <cpptools/projectpartbuilder.h>
 #include <projectexplorer/buildtargetinfo.h>
 #include <projectexplorer/deploymentdata.h>
@@ -78,13 +80,50 @@ CMakeProject::CMakeProject(CMakeManager *manager, const FileName &fileName)
     setDocument(new TextEditor::TextDocument);
     document()->setFilePath(fileName);
 
-    setRootProjectNode(new CMakeProjectNode(FileName::fromString(fileName.toFileInfo().absolutePath())));
+    setRootProjectNode(new CMakeListsNode(fileName));
     setProjectContext(Core::Context(CMakeProjectManager::Constants::PROJECTCONTEXT));
     setProjectLanguages(Core::Context(ProjectExplorer::Constants::LANG_CXX));
 
     rootProjectNode()->setDisplayName(fileName.parentDir().fileName());
 
     connect(this, &CMakeProject::activeTargetChanged, this, &CMakeProject::handleActiveTargetChanged);
+
+    connect(&m_treeScanner, &TreeScanner::finished, this, &CMakeProject::handleTreeScanningFinished);
+
+    m_treeScanner.setFilter([this](const Utils::MimeType &mimeType, const Utils::FileName &fn) {
+        // Mime checks requires more resources, so keep it last in check list
+        auto isIgnored =
+                fn.toString().startsWith(projectFilePath().toString() + ".user") ||
+                TreeScanner::isWellKnownBinary(mimeType, fn);
+
+        // Cache mime check result for speed up
+        if (!isIgnored) {
+            auto it = m_mimeBinaryCache.find(mimeType.name());
+            if (it != m_mimeBinaryCache.end()) {
+                isIgnored = *it;
+            } else {
+                isIgnored = TreeScanner::isMimeBinary(mimeType, fn);
+                m_mimeBinaryCache[mimeType.name()] = isIgnored;
+            }
+        }
+
+        return isIgnored;
+    });
+
+    m_treeScanner.setTypeFactory([](const Utils::MimeType &mimeType, const Utils::FileName &fn) {
+        auto type = TreeScanner::genericFileType(mimeType, fn);
+        if (type == FileType::Unknown) {
+            if (mimeType.isValid()) {
+                const QString mt = mimeType.name();
+                if (mt == CMakeProjectManager::Constants::CMAKEPROJECTMIMETYPE
+                    || mt == CMakeProjectManager::Constants::CMAKEMIMETYPE)
+                    type = FileType::Project;
+            }
+        }
+        return type;
+    });
+
+    scanProjectTree();
 }
 
 CMakeProject::~CMakeProject()
@@ -92,19 +131,23 @@ CMakeProject::~CMakeProject()
     setRootProjectNode(nullptr);
     m_codeModelFuture.cancel();
     qDeleteAll(m_extraCompilers);
+    qDeleteAll(m_allFiles);
 }
 
-void CMakeProject::updateProjectData()
+void CMakeProject::updateProjectData(CMakeBuildConfiguration *bc)
 {
-    auto cmakeBc = qobject_cast<CMakeBuildConfiguration *>(sender());
-    QTC_ASSERT(cmakeBc, return);
+    QTC_ASSERT(bc, return);
 
     Target *t = activeTarget();
-    if (!t || t->activeBuildConfiguration() != cmakeBc)
+    if (!t || t->activeBuildConfiguration() != bc)
         return;
+
+    if (!m_treeScanner.isFinished() || bc->isParsing())
+        return;
+
     Kit *k = t->kit();
 
-    cmakeBc->generateProjectTree(static_cast<CMakeProjectNode *>(rootProjectNode()));
+    bc->generateProjectTree(static_cast<CMakeListsNode *>(rootProjectNode()), m_allFiles);
 
     updateApplicationAndDeploymentTargets();
     updateTargetRunConfigurations(t);
@@ -131,12 +174,11 @@ void CMakeProject::updateProjectData()
 
     ppBuilder.setQtVersion(activeQtVersion);
 
-    const QSet<Core::Id> languages = cmakeBc->updateCodeModel(ppBuilder);
+    const QSet<Core::Id> languages = bc->updateCodeModel(ppBuilder);
     for (const auto &lid : languages)
         setProjectLanguage(lid, true);
 
     m_codeModelFuture.cancel();
-    pinfo.finish();
     m_codeModelFuture = modelmanager->updateProjectInfo(pinfo);
 
     updateQmlJSCodeModel();
@@ -144,7 +186,9 @@ void CMakeProject::updateProjectData()
     emit displayNameChanged();
     emit fileListChanged();
 
-    emit cmakeBc->emitBuildTypeChanged();
+    emit bc->emitBuildTypeChanged();
+
+    emit parsingFinished();
 }
 
 void CMakeProject::updateQmlJSCodeModel()
@@ -214,6 +258,15 @@ void CMakeProject::runCMake()
         bc->runCMake();
 }
 
+void CMakeProject::buildCMakeTarget(const QString &buildTarget)
+{
+    QTC_ASSERT(!buildTarget.isEmpty(), return);
+    Target *t = activeTarget();
+    auto bc = qobject_cast<CMakeBuildConfiguration *>(t ? t->activeBuildConfiguration() : nullptr);
+    if (bc)
+        bc->buildTarget(buildTarget);
+}
+
 QList<CMakeBuildTarget> CMakeProject::buildTargets() const
 {
     CMakeBuildConfiguration *bc = nullptr;
@@ -281,6 +334,16 @@ bool CMakeProject::setupTarget(Target *t)
     return true;
 }
 
+void CMakeProject::scanProjectTree()
+{
+    if (!m_treeScanner.isFinished())
+        return;
+    m_treeScanner.asyncScanForFiles(projectDirectory());
+    Core::ProgressManager::addTask(m_treeScanner.future(),
+                                   tr("Scan \"%1\" project tree").arg(displayName()),
+                                   "CMake.Scan.Tree");
+}
+
 void CMakeProject::handleActiveTargetChanged()
 {
     if (m_connectedTarget) {
@@ -324,6 +387,22 @@ void CMakeProject::handleParsingStarted()
 {
     if (activeTarget() && activeTarget()->activeBuildConfiguration() == sender())
         emit parsingStarted();
+}
+
+void CMakeProject::handleTreeScanningFinished()
+{
+    qDeleteAll(m_allFiles);
+    m_allFiles = Utils::transform(m_treeScanner.release(), [](const FileNode *fn) { return fn; });
+
+    auto t = activeTarget();
+    if (!t)
+        return;
+
+    auto bc = qobject_cast<CMakeBuildConfiguration*>(t->activeBuildConfiguration());
+    if (!bc)
+        return;
+
+    updateProjectData(bc);
 }
 
 CMakeBuildTarget CMakeProject::buildTargetForTitle(const QString &title)

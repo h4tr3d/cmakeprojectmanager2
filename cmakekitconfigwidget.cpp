@@ -229,7 +229,7 @@ CMakeGeneratorKitConfigWidget::~CMakeGeneratorKitConfigWidget()
 
 QString CMakeGeneratorKitConfigWidget::displayName() const
 {
-    return tr("CMake Generator:");
+    return tr("CMake generator:");
 }
 
 void CMakeGeneratorKitConfigWidget::makeReadOnly()
@@ -299,7 +299,7 @@ void CMakeGeneratorKitConfigWidget::changeGenerator()
     layout->addWidget(generatorCombo, row, 1);
 
     ++row;
-    layout->addWidget(new QLabel(tr("Extra Generator:")), row, 0);
+    layout->addWidget(new QLabel(tr("Extra generator:")), row, 0);
     layout->addWidget(extraGeneratorCombo, row, 1);
 
     ++row;
@@ -319,7 +319,8 @@ void CMakeGeneratorKitConfigWidget::changeGenerator()
 
     cmakeLabel->setText(m_currentTool->cmakeExecutable().toUserOutput());
 
-    const QList<CMakeTool::Generator> generatorList = m_currentTool->supportedGenerators();
+    QList<CMakeTool::Generator> generatorList = m_currentTool->supportedGenerators();
+    Utils::sort(generatorList, &CMakeTool::Generator::name);
 
     for (auto it = generatorList.constBegin(); it != generatorList.constEnd(); ++it)
         generatorCombo->addItem(it->name);

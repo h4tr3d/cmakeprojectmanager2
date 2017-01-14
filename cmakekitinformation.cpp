@@ -320,7 +320,8 @@ QVariant CMakeGeneratorKitInformation::defaultValue(const Kit *k) const
         } else {
             it = std::find_if(known.constBegin(), known.constEnd(),
                               [extraGenerator](const CMakeTool::Generator &g) {
-                return g.matches("NMake Makefiles", extraGenerator);
+                return g.matches("NMake Makefiles", extraGenerator)
+                        || g.matches("NMake Makefiles JOM", extraGenerator);
             });
         }
     } else {
@@ -366,9 +367,10 @@ QList<Task> CMakeGeneratorKitInformation::validate(const Kit *k) const
                                    Utils::FileName(), -1, Core::Id(Constants::TASK_CATEGORY_BUILDSYSTEM));
                 }
             }
-            if (info.extraGenerator != "CodeBlocks") {
-                result << Task(Task::Warning, tr("CMake generator does not generate a CodeBlocks file. "
-                                                 "Qt Creator will not be able to parse the CMake project."),
+            if (!tool->hasServerMode() && info.extraGenerator != "CodeBlocks") {
+                result << Task(Task::Warning, tr("The selected CMake binary has no server-mode and the CMake "
+                                                 "generator does not generate a CodeBlocks file. "
+                                                 "Qt Creator will not be able to parse CMake projects."),
                                Utils::FileName(), -1, Core::Id(Constants::TASK_CATEGORY_BUILDSYSTEM));
             }
         }
@@ -410,8 +412,8 @@ void CMakeGeneratorKitInformation::fix(Kit *k)
 void CMakeGeneratorKitInformation::upgrade(Kit *k)
 {
     const QVariant value = k->value(GENERATOR_ID);
-    GeneratorInfo info;
     if (value.type() != QVariant::Map) {
+        GeneratorInfo info;
         const QString fullName = value.toString();
         const int pos = fullName.indexOf(" - ");
         if (pos >= 0) {
@@ -431,7 +433,7 @@ KitInformation::ItemList CMakeGeneratorKitInformation::toUserOutput(const Kit *k
     if (info.generator.isEmpty()) {
         message = tr("<Use Default Generator>");
     } else {
-        message = tr("Generator: %1<br>Extra Generator: %2").arg(info.generator).arg(info.extraGenerator);
+        message = tr("Generator: %1<br>Extra generator: %2").arg(info.generator).arg(info.extraGenerator);
         if (!info.platform.isEmpty())
             message += tr("<br>Platform: %1").arg(info.platform);
         if (!info.toolset.isEmpty())
@@ -507,7 +509,7 @@ CMakeConfig CMakeConfigurationKitInformation::defaultConfiguration(const Kit *k)
     // Qt4:
     config << CMakeConfigItem(CMAKE_QMAKE_KEY, "%{Qt:qmakeExecutable}");
     // Qt5:
-    config << CMakeConfigItem(CMAKE_PREFIX_PATH_KEY, "%{Qt:QT_INSTALL_LIBS}");
+    config << CMakeConfigItem(CMAKE_PREFIX_PATH_KEY, "%{Qt:QT_INSTALL_PREFIX}");
 
     config << CMakeConfigItem(CMAKE_C_TOOLCHAIN_KEY, "%{Compiler:Executable:C}");
     config << CMakeConfigItem(CMAKE_CXX_TOOLCHAIN_KEY, "%{Compiler:Executable:Cxx}");
@@ -535,7 +537,7 @@ QList<Task> CMakeConfigurationKitInformation::validate(const Kit *k) const
 
     const bool isQt4 = version && version->qtVersion() < QtSupport::QtVersionNumber(5, 0, 0);
     Utils::FileName qmakePath;
-    QStringList qtLibDirs;
+    QStringList qtInstallDirs;
     Utils::FileName tcCPath;
     Utils::FileName tcCxxPath;
     foreach (const CMakeConfigItem &i, config) {
@@ -549,7 +551,7 @@ QList<Task> CMakeConfigurationKitInformation::validate(const Kit *k) const
         else if (i.key == CMAKE_CXX_TOOLCHAIN_KEY)
             tcCxxPath = expandedValue;
         else if (i.key == CMAKE_PREFIX_PATH_KEY)
-            qtLibDirs = CMakeConfigItem::cmakeSplitValue(expandedValue.toString());
+            qtInstallDirs = CMakeConfigItem::cmakeSplitValue(expandedValue.toString());
     }
 
     QList<Task> result;
@@ -572,7 +574,7 @@ QList<Task> CMakeConfigurationKitInformation::validate(const Kit *k) const
                            Utils::FileName(), -1, Core::Id(Constants::TASK_CATEGORY_BUILDSYSTEM));
         }
     }
-    if (version && !qtLibDirs.contains(version->qmakeProperty("QT_INSTALL_LIBS")) && !isQt4) {
+    if (version && !qtInstallDirs.contains(version->qmakeProperty("QT_INSTALL_PREFIX")) && !isQt4) {
         if (version->isValid()) {
             result << Task(Task::Warning, tr("CMake configuration has no CMAKE_PREFIX_PATH set "
                                              "that points to the kit Qt version."),
@@ -624,7 +626,7 @@ QList<Task> CMakeConfigurationKitInformation::validate(const Kit *k) const
 
 void CMakeConfigurationKitInformation::setup(Kit *k)
 {
-    if (k)
+    if (k && !k->hasValue(CONFIGURATION_ID))
         k->setValue(CONFIGURATION_ID, defaultValue(k));
 }
 

@@ -37,6 +37,7 @@ const char CMAKE_EDITOR_ID[] = "CMakeProject.CMakeEditor";
 const char CMAKE_EDITOR_DISPLAY_NAME[] = QT_TRANSLATE_NOOP("CMakeProjectManager::Internal::CMakeEditorFactory", "CMake Editor");
 const char RUNCMAKE[] = "CMakeProject.RunCMake";
 const char CLEARCMAKECACHE[] = "CMakeProject.ClearCache";
+const char RESCANPROJECT[] = "CMakeProject.RescanProject";
 const char RUNCMAKECONTEXTMENU[] = "CMakeProject.RunCMakeContextMenu";
 
 // Project
@@ -53,6 +54,15 @@ const char CMAKE_SETTINGSPAGE_ID[] = "Z.CMake";
 
 // Snippets
 const char CMAKE_SNIPPETS_GROUP_ID[] = "CMake";
+
+// Icons
+const char FILEOVERLAY_CMAKE[] = ":/cmakeproject/images/fileoverlay_cmake.png";
+
+// Actions
+const char BUILD_TARGET_CONTEXTMENU[] = "CMake.BuildTargetContextMenu";
+
+// Build Step
+const char CMAKE_BUILD_STEP_ID[] = "CMakeProjectManager.MakeStep";
 
 } // namespace Constants
 } // namespace CMakeProjectManager

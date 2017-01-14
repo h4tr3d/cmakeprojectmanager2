@@ -101,7 +101,7 @@ CMakeBuildSettingsWidget::CMakeBuildSettingsWidget(CMakeBuildConfiguration *bc) 
 
     ++row;
     m_errorLabel = new QLabel;
-    m_errorLabel->setPixmap(Utils::Icons::ERROR.pixmap());
+    m_errorLabel->setPixmap(Utils::Icons::CRITICAL.pixmap());
     m_errorLabel->setVisible(false);
     m_errorMessageLabel = new QLabel;
     m_errorMessageLabel->setVisible(false);
@@ -207,6 +207,11 @@ CMakeBuildSettingsWidget::CMakeBuildSettingsWidget(CMakeBuildConfiguration *bc) 
         m_configModel->setConfiguration(m_buildConfiguration->completeCMakeConfiguration());
         stretcher->stretch();
         buildDirChooser->triggerChanged(); // refresh valid state...
+        m_showProgressTimer.stop();
+        m_progressIndicator->hide();
+    });
+    connect(m_buildConfiguration, &CMakeBuildConfiguration::errorOccured,
+            this, [this]() {
         m_showProgressTimer.stop();
         m_progressIndicator->hide();
     });

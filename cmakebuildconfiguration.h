@@ -32,6 +32,8 @@
 #include <projectexplorer/buildconfiguration.h>
 #include <projectexplorer/abi.h>
 
+#include <memory>
+
 namespace CppTools { class ProjectPartBuilder; }
 namespace ProjectExplorer { class ToolChain; }
 
@@ -44,6 +46,7 @@ namespace Internal {
 class BuildDirManager;
 class CMakeBuildConfigurationFactory;
 class CMakeBuildSettingsWidget;
+class CMakeListsNode;
 
 class CMakeBuildConfiguration : public ProjectExplorer::BuildConfiguration
 {
@@ -82,12 +85,15 @@ public:
     void clearCache();
 
     QList<CMakeBuildTarget> buildTargets() const;
-    void generateProjectTree(CMakeProjectNode *root) const;
+    void generateProjectTree(CMakeListsNode *root, const QList<const ProjectExplorer::FileNode *> &allFiles) const;
     QSet<Core::Id> updateCodeModel(CppTools::ProjectPartBuilder &ppBuilder);
 
     static Utils::FileName
     shadowBuildDirectory(const Utils::FileName &projectFilePath, const ProjectExplorer::Kit *k,
                          const QString &bcName, BuildConfiguration::BuildType buildType);
+
+    // Context menu action:
+    void buildTarget(const QString &buildTarget);
 
 signals:
     void errorOccured(const QString &message);
@@ -112,9 +118,7 @@ private:
     QString m_error;
     QString m_warning;
 
-    mutable QList<CMakeConfigItem> m_completeConfigurationCache;
-
-    BuildDirManager *const m_buildDirManager = nullptr;
+    std::unique_ptr<BuildDirManager> m_buildDirManager;
 
     friend class CMakeBuildSettingsWidget;
     friend class CMakeProjectManager::CMakeProject;

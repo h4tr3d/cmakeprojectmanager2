@@ -26,6 +26,7 @@
 #pragma once
 
 #include "cmake_global.h"
+#include "treescanner.h"
 
 #include <projectexplorer/extracompiler.h>
 #include <projectexplorer/project.h>
@@ -33,6 +34,7 @@
 #include <utils/fileutils.h>
 
 #include <QFuture>
+#include <QHash>
 
 QT_BEGIN_NAMESPACE
 class QFileSystemWatcher;
@@ -41,9 +43,8 @@ QT_END_NAMESPACE
 namespace CMakeProjectManager {
 
 namespace Internal {
-class CMakeBuildSettingsWidget;
 class CMakeBuildConfiguration;
-class CMakeProjectNode;
+class CMakeBuildSettingsWidget;
 class CMakeManager;
 } // namespace Internal
 
@@ -76,8 +77,7 @@ public:
 class CMAKE_EXPORT CMakeProject : public ProjectExplorer::Project
 {
     Q_OBJECT
-    // for changeBuildDirectory
-    friend class Internal::CMakeBuildSettingsWidget;
+
 public:
     CMakeProject(Internal::CMakeManager *manager, const Utils::FileName &filename);
     ~CMakeProject() final;
@@ -97,6 +97,10 @@ public:
     bool supportsKit(ProjectExplorer::Kit *k, QString *errorMessage = 0) const final;
 
     void runCMake();
+    void scanProjectTree();
+
+    // Context menu actions:
+    void buildCMakeTarget(const QString &buildTarget);
 
 signals:
     /// emitted when cmake is running:
@@ -112,7 +116,8 @@ private:
     void handleActiveTargetChanged();
     void handleActiveBuildConfigurationChanged();
     void handleParsingStarted();
-    void updateProjectData();
+    void handleTreeScanningFinished();
+    void updateProjectData(Internal::CMakeBuildConfiguration *cmakeBc);
     void updateQmlJSCodeModel();
 
     void createGeneratedCodeModelSupport();
@@ -127,7 +132,12 @@ private:
     QFuture<void> m_codeModelFuture;
     QList<ProjectExplorer::ExtraCompiler *> m_extraCompilers;
 
+    Internal::TreeScanner m_treeScanner;
+    QHash<QString, bool> m_mimeBinaryCache;
+    QList<const ProjectExplorer::FileNode *> m_allFiles;
+
     friend class Internal::CMakeBuildConfiguration;
+    friend class Internal::CMakeBuildSettingsWidget;
 };
 
 } // namespace CMakeProjectManager

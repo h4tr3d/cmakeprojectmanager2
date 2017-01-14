@@ -29,8 +29,16 @@
 
 #include <QObject>
 
+namespace ProjectExplorer {
+class Node;
+class Project;
+} // namespace ProjectExplorer
+
+namespace Utils { class ParameterAction; }
+
 namespace CMakeProjectManager {
 
+class CMakeProject;
 class CMakeToolManager;
 
 namespace Internal {
@@ -53,6 +61,12 @@ private slots:
     void testCMakeSplitValue_data();
     void testCMakeSplitValue();
 #endif
+
+private:
+    void updateContextActions(ProjectExplorer::Node *node, ProjectExplorer::Project *project);
+
+    Utils::ParameterAction *m_buildTargetContextAction = nullptr;
+    QMetaObject::Connection m_actionConnect;
 };
 
 } // namespace Internal

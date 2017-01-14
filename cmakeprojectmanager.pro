@@ -12,6 +12,7 @@ include($$QTCREATOR_SOURCES/src/qtcreatorplugin.pri)
 INCLUDEPATH += $$QTCREATOR_SOURCES/src/plugins/texteditor
 
 HEADERS = builddirmanager.h \
+    builddirreader.h \
     cmakebuildinfo.h \
     cmakebuildstep.h \
     cmakeconfigitem.h \
@@ -34,14 +35,18 @@ HEADERS = builddirmanager.h \
     cmakekitinformation.h \
     cmakekitconfigwidget.h \
     cmakecbpparser.h \
-    cmakefile.h \
     cmakebuildsettingswidget.h \
     cmakeindenter.h \
     cmakeautocompleter.h \
     configmodel.h \
-    configmodelitemdelegate.h
+    configmodelitemdelegate.h \
+    servermode.h \
+    servermodereader.h \
+    tealeafreader.h \
+    treescanner.h
 
 SOURCES = builddirmanager.cpp \
+    builddirreader.cpp \
     cmakebuildstep.cpp \
     cmakeconfigitem.cpp \
     cmakeproject.cpp \
@@ -61,12 +66,15 @@ SOURCES = builddirmanager.cpp \
     cmakekitinformation.cpp \
     cmakekitconfigwidget.cpp \
     cmakecbpparser.cpp \
-    cmakefile.cpp \
     cmakebuildsettingswidget.cpp \
     cmakeindenter.cpp \
     cmakeautocompleter.cpp \
     configmodel.cpp \
-    configmodelitemdelegate.cpp
+    configmodelitemdelegate.cpp \
+    servermode.cpp \
+    servermodereader.cpp \
+    tealeafreader.cpp \
+    treescanner.cpp
 
 RESOURCES += cmakeproject.qrc
 
