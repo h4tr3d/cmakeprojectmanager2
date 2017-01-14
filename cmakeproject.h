@@ -26,7 +26,6 @@
 #pragma once
 
 #include "cmake_global.h"
-#include "cmakeprojectnodes.h"
 
 #include <projectexplorer/extracompiler.h>
 #include <projectexplorer/project.h>
@@ -34,11 +33,6 @@
 #include <utils/fileutils.h>
 
 #include <QFuture>
-#include <QFileSystemWatcher>
-#include <QTimer>
-#include <QElapsedTimer>
-
-#include <memory>
 
 QT_BEGIN_NAMESPACE
 class QFileSystemWatcher;
@@ -51,8 +45,6 @@ class CMakeBuildSettingsWidget;
 class CMakeBuildConfiguration;
 class CMakeProjectNode;
 class CMakeManager;
-class TreeBuilder;
-struct FileNodeInfo;
 } // namespace Internal
 
 enum TargetType {
@@ -93,15 +85,10 @@ public:
     QString displayName() const final;
 
     QStringList files(FilesMode fileMode) const final;
-    void updateFilesCache(const QList<ProjectExplorer::FileNode*> &nodes) const;
     QStringList buildTargetTitles(bool runnable = false) const;
     bool hasBuildTarget(const QString &title) const;
 
     CMakeBuildTarget buildTargetForTitle(const QString &title);
-
-    bool addFiles(const QStringList &filePaths);
-    bool eraseFiles(const QStringList &filePaths);
-    bool renameFile(const QString &filePath, const QString &newFilePath);
 
     bool needsConfiguration() const final;
     bool requiresTargetPanel() const final;
@@ -110,7 +97,6 @@ public:
     bool supportsKit(ProjectExplorer::Kit *k, QString *errorMessage = 0) const final;
 
     void runCMake();
-    void scanProjectTree();
 
 signals:
     /// emitted when cmake is running:
@@ -122,15 +108,6 @@ protected:
 
 private:
     QList<CMakeBuildTarget> buildTargets() const;
-    void handleScanningFinished();
-    void handleDirectoryChange(QString path);
-
-    Utils::FileNameList directoryList(const QList<Internal::FileNodeInfo> &paths) const;
-    QSet<Utils::FileName> directoryEntries(const Utils::FileName &directory) const;
-    void addFilesCommon(const QStringList &filePaths);
-    void eraseFilesCommon(const QStringList &filePaths);
-    void renameFileCommon(const QString &filePath, const QString &newFilePath);
-    void scheduleScanProjectTree();
 
     void handleActiveTargetChanged();
     void handleActiveBuildConfigurationChanged();
@@ -143,28 +120,12 @@ private:
     void updateTargetRunConfigurations(ProjectExplorer::Target *t);
     void updateApplicationAndDeploymentTargets();
 
-    void maybeRunCMake();
-
     ProjectExplorer::Target *m_connectedTarget = nullptr;
 
     // TODO probably need a CMake specific node structure
     QList<CMakeBuildTarget> m_buildTargets;
     QFuture<void> m_codeModelFuture;
     QList<ProjectExplorer::ExtraCompiler *> m_extraCompilers;
-
-    mutable QStringList m_sourceFilesCache;
-    mutable QStringList m_generatedFilesCache;
-
-    std::unique_ptr<Internal::TreeBuilder> m_treeBuilder;
-    QList<Internal::FileNodeInfo> m_treeFiles;
-    Utils::FileNameList m_treePaths;
-    mutable QSet<Utils::FileName> m_cachedItems;
-    mutable Utils::FileName m_cacheKey;
-#ifdef USE_TREE_WATCHER
-    QFileSystemWatcher m_treeWatcher;
-#endif
-    QElapsedTimer m_lastTreeScan;
-    QTimer m_treeScanTimer;
 
     friend class Internal::CMakeBuildConfiguration;
 };

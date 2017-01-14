@@ -33,7 +33,6 @@
 #include "cmakeprojectconstants.h"
 #include "cmakebuildsettingswidget.h"
 #include "cmakeprojectmanager.h"
-#include "cmakeconfigitem.h"
 
 #include <coreplugin/documentmanager.h>
 #include <coreplugin/icore.h>
@@ -60,8 +59,6 @@ namespace Internal {
 
 const char INITIAL_ARGUMENTS[] = "CMakeProjectManager.CMakeBuildConfiguration.InitialArgument"; // Obsolete since QtC 3.7
 const char CONFIGURATION_KEY[] = "CMake.Configuration";
-const char CMAKE_TOOLCHAIN_TYPE_KEY[] = "CMakeProjectManaget.CMakeBuildConfiguration.CMakeToolchainOverride";
-const char CMAKE_TOOLCHAIN_FILE_KEY[] = "CMakeProjectManaget.CMakeBuildConfiguration.CMakeToolchainFile";
 
 CMakeBuildConfiguration::CMakeBuildConfiguration(ProjectExplorer::Target *parent) :
     BuildConfiguration(parent, Core::Id(Constants::CMAKE_BC_ID)),
@@ -101,8 +98,6 @@ QVariantMap CMakeBuildConfiguration::toMap() const
     const QStringList config
             = Utils::transform(m_configuration, [](const CMakeConfigItem &i) { return i.toString(); });
     map.insert(QLatin1String(CONFIGURATION_KEY), config);
-    map.insert(QLatin1String(CMAKE_TOOLCHAIN_TYPE_KEY), static_cast<int>(m_cmakeToolchainInfo.toolchainOverride));
-    map.insert(QLatin1String(CMAKE_TOOLCHAIN_FILE_KEY), m_cmakeToolchainInfo.toolchainFile);
     return map;
 }
 
@@ -133,12 +128,6 @@ bool CMakeBuildConfiguration::fromMap(const QVariantMap &map)
     // End Legacy
 
     setCMakeConfiguration(legacyConf + conf);
-
-    m_cmakeToolchainInfo.toolchainOverride =
-            static_cast<CMakeToolchainOverrideType>(
-                map.value(QLatin1String(CMAKE_TOOLCHAIN_TYPE_KEY), static_cast<int>(CMakeToolchainOverrideType::Disabled)).toInt());
-    m_cmakeToolchainInfo.toolchainFile =
-            map.value(QLatin1String(CMAKE_TOOLCHAIN_FILE_KEY), QLatin1String("")).toString();
 
     return true;
 }
@@ -214,12 +203,12 @@ QList<CMakeBuildTarget> CMakeBuildConfiguration::buildTargets() const
     return m_buildDirManager->buildTargets();
 }
 
-void CMakeBuildConfiguration::generateProjectTree(CMakeProjectNode *root, const QList<FileNodeInfo> &treeFiles) const
+void CMakeBuildConfiguration::generateProjectTree(CMakeProjectNode *root) const
 {
     if (!m_buildDirManager || m_buildDirManager->isParsing())
         return;
 
-    return m_buildDirManager->generateProjectTree(root, treeFiles);
+    return m_buildDirManager->generateProjectTree(root);
 }
 
 QSet<Core::Id> CMakeBuildConfiguration::updateCodeModel(CppTools::ProjectPartBuilder &ppBuilder)
@@ -281,7 +270,7 @@ QList<ConfigModel::DataItem> CMakeBuildConfiguration::completeCMakeConfiguration
     });
 }
 
-void CMakeBuildConfiguration::setCurrentCMakeConfiguration(const QList<ConfigModel::DataItem> &items, const CMakeToolchainInfo &info)
+void CMakeBuildConfiguration::setCurrentCMakeConfiguration(const QList<ConfigModel::DataItem> &items)
 {
     if (!m_buildDirManager || m_buildDirManager->isParsing())
         return;
@@ -314,40 +303,31 @@ void CMakeBuildConfiguration::setCurrentCMakeConfiguration(const QList<ConfigMod
         return ni;
     });
 
-    CMakeConfig config;
-    auto kitConfig = CMakeConfigurationKitInformation::configuration(target()->kit());
-
-    if (info.toolchainOverride != CMakeToolchainOverrideType::Disabled) {
-        config = removeDuplicates(cmakeConfiguration() + newConfig);
-        config = removeSubList(config, kitConfig);
-    } else {
-        config = removeDuplicates(kitConfig + cmakeConfiguration() + newConfig);
-    }
-
-    if (m_cmakeToolchainInfo != info)
-        m_buildDirManager->clearCache();
-
+    const CMakeConfig config = cmakeConfiguration() + newConfig;
     setCMakeConfiguration(config);
-    setCMakeToolchainInfo(info);
 
     m_buildDirManager->forceReparse();
-}
-
-const CMakeToolchainInfo &CMakeBuildConfiguration::cmakeToolchainInfo() const
-{
-    return m_cmakeToolchainInfo;
-}
-
-void CMakeBuildConfiguration::setCMakeToolchainInfo(const CMakeToolchainInfo &cmakeToolchainInfo)
-{
-    if (m_cmakeToolchainInfo == cmakeToolchainInfo)
-        return;
-    m_cmakeToolchainInfo = cmakeToolchainInfo;
 }
 
 void CMakeBuildConfiguration::emitBuildTypeChanged()
 {
     emit buildTypeChanged();
+}
+
+static CMakeConfig removeDuplicates(const CMakeConfig &config)
+{
+    CMakeConfig result;
+    // Remove duplicates (last value wins):
+    QSet<QByteArray> knownKeys;
+    for (int i = config.count() - 1; i >= 0; --i) {
+        const CMakeConfigItem &item = config.at(i);
+        if (knownKeys.contains(item.key))
+            continue;
+        result.append(item);
+        knownKeys.insert(item.key);
+    }
+    Utils::sort(result, CMakeConfigItem::sortOperator());
+    return result;
 }
 
 void CMakeBuildConfiguration::setCMakeConfiguration(const CMakeConfig &config)
@@ -499,7 +479,6 @@ ProjectExplorer::BuildConfiguration *CMakeBuildConfigurationFactory::create(Proj
 
     bc->setBuildDirectory(copy.buildDirectory);
     bc->setCMakeConfiguration(copy.configuration);
-    bc->setCMakeToolchainInfo(copy.cmakeToolchainInfo);
 
     // Default to all
     if (project->hasBuildTarget(CMakeBuildStep::allTarget()))

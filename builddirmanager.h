@@ -28,10 +28,8 @@
 #include "cmakecbpparser.h"
 #include "cmakeconfigitem.h"
 #include "cmakefile.h"
-#include "treebuilder.h"
 
 #include <projectexplorer/task.h>
-#include <projectexplorer/toolchain.h>
 
 #include <utils/environment.h>
 #include <utils/qtcprocess.h>
@@ -42,8 +40,6 @@
 #include <QObject>
 #include <QSet>
 #include <QTimer>
-
-#include <memory>
 
 QT_FORWARD_DECLARE_CLASS(QTemporaryDir);
 QT_FORWARD_DECLARE_CLASS(QFileSystemWatcher);
@@ -61,7 +57,6 @@ class Task;
 namespace CMakeProjectManager {
 
 class CMakeTool;
-class CMakeToolchainInfo;
 
 namespace Internal {
 
@@ -75,8 +70,6 @@ public:
     BuildDirManager(CMakeBuildConfiguration *bc);
     ~BuildDirManager() override;
 
-    const CMakeToolchainInfo& cmakeToolchainInfo() const;
-
     bool isParsing() const;
 
     void clearCache();
@@ -86,7 +79,7 @@ public:
     bool updateCMakeStateBeforeBuild();
     bool persistCMakeState();
 
-    void generateProjectTree(CMakeProjectNode *root, const QList<Internal::FileNodeInfo> &treeFiles);
+    void generateProjectTree(CMakeProjectNode *root);
     QSet<Core::Id> updateCodeModel(CppTools::ProjectPartBuilder &ppBuilder);
 
     QList<CMakeBuildTarget> buildTargets() const;
@@ -121,17 +114,15 @@ private:
     void cleanUpProcess();
     void extractData();
 
-    void startCMake(CMakeTool *tool, const QStringList &generatorArgs, const CMakeConfig &config, const CMakeToolchainInfo &toolchain);   
+    void startCMake(CMakeTool *tool, const QStringList &generatorArgs, const CMakeConfig &config);
 
     void cmakeFinished(int code, QProcess::ExitStatus status);
     void processCMakeOutput();
     void processCMakeError();
 
-    void completeParsing();
-
-    QStringList getFlagsFor(const CMakeBuildTarget &buildTarget, QHash<QString, QStringList> &cache, ProjectExplorer::ToolChain::Language lang);
-    bool extractFlagsFromMake(const CMakeBuildTarget &buildTarget, QHash<QString, QStringList> &cache, ProjectExplorer::ToolChain::Language lang);
-    bool extractFlagsFromNinja(const CMakeBuildTarget &buildTarget, QHash<QString, QStringList> &cache, ProjectExplorer::ToolChain::Language lang);
+    QStringList getCXXFlagsFor(const CMakeBuildTarget &buildTarget, QHash<QString, QStringList> &cache);
+    bool extractCXXFlagsFromMake(const CMakeBuildTarget &buildTarget, QHash<QString, QStringList> &cache);
+    bool extractCXXFlagsFromNinja(const CMakeBuildTarget &buildTarget, QHash<QString, QStringList> &cache);
 
     bool m_hasData = false;
 
@@ -143,7 +134,7 @@ private:
     QSet<Utils::FileName> m_cmakeFiles;
     QString m_projectName;
     QList<CMakeBuildTarget> m_buildTargets;
-    QList<Internal::FileNodeInfo> m_files;
+    QList<ProjectExplorer::FileNode *> m_files;
 
     // For error reporting:
     ProjectExplorer::IOutputParser *m_parser = nullptr;

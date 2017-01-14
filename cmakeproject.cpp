@@ -31,10 +31,7 @@
 #include "cmakeprojectnodes.h"
 #include "cmakerunconfiguration.h"
 #include "cmakeprojectmanager.h"
-#include "cmaketool.h"
-#include "treebuilder.h"
 
-#include <coreplugin/progressmanager/progressmanager.h>
 #include <cpptools/cppmodelmanager.h>
 #include <cpptools/generatedcodemodelsupport.h>
 #include <cpptools/projectinfo.h>
@@ -59,14 +56,10 @@
 #include <QDir>
 #include <QSet>
 
-#include <chrono>
-
 using namespace ProjectExplorer;
 using namespace Utils;
 
 namespace CMakeProjectManager {
-
-const int MIN_TIME_BETWEEN_TREE_SCANS = 4500;
 
 using namespace Internal;
 
@@ -79,29 +72,19 @@ using namespace Internal;
   \class CMakeProject
 */
 CMakeProject::CMakeProject(CMakeManager *manager, const FileName &fileName)
-    : m_treeBuilder(new TreeBuilder(this))
 {
     setId(CMakeProjectManager::Constants::CMAKEPROJECT_ID);
     setProjectManager(manager);
     setDocument(new TextEditor::TextDocument);
     document()->setFilePath(fileName);
 
-    setRootProjectNode(new CMakeProjectNode(this, FileName::fromString(fileName.toFileInfo().absolutePath())));
+    setRootProjectNode(new CMakeProjectNode(FileName::fromString(fileName.toFileInfo().absolutePath())));
     setProjectContext(Core::Context(CMakeProjectManager::Constants::PROJECTCONTEXT));
     setProjectLanguages(Core::Context(ProjectExplorer::Constants::LANG_CXX));
 
     rootProjectNode()->setDisplayName(fileName.parentDir().fileName());
 
     connect(this, &CMakeProject::activeTargetChanged, this, &CMakeProject::handleActiveTargetChanged);
-    connect(m_treeBuilder.get(), &TreeBuilder::scanningFinished, this, &CMakeProject::handleScanningFinished);
-#ifdef USE_TREE_WATCHER
-    connect(&m_treeWatcher, &QFileSystemWatcher::directoryChanged, this, &CMakeProject::handleDirectoryChange);
-#endif
-    connect(&m_treeScanTimer, &QTimer::timeout, this, &CMakeProject::scanProjectTree);
-
-    m_treeScanTimer.setSingleShot(true);
-
-    scanProjectTree();
 }
 
 CMakeProject::~CMakeProject()
@@ -114,35 +97,14 @@ CMakeProject::~CMakeProject()
 void CMakeProject::updateProjectData()
 {
     auto cmakeBc = qobject_cast<CMakeBuildConfiguration *>(sender());
-    auto treeBuilder = qobject_cast<TreeBuilder *>(sender());
-
-    Target *t = activeTarget();
-    if (!t)
-        return;
-
-    if (cmakeBc) {
-        if (t->activeBuildConfiguration() != cmakeBc)
-            return;
-    } else if (treeBuilder) {
-        cmakeBc = qobject_cast<CMakeBuildConfiguration*>(t->activeBuildConfiguration());
-    } else {
-        return;
-    }
-
     QTC_ASSERT(cmakeBc, return);
 
-    // Initially, populate project tree by the CMake parsing data if it already done to allow user
-    // begin work with project and update project tree with file system files when scanning completes.
-    // Do not use file system data as a initial project tree: we have no information about targets,
-    // flags and so on from build system, so parsing will be ugly and navigation too.
-    const auto cacheEmpty = m_sourceFilesCache.empty() && m_generatedFilesCache.empty();
-    if ((m_treeBuilder->isScanning() || cmakeBc->isParsing()) &&
-        (cmakeBc->isParsing() || !cacheEmpty))
+    Target *t = activeTarget();
+    if (!t || t->activeBuildConfiguration() != cmakeBc)
         return;
-
     Kit *k = t->kit();
 
-    cmakeBc->generateProjectTree(static_cast<CMakeProjectNode *>(rootProjectNode()), m_treeFiles);
+    cmakeBc->generateProjectTree(static_cast<CMakeProjectNode *>(rootProjectNode()));
 
     updateApplicationAndDeploymentTargets();
     updateTargetRunConfigurations(t);
@@ -261,287 +223,6 @@ QList<CMakeBuildTarget> CMakeProject::buildTargets() const
     return bc ? bc->buildTargets() : QList<CMakeBuildTarget>();
 }
 
-void CMakeProject::handleScanningFinished()
-{
-    m_cacheKey.clear();
-    m_cachedItems.clear();
-
-    m_lastTreeScan.start();
-
-    m_treePaths = m_treeBuilder->paths();
-    m_treeFiles = m_treeBuilder->files();
-    m_treeBuilder->clear();
-
-#ifdef USE_TREE_WATCHER
-    for (auto &path : m_treePaths)
-        if (path.toFileInfo().exists())
-            m_treeWatcher.addPath(path.toString());
-    m_treeWatcher.addPath(projectDirectory().toString());
-#endif
-
-    updateProjectData();
-}
-
-void CMakeProject::handleDirectoryChange(QString path)
-{
-    // QFileSystemWatcher so ugly to use: it can't be configure to handle only file/dir Add, Remove,
-    // Rename, it alway handle FileChanged too. But we must not rescan tree on every file save.
-    // Possible replaces:
-    //   * https://bitbucket.org/SpartanJ/efsw/overview
-    //   * http://emcrisostomo.github.io/fswatch/
-    // Currently use hack:
-    //  1. Request Tree Scanner nodes for changed path
-    //  2. Request current directory nodes
-    //  3. And compare it
-    // If nodes list differ it means, that file added, removed of renemed, but not changed.
-    // In future it can be optimized: replace full rescan with partial one.
-
-    auto cachedItems = directoryEntries(FileName::fromString(path));
-
-    auto dir = QDir(path);
-    if (dir.exists()) {
-        auto currentList = dir.entryList(QDir::Files |
-                                         QDir::Dirs |
-                                         QDir::NoDotAndDotDot |
-                                         QDir::NoSymLinks);
-
-        QSet<FileName> currentItems;
-        for (const auto& fn : currentList) {
-            QFileInfo fi{path + '/' + fn};
-            if (TreeBuilder::isValidFile(fi) || TreeBuilder::isValidDir(fi))
-                currentItems.insert(FileName::fromString(fn));
-        }
-
-        auto removed = cachedItems - currentItems;
-        auto added = currentItems - cachedItems;
-
-        if (!removed.empty() || !added.empty()) {
-            qDebug() << "Scanner dir entries:" << cachedItems;
-            qDebug() << "Current dir entries:" << currentItems;
-            qDebug() << "Changed:" << path;
-            scheduleScanProjectTree();
-        }
-    } else {
-        // Directory removed, rescan tree
-        scheduleScanProjectTree();
-    }
-}
-
-FileNameList CMakeProject::directoryList(const QList<FileNodeInfo> &paths) const
-{
-    QList<FileName> dirs;
-    for (const auto& path : paths) {
-        auto fi = path.filePath.toFileInfo();
-        auto insertPath = path.filePath;
-
-        if (!fi.isDir()) {
-            insertPath = FileName::fromString(fi.absolutePath());
-        }
-
-        // Omit dups
-        if (dirs.count()) {
-            // Path objects already sorted
-            if (dirs.last() != insertPath)
-                dirs.append(insertPath);
-        } else {
-            dirs.append(insertPath);
-        }
-    }
-
-    Q_ASSERT(isSorted(dirs, [](const FileName& lhs, const FileName& rhs) {
-        return lhs < rhs;
-    }));
-
-    return dirs;
-}
-
-QSet<FileName> CMakeProject::directoryEntries(const FileName &directory) const
-{
-    // Speed up quick requiest
-    if (m_cacheKey.count() && directory == m_cacheKey)
-        return m_cachedItems;
-
-    QSet<Utils::FileName> result;
-
-    auto processFileName = [&result,&directory](const FileName& fn) {
-        if (fn.toString().startsWith(directory.toString())) {
-            auto from = directory.toString().length();
-            from++; // Skip '/'
-
-            if (from >= fn.toString().length())
-                return;
-
-            auto index = fn.toString().indexOf('/', from);
-            int count = -1;
-            if (index != -1) {
-                count = index - from;
-            }
-
-            result.insert(Utils::FileName::fromString(fn.toString().mid(from, count)));
-        }
-    };
-
-    for (const auto& fn : m_treeFiles)
-        processFileName(fn.filePath);
-    for (const auto& fn : m_treePaths)
-        processFileName(fn);
-
-    // Cache last requiest
-    m_cacheKey = directory;
-    m_cachedItems = result;
-
-    return result;
-}
-
-void CMakeProject::addFilesCommon(const QStringList& filePaths)
-{
-    auto infos = transform(filePaths, [](const QString &fn) {
-        return TreeBuilder::fileNodeInfo(FileName::fromString(fn));
-    });
-
-    sort(infos);
-
-    for (const auto& info : infos) {
-        auto fi = info.filePath.toFileInfo();
-        auto parent = fi.absolutePath();
-        auto folder = rootProjectNode()->recursiveFindOrCreateFolderNode(parent);
-        auto node = new FileNode(info.filePath, info.fileType, false);
-        folder->addFileNodes({node});
-    }
-
-    m_generatedFilesCache.clear();
-    m_sourceFilesCache.clear();
-
-#if 1
-    // Update tree without full rescan run
-    auto oldSize = m_treeFiles.size();
-    m_treeFiles.append(infos);
-    std::inplace_merge(m_treeFiles.begin(),
-                       m_treeFiles.begin() + oldSize,
-                       m_treeFiles.end());
-
-    auto dirs = directoryList(infos);
-
-#ifdef USE_TREE_WATCHER
-    // Append dirs to watcher, ignores if already present
-    m_treeWatcher.addPaths(transform(dirs, [](const FileName &path) {
-        return path.toString();
-    }));
-#endif
-
-    oldSize = m_treePaths.size();
-    m_treePaths.append(dirs);
-    std::inplace_merge(m_treePaths.begin(),
-                       m_treePaths.begin() + oldSize,
-                       m_treePaths.end());
-    m_treePaths = filteredUnique(m_treePaths);
-#endif
-
-}
-
-void CMakeProject::eraseFilesCommon(const QStringList &filePaths)
-{
-    auto infos = transform(filePaths, [](const QString &fn) {
-        return TreeBuilder::fileNodeInfo(FileName::fromString(fn));
-    });
-
-    sort(infos);
-
-    for (const auto& info : infos) {
-        auto fi = info.filePath.toFileInfo();
-        auto parent = fi.absolutePath();
-
-        auto node = rootProjectNode()->recursiveFileNode(info.filePath);
-        if (!node)
-            continue;
-
-        auto folder = node->parentFolderNode();
-        if (!folder)
-            // TBD
-            continue;
-
-        folder->removeFileNodes({node});
-    }
-
-    m_generatedFilesCache.clear();
-    m_sourceFilesCache.clear();
-
-#if 1
-    // Update tree without full rescan run
-    QList<FileNodeInfo> filtered;
-    filtered.reserve(m_treeFiles.size());
-    std::set_difference(m_treeFiles.begin(),
-                        m_treeFiles.end(),
-                        infos.begin(),
-                        infos.end(),
-                        std::back_inserter(filtered));
-
-    m_treeFiles = filtered;
-
-    // Process paths
-    auto dirs = directoryList(infos);
-
-    FileNameList directoryFiltered;
-    directoryFiltered.reserve(m_treePaths.size());
-    std::set_difference(m_treePaths.begin(),
-                        m_treePaths.end(),
-                        dirs.begin(),
-                        dirs.end(),
-                        std::back_inserter(directoryFiltered));
-
-    m_treePaths = directoryFiltered;
-#endif
-}
-
-void CMakeProject::renameFileCommon(const QString &filePath, const QString &newFilePath)
-{
-    auto info = TreeBuilder::fileNodeInfo(FileName::fromString(filePath));
-    auto fi = info.filePath.toFileInfo();
-    auto parent = fi.absolutePath();
-
-    auto node = rootProjectNode()->recursiveFileNode(info.filePath);
-    if (!node)
-        return;
-
-    node->setAbsoluteFilePathAndLine(FileName::fromString(newFilePath), -1);
-
-    m_generatedFilesCache.clear();
-    m_sourceFilesCache.clear();
-
-#if 1
-    // Update tree without full rescan run
-    auto it = std::lower_bound(m_treeFiles.begin(), m_treeFiles.end(), info);
-    if (it != m_treeFiles.end())
-        *it = TreeBuilder::fileNodeInfo(FileName::fromString(newFilePath));
-
-    // Keep tree sorted
-    sort(m_treeFiles);
-#endif
-}
-
-void CMakeProject::scheduleScanProjectTree()
-{
-    auto elapsedTime = m_lastTreeScan.elapsed();
-    if (elapsedTime < MIN_TIME_BETWEEN_TREE_SCANS) {
-        if (!m_treeScanTimer.isActive()) {
-            m_treeScanTimer.setInterval(MIN_TIME_BETWEEN_TREE_SCANS - elapsedTime);
-            m_treeScanTimer.start();
-        }
-    } else {
-        scanProjectTree();
-    }
-}
-
-void CMakeProject::scanProjectTree()
-{
-    if (m_treeBuilder->isScanning())
-        return;
-    m_treeBuilder->startScanning(projectDirectory());
-    Core::ProgressManager::addTask(m_treeBuilder->future(),
-                                   tr("Scanning tree \"%1\"").arg(displayName()),
-                                   "CMake.Scanning");
-}
-
 QStringList CMakeProject::buildTargetTitles(bool runnable) const
 {
     const QList<CMakeBuildTarget> targets
@@ -565,32 +246,21 @@ QString CMakeProject::displayName() const
 
 QStringList CMakeProject::files(FilesMode fileMode) const
 {
-    if (m_generatedFilesCache.empty() && m_sourceFilesCache.empty())
-        updateFilesCache(rootProjectNode()->recursiveFileNodes());
-
-    switch (fileMode) {
-        case Project::GeneratedFiles:
-            return m_generatedFilesCache;
+    const QList<FileNode *> nodes = filtered(rootProjectNode()->recursiveFileNodes(),
+                                             [fileMode](const FileNode *fn) {
+        const bool isGenerated = fn->isGenerated();
+        switch (fileMode)
+        {
         case Project::SourceFiles:
-            return m_sourceFilesCache;
+            return !isGenerated;
+        case Project::GeneratedFiles:
+            return isGenerated;
         case Project::AllFiles:
-            return m_sourceFilesCache + m_generatedFilesCache;
-    }
-    return QStringList();
-}
-
-void CMakeProject::updateFilesCache(const QList<FileNode *> &nodes) const
-{
-    m_generatedFilesCache.clear();
-    m_sourceFilesCache.clear();
-    for (auto &node : nodes) {
-        if (node->fileType() == FileType::Unknown)
-            continue;
-        if (node->isGenerated())
-            m_generatedFilesCache.push_back(node->filePath().toString());
-        else
-            m_sourceFilesCache.push_back(node->filePath().toString());
-    }
+        default:
+            return true;
+        }
+    });
+    return transform(nodes, [fileMode](const FileNode* fn) { return fn->filePath().toString(); });
 }
 
 Project::RestoreResult CMakeProject::fromMap(const QVariantMap &map, QString *errorMessage)
@@ -815,8 +485,6 @@ void CMakeProject::createGeneratedCodeModelSupport()
     CppTools::GeneratedCodeModelSupport::update(m_extraCompilers);
 }
 
-
-
 void CMakeBuildTarget::clear()
 {
     executable.clear();
@@ -829,43 +497,6 @@ void CMakeBuildTarget::clear()
     compilerOptions.clear();
     defines.clear();
     files.clear();
-}
-
-void CMakeProject::maybeRunCMake()
-{
-    auto tgt = activeTarget();
-    if (!tgt)
-        return;
-
-    auto tool = CMakeKitInformation::cmakeTool(tgt->kit());
-    if (!tool || !tool->isAutoRun())
-        return;
-
-    runCMake();
-}
-
-bool CMakeProject::addFiles(const QStringList &filePaths)
-{
-    addFilesCommon(filePaths);
-    // If globbing is used, watched does not know about new files, so force rebuilding
-    maybeRunCMake();
-    return true;
-}
-
-bool CMakeProject::eraseFiles(const QStringList &filePaths)
-{
-    eraseFilesCommon(filePaths);
-    // If globbing is used, watched does not know about new files, so force rebuilding
-    maybeRunCMake();
-    return true;
-}
-
-bool CMakeProject::renameFile(const QString &filePath, const QString &newFilePath)
-{
-    renameFileCommon(filePath, newFilePath);
-    // If globbing is used, watched does not know about new files, so force rebuilding
-    maybeRunCMake();
-    return true;
 }
 
 } // namespace CMakeProjectManager

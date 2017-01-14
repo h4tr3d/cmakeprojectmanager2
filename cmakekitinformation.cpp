@@ -422,7 +422,6 @@ void CMakeGeneratorKitInformation::upgrade(Kit *k)
         }
         setGeneratorInfo(k, info);
     }
-    //setGeneratorInfo(k, info);
 }
 
 KitInformation::ItemList CMakeGeneratorKitInformation::toUserOutput(const Kit *k) const

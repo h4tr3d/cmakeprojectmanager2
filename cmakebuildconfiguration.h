@@ -28,7 +28,6 @@
 #include "cmakeconfigitem.h"
 #include "cmakeproject.h"
 #include "configmodel.h"
-#include "cmaketoolchaininfo.h"
 
 #include <projectexplorer/buildconfiguration.h>
 #include <projectexplorer/abi.h>
@@ -64,9 +63,6 @@ public:
 
     BuildType buildType() const override;
 
-    const CMakeToolchainInfo& cmakeToolchainInfo() const;
-    void  setCMakeToolchainInfo(const CMakeToolchainInfo &cmakeToolchainInfo);
-
     void emitBuildTypeChanged();
 
     void setCMakeConfiguration(const CMakeConfig &config);
@@ -86,7 +82,7 @@ public:
     void clearCache();
 
     QList<CMakeBuildTarget> buildTargets() const;
-    void generateProjectTree(CMakeProjectNode *root, const QList<Internal::FileNodeInfo> &treeFiles) const;
+    void generateProjectTree(CMakeProjectNode *root) const;
     QSet<Core::Id> updateCodeModel(CppTools::ProjectPartBuilder &ppBuilder);
 
     static Utils::FileName
@@ -107,13 +103,12 @@ protected:
 private:
     void ctor();
     QList<ConfigModel::DataItem> completeCMakeConfiguration() const;
-    void setCurrentCMakeConfiguration(const QList<ConfigModel::DataItem> &items, const CMakeToolchainInfo &info);
+    void setCurrentCMakeConfiguration(const QList<ConfigModel::DataItem> &items);
 
     void setError(const QString &message);
     void setWarning(const QString &message);
 
     CMakeConfig m_configuration;
-    CMakeToolchainInfo m_cmakeToolchainInfo;
     QString m_error;
     QString m_warning;
 

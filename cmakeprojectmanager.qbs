@@ -68,14 +68,11 @@ QtcPlugin {
         "cmakesnippetprovider.h",
         "cmakeindenter.h",
         "cmakeindenter.cpp",
-        "cmakeparamsext.cpp"
         "cmakeautocompleter.h",
         "cmakeautocompleter.cpp",
         "configmodel.cpp",
         "configmodel.h",
         "configmodelitemdelegate.cpp",
-        "configmodelitemdelegate.h",
-        "treebuilder.cpp",
-        "treebuilder.h"
+        "configmodelitemdelegate.h"
     ]
 }

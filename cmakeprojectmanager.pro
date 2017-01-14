@@ -39,9 +39,7 @@ HEADERS = builddirmanager.h \
     cmakeindenter.h \
     cmakeautocompleter.h \
     configmodel.h \
-    configmodelitemdelegate.h \
-    cmaketoolchaininfo.h \
-    treebuilder.h
+    configmodelitemdelegate.h
 
 SOURCES = builddirmanager.cpp \
     cmakebuildstep.cpp \
@@ -68,9 +66,7 @@ SOURCES = builddirmanager.cpp \
     cmakeindenter.cpp \
     cmakeautocompleter.cpp \
     configmodel.cpp \
-    configmodelitemdelegate.cpp \
-    cmaketoolchaininfo.cpp \
-    treebuilder.cpp
+    configmodelitemdelegate.cpp
 
 RESOURCES += cmakeproject.qrc
 

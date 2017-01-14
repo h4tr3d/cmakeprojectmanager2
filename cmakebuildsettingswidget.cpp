@@ -50,9 +50,6 @@
 #include <QSortFilterProxyModel>
 #include <QSpacerItem>
 #include <QMenu>
-#include <QGroupBox>
-#include <QFileDialog>
-#include <QFormLayout>
 
 namespace CMakeProjectManager {
 namespace Internal {
@@ -185,33 +182,6 @@ CMakeBuildSettingsWidget::CMakeBuildSettingsWidget(CMakeBuildConfiguration *bc) 
 
     mainLayout->addLayout(buttonLayout, row, 2);
 
-    // Toolchain settings
-    {
-        ++row;
-        m_toolchainGroupBox = new QGroupBox(this);
-        m_toolchainGroupBox->setCheckable(true);
-        m_toolchainGroupBox->setTitle(tr("Override toolchain:"));
-
-        QFormLayout *toolchainLayout = new QFormLayout;
-        toolchainLayout->setFieldGrowthPolicy(QFormLayout::ExpandingFieldsGrow);
-        m_toolchainGroupBox->setLayout(toolchainLayout);
-
-        m_toolchainLineEdit = new Utils::FancyLineEdit(this);
-
-        m_toolchainFileSelectPushButton = new QPushButton(this);
-        m_toolchainFileSelectPushButton->setText(tr("Browse..."));
-
-        m_toolchainFileLabel = new QLabel(tr("Toolchain file:"), this);
-
-        auto hbox = new QHBoxLayout;
-        hbox->addWidget(m_toolchainFileLabel);
-        hbox->addWidget(m_toolchainLineEdit);
-        hbox->addWidget(m_toolchainFileSelectPushButton);
-        toolchainLayout->addRow(hbox);
-
-        mainLayout->addWidget(m_toolchainGroupBox, row, 0, 1, 3);
-    }
-
     ++row;
     m_reconfigureButton = new QPushButton(tr("Apply Configuration Changes"));
     m_reconfigureButton->setEnabled(false);
@@ -251,9 +221,9 @@ CMakeBuildSettingsWidget::CMakeBuildSettingsWidget(CMakeBuildConfiguration *bc) 
 
     connect(m_resetButton, &QPushButton::clicked, m_configModel, &ConfigModel::resetAllChanges);
     connect(m_reconfigureButton, &QPushButton::clicked, this, [this]() {
-        m_buildConfiguration->setCurrentCMakeConfiguration(m_configModel->configurationChanges(), currentToolchainInfo());
+        m_buildConfiguration->setCurrentCMakeConfiguration(m_configModel->configurationChanges());
     });
-    connect(m_editButton, &QPushButton::clicked, [this]() {
+    connect(m_editButton, &QPushButton::clicked, this, [this]() {
         QModelIndex idx = m_configView->currentIndex();
         if (idx.column() != 1)
             idx = idx.sibling(idx.row(), 1);
@@ -277,20 +247,6 @@ CMakeBuildSettingsWidget::CMakeBuildSettingsWidget(CMakeBuildConfiguration *bc) 
 
     connect(bc, &CMakeBuildConfiguration::errorOccured, this, &CMakeBuildSettingsWidget::setError);
     connect(bc, &CMakeBuildConfiguration::warningOccured, this, &CMakeBuildSettingsWidget::setWarning);
-
-    connect(m_toolchainGroupBox, &QGroupBox::clicked, [this](bool) {
-        updateButtonState();
-    });
-    connect(m_toolchainFileSelectPushButton, &QAbstractButton::clicked, [this](bool) {
-        toolchainFileSelect();
-    });
-
-    m_toolchainGroupBox->setChecked(false);
-
-    auto info = bc->cmakeToolchainInfo();
-    if (info.toolchainOverride != CMakeToolchainOverrideType::Disabled)
-        m_toolchainGroupBox->setChecked(true);
-    m_toolchainLineEdit->setText(info.toolchainFile);
 }
 
 void CMakeBuildSettingsWidget::setError(const QString &message)
@@ -324,61 +280,13 @@ void CMakeBuildSettingsWidget::updateButtonState()
     const bool isParsing = m_buildConfiguration->isParsing();
     const bool hasChanges = m_configModel->hasChanges();
     m_resetButton->setEnabled(hasChanges && !isParsing);
-
-    auto const& prev = m_buildConfiguration->cmakeToolchainInfo();
-    auto const  curr = currentToolchainInfo();
-
-    // If toolchain changed we need full tree regeneration
-    bool hasToolchainChanges = (curr.toolchainOverride != prev.toolchainOverride ||
-                                curr.toolchainFile != prev.toolchainFile);
-
-    m_reconfigureButton->setEnabled((hasChanges || hasToolchainChanges || m_configModel->hasCMakeChanges()) && !isParsing);
+    m_reconfigureButton->setEnabled((hasChanges || m_configModel->hasCMakeChanges()) && !isParsing);
 }
 
 void CMakeBuildSettingsWidget::updateAdvancedCheckBox()
 {
     // Switch between Qt::DisplayRole (everything is "0") and Qt::EditRole (advanced is "1").
     m_configFilterModel->setFilterRole(m_showAdvancedCheckBox->isChecked() ? Qt::EditRole : Qt::DisplayRole);
-}
-
-CMakeToolchainInfo CMakeBuildSettingsWidget::currentToolchainInfo() const
-{
-    auto curr = m_buildConfiguration->cmakeToolchainInfo();
-    curr.toolchainOverride = CMakeToolchainOverrideType::Disabled;
-    curr.toolchainFile     = m_toolchainLineEdit->text();
-    // toolchainInline already filled
-    if (m_toolchainGroupBox->isChecked()) {
-        curr.toolchainOverride = CMakeToolchainOverrideType::File;
-    }
-    return curr;
-}
-
-void CMakeBuildSettingsWidget::toolchainFileSelect()
-{
-    QFileDialog openToolchainDialog(this,
-                                    tr("Select CMake toolchain"),
-                                    m_buildConfiguration->target()->project()->projectDirectory().toString(),
-                                    QLatin1String("CMake files (*.cmake);; All (*)"));
-
-    openToolchainDialog.setFileMode(QFileDialog::ExistingFile);
-    openToolchainDialog.setAcceptMode(QFileDialog::AcceptOpen);
-
-    QList<QUrl> urls;
-    urls << QUrl::fromLocalFile(m_buildConfiguration->target()->project()->projectDirectory().toString());
-    openToolchainDialog.setSidebarUrls(urls);
-
-    if (!m_toolchainLineEdit->text().isEmpty()) {
-        QFileInfo fi(m_toolchainLineEdit->text());
-        openToolchainDialog.setDirectory(fi.absolutePath());
-    }
-
-    if (openToolchainDialog.exec()) {
-        auto files = openToolchainDialog.selectedFiles();
-        if (!files.isEmpty())
-            m_toolchainLineEdit->setText(files[0]);
-    }
-
-    updateButtonState();
 }
 
 } // namespace Internal

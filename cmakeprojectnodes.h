@@ -26,46 +26,18 @@
 #pragma once
 
 #include <projectexplorer/projectnodes.h>
-#include "cmakeproject.h"
 
 namespace CMakeProjectManager {
 class CMakeProject;
 
 namespace Internal {
 
-struct FileNodeInfo
-{
-    FileNodeInfo() = default;
-    FileNodeInfo(const Utils::FileName &filePath, const ProjectExplorer::FileType fileType, bool generated)
-        : filePath(filePath),
-          fileType(fileType),
-          generated(generated)
-    {}
-
-    Utils::FileName filePath;
-    ProjectExplorer::FileType fileType = ProjectExplorer::FileType::Unknown;
-    bool generated = false;
-};
-
-// For sorting operations
-inline bool operator<(const FileNodeInfo &lhs, const FileNodeInfo &rhs)
-{
-    return lhs.filePath < rhs.filePath;
-}
-
 class CMakeProjectNode : public ProjectExplorer::ProjectNode
 {
 public:
-    CMakeProjectNode(CMakeProject *project, const Utils::FileName &dirName);
+    CMakeProjectNode(const Utils::FileName &dirName);
     bool showInSimpleTree() const override;
     QList<ProjectExplorer::ProjectAction> supportedActions(Node *node) const override;
-
-    bool addFiles(const QStringList &filePaths, QStringList *notAdded) override;
-    bool deleteFiles(const QStringList &filePaths) override;
-    bool renameFile(const QString &filePath, const QString &newFilePath) override;
-
-private:
-    CMakeProject *m_project;
 };
 
 } // namespace Internal

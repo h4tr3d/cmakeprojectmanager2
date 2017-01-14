@@ -28,9 +28,8 @@
 using namespace CMakeProjectManager;
 using namespace CMakeProjectManager::Internal;
 
-CMakeProjectNode::CMakeProjectNode(CMakeProject *project, const Utils::FileName &dirName)
-    : ProjectExplorer::ProjectNode(dirName),
-      m_project(project)
+CMakeProjectNode::CMakeProjectNode(const Utils::FileName &dirName)
+    : ProjectExplorer::ProjectNode(dirName)
 {
 }
 
@@ -43,25 +42,5 @@ bool CMakeProjectNode::showInSimpleTree() const
 QList<ProjectExplorer::ProjectAction> CMakeProjectNode::supportedActions(Node *node) const
 {
     Q_UNUSED(node);
-    return QList<ProjectExplorer::ProjectAction>()
-        << ProjectExplorer::AddNewFile
-        << ProjectExplorer::EraseFile
-        << ProjectExplorer::Rename;
+    return QList<ProjectExplorer::ProjectAction>();
 }
-
-bool CMakeProjectNode::addFiles(const QStringList &filePaths, QStringList *notAdded)
-{
-    Q_UNUSED(notAdded)
-    return m_project->addFiles(filePaths);
-}
-
-bool CMakeProjectNode::deleteFiles(const QStringList &filePaths)
-{
-    return m_project->eraseFiles(filePaths);
-}
-
-bool CMakeProjectNode::renameFile(const QString &filePath, const QString &newFilePath)
-{
-    return m_project->renameFile(filePath, newFilePath);
-}
-
