@@ -31,6 +31,7 @@
 #include "cmakeprojectnodes.h"
 #include "cmakerunconfiguration.h"
 #include "cmakeprojectmanager.h"
+#include "compat.h"
 
 #include <coreplugin/icore.h>
 #include <coreplugin/progressmanager/progressmanager.h>
@@ -324,7 +325,7 @@ bool CMakeProject::eraseFiles(const QStringList &filePaths)
     QList<const FileNode *> removed;
     for (auto& filePath : filePaths) {
         auto fn = FileName::fromString(filePath);
-        auto node = rootProjectNode()->recursiveFileNode(fn, projectDirectory());
+        auto node = Compat::ProjectExplorer::recursiveFileNode(rootProjectNode(), fn, projectDirectory());
         if (!node)
             return false;
         auto folder = node->parentFolderNode();
@@ -374,7 +375,7 @@ bool CMakeProject::renameFile(const QString &filePath, const QString &newFilePat
 {
     auto fn = FileName::fromString(filePath);
     auto newfn = FileName::fromString(newFilePath);
-    auto node = rootProjectNode()->recursiveFileNode(fn, projectDirectory());
+    auto node = Compat::ProjectExplorer::recursiveFileNode(rootProjectNode(), fn, projectDirectory());
     if (!node)
         return false;
 

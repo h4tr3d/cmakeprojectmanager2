@@ -43,7 +43,8 @@ HEADERS = builddirmanager.h \
     servermode.h \
     servermodereader.h \
     tealeafreader.h \
-    treescanner.h
+    treescanner.h \
+    compat.h
 
 SOURCES = builddirmanager.cpp \
     builddirreader.cpp \
@@ -74,7 +75,8 @@ SOURCES = builddirmanager.cpp \
     servermode.cpp \
     servermodereader.cpp \
     tealeafreader.cpp \
-    treescanner.cpp
+    treescanner.cpp \
+    compat.cpp
 
 RESOURCES += cmakeproject.qrc
 

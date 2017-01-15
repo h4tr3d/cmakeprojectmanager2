@@ -81,6 +81,8 @@ QtcPlugin {
         "tealeafreader.cpp",
         "tealeafreader.h",
         "treescanner.cpp",
-        "treescanner.h"
+        "treescanner.h",
+        "compat.cpp",
+        "compat.h"
     ]
 }
