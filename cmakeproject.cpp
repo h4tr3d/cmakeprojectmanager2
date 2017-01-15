@@ -231,7 +231,7 @@ void CMakeProject::askRunCMake()
     QPointer<QMessageBox> box = new QMessageBox(Core::ICore::mainWindow());
     box->setIcon(QMessageBox::Question);
     box->setText(tr("Project file system tree changed."));
-    box->setInformativeText(tr("File system tree changed. The change does not affect CMake project targets.\n"
+    box->setInformativeText(tr("File system tree changed. The change does not affect CMake project targets.\n\n"
                                "Edit appropriate CMakeLists.txt or run CMake now if project uses globbing expressions to collect files."));
     box->addButton(tr("Run CMake Later"), QMessageBox::RejectRole);
     auto defaultButton = box->addButton(tr("Run CMake Now"), QMessageBox::AcceptRole);
@@ -294,14 +294,20 @@ bool CMakeProject::addFiles(const QStringList &filePaths)
         const Utils::MimeType mimeType = mdb.mimeTypeForFile(filePath);
         auto fn = FileName::fromString(filePath);
         auto type = TreeScanner::genericFileType(mimeType, fn);
-        auto node = new FileNode(fn, type, false);
-        node->setEnabled(false);
-        nodes << node;
 
-        auto parent = node->filePath().parentDir();
+        auto parent = fn.parentDir();
         auto folder = rootProjectNode()->recursiveFindOrCreateFolderNode(parent.toString(), projectDirectory());
-        folder->addFileNodes({new FileNode(*node)});
+
+        if (!folder->fileNode(fn)) {
+            auto node = new FileNode(fn, type, false);
+            node->setEnabled(false);
+            nodes << node;
+            folder->addFileNodes({new FileNode(*node)});
+        }
     }
+
+    if (nodes.empty())
+        return true;
 
     // Update tree without full rescan run
     sort(nodes, Node::sortByPath);
