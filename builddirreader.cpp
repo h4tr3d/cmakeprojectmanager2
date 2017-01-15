@@ -29,6 +29,7 @@
 #include "cmakekitinformation.h"
 #include "servermodereader.h"
 #include "tealeafreader.h"
+#include "simpleservermorereader.h"
 
 #include <projectexplorer/kitinformation.h>
 #include <projectexplorer/target.h>
@@ -88,7 +89,8 @@ BuildDirReader::Parameters::Parameters(const BuildDirReader::Parameters &) = def
 BuildDirReader *BuildDirReader::createReader(const BuildDirReader::Parameters &p)
 {
     if (p.cmakeHasServerMode)
-        return new ServerModeReader;
+        //return new ServerModeReader;
+        return new SimpleServerMoreReader;
     return new TeaLeafReader;
 }
 

@@ -49,7 +49,7 @@ class ServerModeReader : public BuildDirReader
 
 public:
     ServerModeReader();
-    ~ServerModeReader() final;
+    ~ServerModeReader();
 
     void setParameters(const Parameters &p) final;
 
@@ -65,10 +65,10 @@ public:
     QList<CMakeBuildTarget> buildTargets() const final;
     CMakeConfig takeParsedConfiguration() final;
     void generateProjectTree(CMakeListsNode *root,
-                             const QList<const ProjectExplorer::FileNode *> &allFiles) final;
+                             const QList<const ProjectExplorer::FileNode *> &allFiles) override;
     QSet<Core::Id> updateCodeModel(CppTools::ProjectPartBuilder &ppBuilder) final;
 
-private:
+protected:
     void handleReply(const QVariantMap &data, const QString &inReplyTo);
     void handleError(const QString &message);
     void handleProgress(int min, int cur, int max, const QString &inReplyTo);

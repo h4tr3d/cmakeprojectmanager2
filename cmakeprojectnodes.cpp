@@ -96,13 +96,6 @@ QList<ProjectExplorer::ProjectAction> CMakeListsNode::supportedActions(ProjectEx
     if (!t)
         return ProjectActionList();
 
-    const auto kit = t->kit();
-
-    // Server mode reader is not supported yet
-    CMakeTool *cmake = CMakeKitInformation::cmakeTool(kit);
-    if (cmake->hasServerMode())
-        return ProjectActionList();
-
     return ProjectActionList()
             << ProjectExplorer::AddNewFile
             << ProjectExplorer::EraseFile
