@@ -32,6 +32,7 @@
 #include "simpleservermorereader.h"
 
 #include <projectexplorer/kitinformation.h>
+#include <projectexplorer/projectexplorerconstants.h>
 #include <projectexplorer/target.h>
 
 using namespace ProjectExplorer;
@@ -64,10 +65,10 @@ BuildDirReader::Parameters::Parameters(const CMakeBuildConfiguration *bc)
     pathMapper = cmake->pathMapper();
     isAutorun = cmake->isAutoRun();
 
-    auto tc = ProjectExplorer::ToolChainKitInformation::toolChain(k, ProjectExplorer::ToolChain::Language::Cxx);
+    auto tc = ProjectExplorer::ToolChainKitInformation::toolChain(k, ProjectExplorer::Constants::CXX_LANGUAGE_ID);
     if (tc)
         cxxToolChainId = tc->id();
-    tc = ProjectExplorer::ToolChainKitInformation::toolChain(k, ProjectExplorer::ToolChain::Language::C);
+    tc = ProjectExplorer::ToolChainKitInformation::toolChain(k, ProjectExplorer::Constants::C_LANGUAGE_ID);
     if (tc)
         cToolChainId = tc->id();
     sysRoot = ProjectExplorer::SysRootKitInformation::sysRoot(k);
