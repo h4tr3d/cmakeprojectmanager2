@@ -250,11 +250,11 @@ static ProjectNode *updateCMakeInputs(CMakeListsNode *root,
     if (!cmakeVFolder) {
         if (hasInputs) {
             cmakeVFolder = new CMakeInputsNode(root->filePath());
-            root->addProjectNodes({ cmakeVFolder });
+            root->addProjectNode(cmakeVFolder);
         }
     } else {
         if (!hasInputs)
-            root->removeProjectNodes({ cmakeVFolder });
+            root->removeProjectNode(cmakeVFolder);
     }
     if (!hasInputs)
         return nullptr;
@@ -304,15 +304,11 @@ void ServerModeReader::generateProjectTree(CMakeListsNode *root,
     if (!m_projects.isEmpty())
         root->setDisplayName(m_projects.at(0)->name);
 
-    QSet<Node *> usedNodes;
-    usedNodes.insert(updateCMakeInputs(root, m_parameters.sourceDirectory, m_parameters.buildDirectory,
-                                       cmakeFilesSource, cmakeFilesBuild, cmakeFilesOther));
+    updateCMakeInputs(root, m_parameters.sourceDirectory, m_parameters.buildDirectory,
+                       cmakeFilesSource, cmakeFilesBuild, cmakeFilesOther);
 
-    usedNodes.unite(updateCMakeLists(root, cmakeLists));
-    usedNodes.unite(updateProjects(root, m_projects, allFiles));
-
-    // Trim out unused nodes:
-    root->trim(usedNodes);
+    updateCMakeLists(root, cmakeLists);
+    updateProjects(root, m_projects, allFiles);
 }
 
 QSet<Core::Id> ServerModeReader::updateCodeModel(CppTools::ProjectPartBuilder &ppBuilder)
@@ -542,11 +538,8 @@ void ServerModeReader::extractCacheData(const QVariantMap &data)
     m_cmakeCache = config;
 }
 
-QSet<Node *> ServerModeReader::updateCMakeLists(CMakeListsNode *root,
-                                                const QList<FileNode *> &cmakeLists)
+void ServerModeReader::updateCMakeLists(CMakeListsNode *root, const QList<FileNode *> &cmakeLists)
 {
-    QSet<Node *> usedNodes;
-
     const QDir baseDir = QDir(m_parameters.sourceDirectory.toString());
 
     QHash<QString, FileNode *> nodeHash;
@@ -583,7 +576,7 @@ QSet<Node *> ServerModeReader::updateCMakeLists(CMakeListsNode *root,
             cmln = static_cast<CMakeListsNode *>(parentNode->projectNode(fn->filePath()));
         if (!cmln) {
             cmln = new CMakeListsNode(fn->filePath());
-            parentNode->addProjectNodes({ cmln });
+            parentNode->addProjectNode(cmln);
         }
 
         // Find or create CMakeLists.txt filenode below CMakeListsNode:
@@ -592,8 +585,6 @@ QSet<Node *> ServerModeReader::updateCMakeLists(CMakeListsNode *root,
             cmFn = fn;
             cmln->addFileNodes({ cmFn });
         }
-        usedNodes.insert(cmFn); // register existing CMakeLists.txt filenode
-
         // Update displayName of CMakeListsNode:
         const QString dn = prefix.isEmpty() ? k : k.mid(prefix.count() + 1);
         if (!dn.isEmpty())
@@ -601,8 +592,6 @@ QSet<Node *> ServerModeReader::updateCMakeLists(CMakeListsNode *root,
 
         knownNodes.insert(k, cmln);
     }
-
-    return usedNodes;
 }
 
 static CMakeListsNode *findCMakeNode(CMakeListsNode *root, const Utils::FileName &dir)
@@ -647,18 +636,16 @@ static CMakeProjectNode *findOrCreateProjectNode(CMakeListsNode *root, const Uti
     CMakeProjectNode *pn = static_cast<CMakeProjectNode *>(cmln->projectNode(projectName));
     if (!pn) {
         pn = new CMakeProjectNode(projectName);
-        cmln->addProjectNodes({ pn });
+        cmln->addProjectNode(pn);
     }
     pn->setDisplayName(displayName);
     return pn;
 }
 
-QSet<Node *> ServerModeReader::updateProjects(CMakeListsNode *root,
-                                              const QList<Project *> &projects,
-                                              const QList<const FileNode *> &allFiles)
+void ServerModeReader::updateProjects(CMakeListsNode *root,
+                                      const QList<Project *> &projects,
+                                      const QList<const FileNode *> &allFiles)
 {
-    QSet<Node *> usedNodes;
-
     QHash<Utils::FileName, QList<const FileNode *>> includeFiles;
     for (const FileNode *f : allFiles) {
         if (f->fileType() != FileType::Header)
@@ -669,11 +656,8 @@ QSet<Node *> ServerModeReader::updateProjects(CMakeListsNode *root,
     for (const Project *p : projects) {
         CMakeProjectNode *pNode = findOrCreateProjectNode(root, p->sourceDirectory, p->name);
         QTC_ASSERT(pNode, continue);
-        usedNodes.insert(pNode); // Mark as leaf to keep.
-
-        usedNodes.unite(updateTargets(root, p->targets, includeFiles));
+        updateTargets(root, p->targets, includeFiles);
     }
-    return usedNodes;
 }
 
 static CMakeTargetNode *findOrCreateTargetNode(CMakeListsNode *root, const Utils::FileName &dir,
@@ -688,25 +672,21 @@ static CMakeTargetNode *findOrCreateTargetNode(CMakeListsNode *root, const Utils
     CMakeTargetNode *tn = static_cast<CMakeTargetNode *>(cmln->projectNode(targetName));
     if (!tn) {
         tn = new CMakeTargetNode(targetName);
-        cmln->addProjectNodes({ tn });
+        cmln->addProjectNode(tn);
     }
     tn->setDisplayName(displayName);
     return tn;
 }
 
-QSet<Node *> ServerModeReader::updateTargets(CMakeListsNode *root,
+void ServerModeReader::updateTargets(CMakeListsNode *root,
                                              const QList<ServerModeReader::Target *> &targets,
                                              const QHash<FileName, QList<const FileNode *>> &headers)
 {
-    QSet<Node *> usedNodes;
     for (const Target *t : targets) {
         CMakeTargetNode *tNode = findOrCreateTargetNode(root, t->sourceDirectory, t->name);
         tNode->setTargetInformation(t->artifacts, t->type);
-        usedNodes.insert(tNode); // always keep the target node: FileGroups use buildTree!
-
         updateFileGroups(tNode, t->sourceDirectory, t->buildDirectory, t->fileGroups, headers);
     }
-    return usedNodes;
 }
 
 void ServerModeReader::updateFileGroups(ProjectNode *targetRoot,
