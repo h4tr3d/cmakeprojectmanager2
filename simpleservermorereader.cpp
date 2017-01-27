@@ -13,20 +13,6 @@ using namespace Utils;
 namespace CMakeProjectManager {
 namespace Internal {
 
-static void sanitizeTree(CMakeListsNode *root)
-{
-    QSet<FileName> uniqueFileNames;
-    QSet<Node *> uniqueNodes;
-    foreach (FileNode *fn, root->recursiveFileNodes()) {
-        const int count = uniqueFileNames.count();
-        uniqueFileNames.insert(fn->filePath());
-        if (count != uniqueFileNames.count())
-            uniqueNodes.insert(static_cast<Node *>(fn));
-    }
-    root->trim(uniqueNodes);
-    root->removeProjectNodes(root->projectNodes()); // Remove all project nodes
-}
-
 void SimpleServerMoreReader::generateProjectTree(CMakeListsNode *root, const QList<const ProjectExplorer::FileNode *> &allFiles)
 {
     if (m_projects.empty())
@@ -64,7 +50,6 @@ void SimpleServerMoreReader::generateProjectTree(CMakeListsNode *root, const QLi
 
     QList<FileNode *> fileNodes = files + Utils::transform(added, [](const FileNode *fn) { return new FileNode(*fn); });
 
-    sanitizeTree(root); // Filter out duplicate nodes that e.g. the servermode reader introduces:
     root->buildTree(fileNodes, m_parameters.sourceDirectory);
 }
 
