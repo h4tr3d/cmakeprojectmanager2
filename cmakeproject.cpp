@@ -302,7 +302,9 @@ bool CMakeProject::addFiles(const QStringList &filePaths)
             auto node = new FileNode(fn, type, false);
             node->setEnabled(false);
             nodes << node;
-            folder->addFileNodes({new FileNode(node->filePath(), node->fileType(), node->isGenerated())});
+            auto added = new FileNode(node->filePath(), node->fileType(), node->isGenerated());
+            added->setEnabled(false);
+            folder->addFileNodes({ added });
         }
     }
 
@@ -418,9 +420,11 @@ bool CMakeProject::renameFile(const QString &filePath, const QString &newFilePat
 
     if (folder != node->parentFolderNode()) {
         // Rename with moving
-        folder->addFileNodes({ new FileNode(newfn, node->fileType(), false) });
+        auto added = new FileNode(newfn, node->fileType(), false);
+        added->setEnabled(node->isEnabled());
+        folder->addFileNodes({ added });
         auto old = node->parentFolderNode();
-        old->removeFileNodes({node});
+        old->removeFileNodes({ node });
     } else {
         node->setAbsoluteFilePathAndLine(newfn, -1);
     }

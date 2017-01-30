@@ -49,8 +49,14 @@ void SimpleServerMoreReader::generateProjectTree(CMakeListsNode *root, const QLi
     ProjectExplorer::compareSortedLists(files, allFiles, deleted, added, Node::sortByPath);
 
     QList<FileNode *> fileNodes = files + Utils::transform(added, [](const FileNode *fn) {
-        return new FileNode(fn->filePath(), fn->fileType(), fn->isGenerated());
+        auto added = new FileNode(fn->filePath(), fn->fileType(), fn->isGenerated());
+        added->setEnabled(fn->isEnabled());
+        return added;
     });
+
+    for (auto fn : allFiles) {
+        qDebug() << "AllFiles:" << fn->filePath() << ", enabled:" << fn->isEnabled();
+    }
 
     root->buildTree(fileNodes, m_parameters.sourceDirectory);
 }
