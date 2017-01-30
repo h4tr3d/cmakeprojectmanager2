@@ -48,7 +48,9 @@ void SimpleServerMoreReader::generateProjectTree(CMakeListsNode *root, const QLi
     QList<FileNode *> deleted; // Unused!
     ProjectExplorer::compareSortedLists(files, allFiles, deleted, added, Node::sortByPath);
 
-    QList<FileNode *> fileNodes = files + Utils::transform(added, [](const FileNode *fn) { return new FileNode(*fn); });
+    QList<FileNode *> fileNodes = files + Utils::transform(added, [](const FileNode *fn) {
+        return new FileNode(fn->filePath(), fn->fileType(), fn->isGenerated());
+    });
 
     root->buildTree(fileNodes, m_parameters.sourceDirectory);
 }

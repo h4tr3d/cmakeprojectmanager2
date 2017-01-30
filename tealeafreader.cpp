@@ -295,9 +295,9 @@ void TeaLeafReader::generateProjectTree(CMakeListsNode *root, const QList<const 
         return Utils::contains(allIncludePaths, [fn](const FileName &inc) { return fn->filePath().isChildOf(inc); });
     });
 
-    QList<FileNode *> fileNodes = m_files + Utils::transform(missingHeaders, [](const FileNode *fn) { return new FileNode(*fn); });
+    QList<FileNode *> fileNodes = m_files + Utils::transform(missingHeaders, [](const FileNode *fn) { return new FileNode(fn->filePath(), fn->fileType(), fn->isGenerated()); });
 #else
-    QList<FileNode *> fileNodes = m_files + Utils::transform(added, [](const FileNode *fn) { return new FileNode(*fn); });
+    QList<FileNode *> fileNodes = m_files + Utils::transform(added, [](const FileNode *fn) { return new FileNode(fn->filePath(), fn->fileType(), fn->isGenerated()); });
 #endif
 
     root->buildTree(fileNodes, m_parameters.sourceDirectory);

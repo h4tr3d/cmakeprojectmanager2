@@ -302,7 +302,7 @@ bool CMakeProject::addFiles(const QStringList &filePaths)
             auto node = new FileNode(fn, type, false);
             node->setEnabled(false);
             nodes << node;
-            folder->addFileNodes({new FileNode(*node)});
+            folder->addFileNodes({new FileNode(node->filePath(), node->fileType(), node->isGenerated())});
         }
     }
 
@@ -339,7 +339,7 @@ bool CMakeProject::eraseFiles(const QStringList &filePaths)
             return false;
 
         // To update list
-        removed << new FileNode(*node);
+        removed << new FileNode(node->filePath(), node->fileType(), node->isGenerated());
 
         folder->removeFileNodes({node});
     }
