@@ -270,10 +270,6 @@ void TeaLeafReader::generateProjectTree(CMakeListsNode *root, const QList<const 
         m_watchedFiles.insert(cm);
     }
 
-    QList<const FileNode *> added;
-    QList<FileNode *> deleted; // Unused!
-    ProjectExplorer::compareSortedLists(m_files, allFiles, deleted, added, Node::sortByPath);
-
     // FIXME: keep this code commented. It is planed to make configurable behavior to display
     //        all files or only CMake one
 #if 0
@@ -288,7 +284,7 @@ void TeaLeafReader::generateProjectTree(CMakeListsNode *root, const QList<const 
     const QList<FileName> allIncludePaths = allIncludePathSet.toList();
 
     const QList<const FileNode *> missingHeaders
-            = Utils::filtered(added, [&allIncludePaths](const FileNode *fn) -> bool {
+            = Utils::filtered(allFiles, [&allIncludePaths](const FileNode *fn) -> bool {
         if (fn->fileType() != FileType::Header)
             return false;
 
@@ -346,6 +342,7 @@ QSet<Id> TeaLeafReader::updateCodeModel(CppTools::ProjectPartBuilder &ppBuilder)
             includePaths = transform(cbt.includeFiles, &FileName::toString);
         }
         includePaths += m_parameters.buildDirectory.toString();
+        ppBuilder.setProjectFile(QString()); // No project file information available!
         ppBuilder.setIncludePaths(includePaths);
         ppBuilder.setCFlags(cflags);
         ppBuilder.setCxxFlags(cxxflags);
