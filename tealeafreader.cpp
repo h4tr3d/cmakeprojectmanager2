@@ -293,7 +293,20 @@ void TeaLeafReader::generateProjectTree(CMakeListsNode *root, const QList<const 
 
     QList<FileNode *> fileNodes = m_files + Utils::transform(missingHeaders, [](const FileNode *fn) { return new FileNode(fn->filePath(), fn->fileType(), fn->isGenerated()); });
 #else
-    QList<FileNode *> fileNodes = m_files + Utils::transform(added, [](const FileNode *fn) { return new FileNode(fn->filePath(), fn->fileType(), fn->isGenerated()); });
+    QList<const FileNode *> added;
+    std::set_difference(
+        allFiles.begin(),
+        allFiles.end(),
+        m_files.begin(),
+        m_files.end(),
+        std::back_inserter(added),
+        Node::sortByPath
+    );
+    QList<FileNode *> fileNodes = m_files + Utils::transform(added, [](const FileNode *fn) {
+        auto result = new FileNode(fn->filePath(), fn->fileType(), fn->isGenerated());
+        result->setEnabled(fn->isEnabled());
+        return result;
+    });
 #endif
 
     root->buildTree(fileNodes, m_parameters.sourceDirectory);

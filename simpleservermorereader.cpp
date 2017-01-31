@@ -45,18 +45,20 @@ void SimpleServerMoreReader::generateProjectTree(CMakeListsNode *root, const QLi
     m_cmakeInputsFileNodes.clear(); // Clean out, they are not going to be used anymore!
 
     QList<const FileNode *> added;
-    QList<FileNode *> deleted; // Unused!
-    ProjectExplorer::compareSortedLists(files, allFiles, deleted, added, Node::sortByPath);
+    std::set_difference(
+        allFiles.begin(),
+        allFiles.end(),
+        files.begin(),
+        files.end(),
+        std::back_inserter(added),
+        Node::sortByPath
+    );
 
     QList<FileNode *> fileNodes = files + Utils::transform(added, [](const FileNode *fn) {
         auto added = new FileNode(fn->filePath(), fn->fileType(), fn->isGenerated());
         added->setEnabled(fn->isEnabled());
         return added;
     });
-
-    for (auto fn : allFiles) {
-        qDebug() << "AllFiles:" << fn->filePath() << ", enabled:" << fn->isEnabled();
-    }
 
     root->buildTree(fileNodes, m_parameters.sourceDirectory);
 }

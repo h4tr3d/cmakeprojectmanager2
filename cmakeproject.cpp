@@ -304,7 +304,7 @@ bool CMakeProject::addFiles(const QStringList &filePaths)
             nodes << node;
             auto added = new FileNode(node->filePath(), node->fileType(), node->isGenerated());
             added->setEnabled(false);
-            folder->addFileNodes({ added });
+            folder->addFileNode(added);
         }
     }
 
@@ -320,8 +320,6 @@ bool CMakeProject::addFiles(const QStringList &filePaths)
                        m_allFiles.begin() + oldSize,
                        m_allFiles.end(),
                        Node::sortByPath);
-
-    QTC_ASSERT(isSorted(m_allFiles, Node::sortByPath), return false);
 
     askRunCMake();
 
@@ -342,8 +340,7 @@ bool CMakeProject::eraseFiles(const QStringList &filePaths)
 
         // To update list
         removed << new FileNode(node->filePath(), node->fileType(), node->isGenerated());
-
-        folder->removeFileNodes({node});
+        Compat::ProjectExplorer::removeFileNode(folder, node);
     }
 
     // Update tree without full rescan run
@@ -371,8 +368,6 @@ bool CMakeProject::eraseFiles(const QStringList &filePaths)
             remIdx++;
         }
     }
-
-    QTC_ASSERT(isSorted(m_allFiles, Node::sortByPath), return false);
 
     askRunCMake();
 
@@ -410,8 +405,6 @@ bool CMakeProject::renameFile(const QString &filePath, const QString &newFilePat
                               Node::sortByPath);
 
         m_allFiles.insert(it, toAdd);
-
-        QTC_ASSERT(isSorted(m_allFiles, Node::sortByPath), return false);
     }
 
     auto folder = rootProjectNode()->recursiveFindOrCreateFolderNode(newfn.parentDir().toString(), projectDirectory());
@@ -422,9 +415,9 @@ bool CMakeProject::renameFile(const QString &filePath, const QString &newFilePat
         // Rename with moving
         auto added = new FileNode(newfn, node->fileType(), false);
         added->setEnabled(node->isEnabled());
-        folder->addFileNodes({ added });
+        folder->addFileNode(added);
         auto old = node->parentFolderNode();
-        old->removeFileNodes({ node });
+        Compat::ProjectExplorer::removeFileNode(old, node);
     } else {
         node->setAbsoluteFilePathAndLine(newfn, -1);
     }

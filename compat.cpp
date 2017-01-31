@@ -37,6 +37,14 @@ FileNode *recursiveFileNode(ProjectNode *projectNode, const Utils::FileName &fil
     return parent->fileNode(file);
 }
 
+void removeFileNode(::ProjectExplorer::FolderNode *folder, ::ProjectExplorer::FileNode *file)
+{
+    auto list = folder->fileNodes();
+    list.removeAll(file);
+    delete file;
+    folder->setFileNodes(list);
+}
+
 } // ::ProjectExplorer
 } // ::Compat
 } // ::CMakeProjectManager
