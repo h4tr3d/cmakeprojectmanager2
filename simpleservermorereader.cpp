@@ -15,10 +15,8 @@ namespace Internal {
 
 void SimpleServerMoreReader::generateProjectTree(CMakeListsNode *root, const QList<const ProjectExplorer::FileNode *> &allFiles)
 {
-    if (m_projects.empty())
-        return;
-
-    root->setDisplayName(m_projects.at(0)->name);
+    if (!m_projects.empty())
+        root->setDisplayName(m_projects.at(0)->name);
 
     // Compose sources list from the CMake data
     QList<FileNode *> files = m_cmakeInputsFileNodes;
@@ -55,12 +53,12 @@ void SimpleServerMoreReader::generateProjectTree(CMakeListsNode *root, const QLi
     );
 
     QList<FileNode *> fileNodes = files + Utils::transform(added, [](const FileNode *fn) {
-        auto added = new FileNode(fn->filePath(), fn->fileType(), fn->isGenerated());
-        added->setEnabled(fn->isEnabled());
-        return added;
+        auto toAdd = new FileNode(fn->filePath(), fn->fileType(), fn->isGenerated());
+        toAdd->setEnabled(fn->isEnabled());
+        return toAdd;
     });
 
-    root->buildTree(fileNodes, m_parameters.sourceDirectory);
+    root->makeTree(fileNodes, m_parameters.sourceDirectory);
 }
 
 } // namespace Internal

@@ -303,13 +303,13 @@ void TeaLeafReader::generateProjectTree(CMakeListsNode *root, const QList<const 
         Node::sortByPath
     );
     QList<FileNode *> fileNodes = m_files + Utils::transform(added, [](const FileNode *fn) {
-        auto result = new FileNode(fn->filePath(), fn->fileType(), fn->isGenerated());
-        result->setEnabled(fn->isEnabled());
-        return result;
+        auto toAdd = new FileNode(fn->filePath(), fn->fileType(), fn->isGenerated());
+        toAdd->setEnabled(fn->isEnabled());
+        return toAdd;
     });
 #endif
 
-    root->buildTree(fileNodes, m_parameters.sourceDirectory);
+    root->makeTree(fileNodes, m_parameters.sourceDirectory);
     m_files.clear(); // Some of the FileNodes in files() were deleted!
 }
 

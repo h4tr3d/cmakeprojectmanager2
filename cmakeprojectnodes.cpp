@@ -118,6 +118,12 @@ bool CMakeListsNode::renameFile(const QString &filePath, const QString &newFileP
     return m_project ? m_project->renameFile(filePath, newFilePath) : false;
 }
 
+void CMakeListsNode::makeTree(QList<ProjectExplorer::FileNode *> &files, const Utils::FileName &overrideBaseDir)
+{
+    buildTree(files, overrideBaseDir);
+    emitTreeChanged();
+}
+
 CMakeProjectNode::CMakeProjectNode(const Utils::FileName &directory) :
     ProjectExplorer::ProjectNode(directory)
 {
