@@ -304,7 +304,7 @@ bool CMakeProject::addFiles(const QStringList &filePaths)
             nodes << node;
             auto added = new FileNode(node->filePath(), node->fileType(), node->isGenerated());
             added->setEnabled(false);
-            folder->addFileNode(added);
+            folder->addNode(added);
         }
     }
 
@@ -340,7 +340,8 @@ bool CMakeProject::eraseFiles(const QStringList &filePaths)
 
         // To update list
         removed << new FileNode(node->filePath(), node->fileType(), node->isGenerated());
-        Compat::ProjectExplorer::removeFileNode(folder, node);
+        folder->removeNode(node);
+        delete node;
     }
 
     // Update tree without full rescan run
@@ -415,9 +416,10 @@ bool CMakeProject::renameFile(const QString &filePath, const QString &newFilePat
         // Rename with moving
         auto added = new FileNode(newfn, node->fileType(), false);
         added->setEnabled(node->isEnabled());
-        folder->addFileNode(added);
+        folder->addNode(added);
         auto old = node->parentFolderNode();
-        Compat::ProjectExplorer::removeFileNode(old, node);
+        old->removeNode(node);
+        delete node;
     } else {
         node->setAbsoluteFilePathAndLine(newfn, -1);
     }
