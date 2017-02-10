@@ -224,7 +224,7 @@ static void addCMakeVFolder(FolderNode *base, const Utils::FileName &basePath, i
         return;
     auto folder = new VirtualFolderNode(basePath, priority);
     folder->setDisplayName(displayName);
-    base->addFolderNode(folder);
+    base->addNode(folder);
     folder->buildTree(files);
 }
 
@@ -236,7 +236,7 @@ static void addCMakeInputs(CMakeListsNode *root,
                            QList<FileNode *> &rootInputs)
 {
     ProjectNode *cmakeVFolder = new CMakeInputsNode(root->filePath());
-    root->addProjectNode(cmakeVFolder);
+    root->addNode(cmakeVFolder);
 
     addCMakeVFolder(cmakeVFolder, sourceDir, 1000,
                     QCoreApplication::translate("CMakeProjectManager::Internal::ServerModeReader", "<Source Directory>"),
@@ -271,8 +271,11 @@ void ServerModeReader::generateProjectTree(CMakeListsNode *root,
     }
     m_cmakeInputsFileNodes.clear(); // Clean out, they are not going to be used anymore!
 
-    if (!m_projects.isEmpty())
-        root->setDisplayName(m_projects.at(0)->name);
+    const Project *topLevel = Utils::findOrDefault(m_projects, [this](const Project *p) {
+        return m_parameters.sourceDirectory == p->sourceDirectory;
+    });
+    if (topLevel)
+        root->setDisplayName(topLevel->name);
 
     if (!cmakeFilesSource.isEmpty() || !cmakeFilesBuild.isEmpty() || !cmakeFilesOther.isEmpty())
         addCMakeInputs(root, m_parameters.sourceDirectory, m_parameters.buildDirectory,
@@ -547,14 +550,14 @@ void ServerModeReader::addCMakeLists(CMakeListsNode *root, const QList<FileNode 
             cmln = static_cast<CMakeListsNode *>(parentNode->projectNode(fn->filePath()));
         if (!cmln) {
             cmln = new CMakeListsNode(fn->filePath());
-            parentNode->addProjectNode(cmln);
+            parentNode->addNode(cmln);
         }
 
         // Find or create CMakeLists.txt filenode below CMakeListsNode:
         FileNode *cmFn = cmln->fileNode(fn->filePath());
         if (!cmFn) {
             cmFn = fn;
-            cmln->addFileNode(cmFn);
+            cmln->addNode(cmFn);
         }
         // Update displayName of CMakeListsNode:
         const QString dn = prefix.isEmpty() ? k : k.mid(prefix.count() + 1);
@@ -567,32 +570,23 @@ void ServerModeReader::addCMakeLists(CMakeListsNode *root, const QList<FileNode 
 
 static CMakeListsNode *findCMakeNode(CMakeListsNode *root, const Utils::FileName &dir)
 {
-    Utils::FileName stepDir = dir;
+    const Utils::FileName stepDir = dir;
+    const Utils::FileName topDir = root->filePath().parentDir();
 
-    CMakeListsNode *base = root;
-    forever {
-        Utils::FileName stepLists = stepDir;
-        stepLists.appendPath("CMakeLists.txt");
+    QStringList relative = stepDir.relativeChildPath(topDir).toString().split('/');
 
-        CMakeListsNode *cmln = nullptr;
-        if (base->filePath() == stepLists) {
-            cmln = base;
-        } else {
-            ProjectNode *pcmln = base->projectNode(stepLists);
-            cmln = static_cast<CMakeListsNode *>(pcmln);
-        }
+    CMakeListsNode *result = root;
 
-        if (!cmln) {
-            stepDir = stepDir.parentDir();
-            if (stepDir.isEmpty())
-                return nullptr;
-        } else {
-            if (cmln->filePath().parentDir() == dir)
-                return cmln;
-            stepDir = dir;
-            base = cmln;
-        }
+    while (!relative.isEmpty()) {
+        const QString nextPathElement = relative.takeFirst();
+        if (nextPathElement.isEmpty())
+            continue;
+        const QString nextFullPath
+                = result->filePath().parentDir().toString() + '/' + nextPathElement + "/CMakeLists.txt";
+        result = static_cast<CMakeListsNode *>(result->projectNode(Utils::FileName::fromString(nextFullPath)));
+        QTC_ASSERT(result, return nullptr);
     }
+    return result;
 }
 
 static CMakeProjectNode *findOrCreateProjectNode(CMakeListsNode *root, const Utils::FileName &dir,
@@ -607,7 +601,7 @@ static CMakeProjectNode *findOrCreateProjectNode(CMakeListsNode *root, const Uti
     CMakeProjectNode *pn = static_cast<CMakeProjectNode *>(cmln->projectNode(projectName));
     if (!pn) {
         pn = new CMakeProjectNode(projectName);
-        cmln->addProjectNode(pn);
+        cmln->addNode(pn);
     }
     pn->setDisplayName(displayName);
     return pn;
@@ -643,7 +637,7 @@ static CMakeTargetNode *findOrCreateTargetNode(CMakeListsNode *root, const Utils
     CMakeTargetNode *tn = static_cast<CMakeTargetNode *>(cmln->projectNode(targetName));
     if (!tn) {
         tn = new CMakeTargetNode(targetName);
-        cmln->addProjectNode(tn);
+        cmln->addNode(tn);
     }
     tn->setDisplayName(displayName);
     return tn;
@@ -680,18 +674,23 @@ void ServerModeReader::addFileGroups(ProjectNode *targetRoot,
         toList.append(newFileNodes);
 
         // Add scanned header files:
+        const FileNameList headerPaths = headers.keys();
         for (const IncludePath *i : f->includePaths) {
-            const QList<const FileNode *> &headerFiles = headers.value(i->path);
-            const QList<const FileNode *> unseenHeaders = Utils::filtered(headerFiles, [&alreadyListed](const FileNode *fn) {
-                const int count = alreadyListed.count();
-                alreadyListed.insert(fn->filePath());
-                return count != alreadyListed.count();
-            });
-            toList.append(Utils::transform(unseenHeaders, [](const FileNode *fn) -> FileNode * {
-                              auto copy = new FileNode(fn->filePath(), fn->fileType(), fn->isGenerated());
-                              copy->setEnabled(false);
-                              return copy;
-                          }));
+            for (const FileName &hp : headerPaths) {
+                if (hp != i->path && !hp.isChildOf(i->path))
+                    continue;
+                const QList<const FileNode *> &headerFiles = headers.value(hp);
+                const QList<const FileNode *> unseenHeaders = Utils::filtered(headerFiles, [&alreadyListed](const FileNode *fn) {
+                    const int count = alreadyListed.count();
+                    alreadyListed.insert(fn->filePath());
+                    return count != alreadyListed.count();
+                });
+                toList.append(Utils::transform(unseenHeaders, [](const FileNode *fn) {
+                                  auto copy = new FileNode(fn->filePath(), fn->fileType(), fn->isGenerated());
+                                  copy->setEnabled(false);
+                                  return copy;
+                              }));
+            }
         }
     }
 
