@@ -15,8 +15,12 @@ namespace Internal {
 
 void SimpleServerMoreReader::generateProjectTree(CMakeListsNode *root, const QList<const ProjectExplorer::FileNode *> &allFiles)
 {
-    if (!m_projects.empty())
-        root->setDisplayName(m_projects.at(0)->name);
+    const Project *topLevel = Utils::findOrDefault(m_projects, [this](const Project *p) {
+        return m_parameters.sourceDirectory == p->sourceDirectory;
+    });
+    if (topLevel)
+        root->setDisplayName(topLevel->name);
+
 
     // Compose sources list from the CMake data
     QList<FileNode *> files = m_cmakeInputsFileNodes;
