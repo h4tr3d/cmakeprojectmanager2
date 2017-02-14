@@ -129,8 +129,6 @@ private:
     void updateProjectData(Internal::CMakeBuildConfiguration *cmakeBc);
     void updateQmlJSCodeModel();
 
-    void askRunCMake();
-
     void createGeneratedCodeModelSupport();
     QStringList filesGeneratedFrom(const QString &sourceFile) const final;
     void updateTargetRunConfigurations(ProjectExplorer::Target *t);

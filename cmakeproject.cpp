@@ -226,22 +226,6 @@ void CMakeProject::updateQmlJSCodeModel()
     modelManager->updateProjectInfo(projectInfo, this);
 }
 
-void CMakeProject::askRunCMake()
-{
-    QPointer<QMessageBox> box = new QMessageBox(Core::ICore::mainWindow());
-    box->setIcon(QMessageBox::Question);
-    box->setText(tr("Project file system tree changed."));
-    box->setInformativeText(tr("File system tree changed. The change does not affect CMake project targets.\n\n"
-                               "Edit appropriate CMakeLists.txt or run CMake now if project uses globbing expressions to collect files."));
-    box->addButton(tr("Run CMake Later"), QMessageBox::RejectRole);
-    auto defaultButton = box->addButton(tr("Run CMake Now"), QMessageBox::AcceptRole);
-    box->setDefaultButton(defaultButton);
-
-    int ret = box->exec();
-    if (ret == QMessageBox::Accepted)
-        runCMake();
-}
-
 bool CMakeProject::needsConfiguration() const
 {
     return targets().isEmpty();
@@ -328,8 +312,6 @@ bool CMakeProject::addFiles(const QStringList &filePaths)
                        m_allFiles.end(),
                        Node::sortByPath);
 
-    askRunCMake();
-
     return true;
 }
 
@@ -376,8 +358,6 @@ bool CMakeProject::eraseFiles(const QStringList &filePaths)
             remIdx++;
         }
     }
-
-    askRunCMake();
 
     return true;
 }
@@ -430,8 +410,6 @@ bool CMakeProject::renameFile(const QString &filePath, const QString &newFilePat
     } else {
         node->setAbsoluteFilePathAndLine(newfn, -1);
     }
-
-    askRunCMake();
 
     return true;
 }
