@@ -286,6 +286,13 @@ void CMakeProject::buildCMakeTarget(const QString &buildTarget)
         bc->buildTarget(buildTarget);
 }
 
+ProjectImporter *CMakeProject::projectImporter() const
+{
+    if (!m_projectImporter)
+        m_projectImporter = std::make_unique<CMakeProjectImporter>(projectFilePath());
+    return m_projectImporter.get();
+}
+
 bool CMakeProject::addFiles(const QStringList &filePaths)
 {
     Utils::MimeDatabase mdb;

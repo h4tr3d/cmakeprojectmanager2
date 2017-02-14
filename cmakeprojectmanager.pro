@@ -17,6 +17,7 @@ HEADERS = builddirmanager.h \
     cmakebuildstep.h \
     cmakeconfigitem.h \
     cmakeproject.h \
+    cmakeprojectimporter.h \
     cmakeprojectplugin.h \
     cmakeprojectmanager.h \
     cmakeprojectconstants.h \
@@ -52,6 +53,7 @@ SOURCES = builddirmanager.cpp \
     cmakebuildstep.cpp \
     cmakeconfigitem.cpp \
     cmakeproject.cpp \
+    cmakeprojectimporter.cpp \
     cmakeprojectplugin.cpp \
     cmakeprojectmanager.cpp \
     cmakeprojectnodes.cpp \

@@ -78,20 +78,19 @@ public:
     QList<CMakeBuildTarget> buildTargets() const;
     CMakeConfig parsedConfiguration() const;
 
+    static CMakeConfig parseConfiguration(const Utils::FileName &cacheFile,
+                                          QString *errorMessage);
+
 signals:
     void configurationStarted() const;
     void dataAvailable() const;
     void errorOccured(const QString &err) const;
 
-protected:
-    static CMakeConfig parseConfiguration(const Utils::FileName &cacheFile,
-                                          QString *errorMessage);
-
-    const Utils::FileName workDirectory() const;
-
 private:
     void emitDataAvailable();
     void checkConfiguration();
+
+    const Utils::FileName workDirectory() const;
 
     void updateReaderType(std::function<void()> todo);
     void updateReaderData();
