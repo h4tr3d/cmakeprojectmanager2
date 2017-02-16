@@ -292,7 +292,7 @@ bool CMakeProject::addFiles(const QStringList &filePaths)
         auto type = TreeScanner::genericFileType(mimeType, fn);
 
         auto parent = fn.parentDir();
-        auto folder = rootProjectNode()->recursiveFindOrCreateFolderNode(parent.toString(), projectDirectory());
+        auto folder = rootProjectNode()->recursiveFindOrCreateFolderNode(parent, projectDirectory());
 
         if (!folder->fileNode(fn)) {
             auto node = new FileNode(fn, type, false);
@@ -400,7 +400,7 @@ bool CMakeProject::renameFile(const QString &filePath, const QString &newFilePat
         m_allFiles.insert(it, toAdd);
     }
 
-    auto folder = rootProjectNode()->recursiveFindOrCreateFolderNode(newfn.parentDir().toString(), projectDirectory());
+    auto folder = rootProjectNode()->recursiveFindOrCreateFolderNode(newfn.parentDir(), projectDirectory());
     if (!folder)
         return false;
 
