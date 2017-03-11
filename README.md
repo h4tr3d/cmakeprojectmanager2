@@ -1,8 +1,6 @@
 CMakeProjectManager2
 ====================
 
-**NOTE:** Project will be freezed for a long time. I prepare changes for propagating to the mainstream. I belief, that after moth or two this repo will not be required at all :-)
-
 Alternative CMake support for Qt Creator.
 
 Main differents from original CMakeProject plugin:
@@ -15,7 +13,12 @@ Main differents from original CMakeProject plugin:
   manualy describe this files in CMakeLists.txt.
 * You can rename files in file system from Qt Creator now.
 * You can erase files from files system from Qt Creator now.
-* Toolchain file overriding via dialog by pointing cmake toolchain file.
+* Classic tree view for CMake Server mode (uses automatically with CMake >= 3.7)
+
+This functionality is not compatible with QtC Project View idea: **Project View == Build System view**. So, upstream accepts only changes that can be done via build system tools and API.
+CMake does not provide way to modify CMakeLists.txt and related files, add/remove/rename file to targets and so on. So such changes in plugin (different kinds of work arounds) will be
+dropped. But in my opinion: usability of IDE must be putted to first place. If some kind of WA that simplify work with CMake cab be implemented - it must be implemented.
+
 
 Build plugin
 ------------
