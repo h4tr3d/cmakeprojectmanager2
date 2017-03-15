@@ -62,7 +62,7 @@ void SimpleServerMoreReader::generateProjectTree(CMakeListsNode *root, const QLi
         return toAdd;
     });
 
-    root->makeTree(fileNodes, m_parameters.sourceDirectory);
+    root->buildTree(fileNodes, m_parameters.sourceDirectory);
 }
 
 } // namespace Internal

@@ -76,22 +76,18 @@ using namespace Internal;
 /*!
   \class CMakeProject
 */
-CMakeProject::CMakeProject(CMakeManager *manager, const FileName &fileName)
+CMakeProject::CMakeProject(const FileName &fileName)
     : m_cppCodeModelUpdater(new CppTools::CppProjectUpdater(this))
 {
     setId(CMakeProjectManager::Constants::CMAKEPROJECT_ID);
-    setProjectManager(manager);
-    setDocument(new TextEditor::TextDocument);
-    document()->setFilePath(fileName);
+    auto doc = new TextEditor::TextDocument;
+    doc->setFilePath(fileName);
+    setDocument(doc);
 
-    setRootProjectNode(new CMakeListsNode(fileName, this));
     setProjectContext(Core::Context(CMakeProjectManager::Constants::PROJECTCONTEXT));
     setProjectLanguages(Core::Context(ProjectExplorer::Constants::CXX_LANGUAGE_ID));
 
-    rootProjectNode()->setDisplayName(fileName.parentDir().fileName());
-
     connect(this, &CMakeProject::activeTargetChanged, this, &CMakeProject::handleActiveTargetChanged);
-
     connect(&m_treeScanner, &TreeScanner::finished, this, &CMakeProject::handleTreeScanningFinished);
 
     m_treeScanner.setFilter([this](const Utils::MimeType &mimeType, const Utils::FileName &fn) {
@@ -138,7 +134,6 @@ CMakeProject::~CMakeProject()
         future.waitForFinished();
     }
     delete m_cppCodeModelUpdater;
-    setRootProjectNode(nullptr);
     qDeleteAll(m_extraCompilers);
     qDeleteAll(m_allFiles);
 }
@@ -156,7 +151,9 @@ void CMakeProject::updateProjectData(CMakeBuildConfiguration *bc)
 
     Kit *k = t->kit();
 
-    bc->generateProjectTree(static_cast<CMakeListsNode *>(rootProjectNode()), m_allFiles);
+    auto newRoot = bc->generateProjectTree(m_allFiles);
+    if (newRoot)
+        setRootProjectNode(newRoot);
 
     updateApplicationAndDeploymentTargets();
     updateTargetRunConfigurations(t);
@@ -282,26 +279,30 @@ ProjectImporter *CMakeProject::projectImporter() const
     return m_projectImporter.get();
 }
 
+void CMakeProject::updateProjectData()
+{
+    auto t = activeTarget();
+    if (!t)
+        return;
+
+    auto bc = qobject_cast<CMakeBuildConfiguration*>(t->activeBuildConfiguration());
+    if (!bc)
+        return;
+
+    updateProjectData(bc);
+}
+
 bool CMakeProject::addFiles(const QStringList &filePaths)
 {
-    Utils::MimeDatabase mdb;
     QList<const FileNode *> nodes; // nodes to store in persistent tree
     for (auto &filePath : filePaths) {
-        const Utils::MimeType mimeType = mdb.mimeTypeForFile(filePath);
+        const auto mimeType = Utils::mimeTypeForFile(filePath);
         auto fn = FileName::fromString(filePath);
         auto type = TreeScanner::genericFileType(mimeType, fn);
 
-        auto parent = fn.parentDir();
-        auto folder = rootProjectNode()->recursiveFindOrCreateFolderNode(parent, projectDirectory());
-
-        if (!folder->fileNode(fn)) {
-            auto node = new FileNode(fn, type, false);
-            node->setEnabled(false);
-            nodes << node;
-            auto added = new FileNode(node->filePath(), node->fileType(), node->isGenerated());
-            added->setEnabled(false);
-            folder->addNode(added);
-        }
+        auto node = new FileNode(fn, type, false);
+        node->setEnabled(false);
+        nodes << node;
     }
 
     if (nodes.empty())
@@ -317,6 +318,8 @@ bool CMakeProject::addFiles(const QStringList &filePaths)
                        m_allFiles.end(),
                        Node::sortByPath);
 
+    updateProjectData();
+
     return true;
 }
 
@@ -324,18 +327,12 @@ bool CMakeProject::eraseFiles(const QStringList &filePaths)
 {
     QList<const FileNode *> removed;
     for (auto& filePath : filePaths) {
+        const auto mimeType = Utils::mimeTypeForFile(filePath);
         auto fn = FileName::fromString(filePath);
-        auto node = Compat::ProjectExplorer::recursiveFileNode(rootProjectNode(), fn, projectDirectory());
-        if (!node)
-            return false;
-        auto folder = node->parentFolderNode();
-        if (!folder)
-            return false;
+        auto type = TreeScanner::genericFileType(mimeType, fn);
 
         // To update list
-        removed << new FileNode(node->filePath(), node->fileType(), node->isGenerated());
-        folder->removeNode(node);
-        delete node;
+        removed << new FileNode(fn, type, false);
     }
 
     // Update tree without full rescan run
@@ -364,6 +361,8 @@ bool CMakeProject::eraseFiles(const QStringList &filePaths)
         }
     }
 
+    updateProjectData();
+
     return true;
 }
 
@@ -371,9 +370,9 @@ bool CMakeProject::renameFile(const QString &filePath, const QString &newFilePat
 {
     auto fn = FileName::fromString(filePath);
     auto newfn = FileName::fromString(newFilePath);
-    auto node = Compat::ProjectExplorer::recursiveFileNode(rootProjectNode(), fn, projectDirectory());
-    if (!node)
-        return false;
+    const auto mimeType = Utils::mimeTypeForFile(filePath);
+    auto type = TreeScanner::genericFileType(mimeType, fn);
+    auto node = new FileNode(fn, type, false);
 
     // Update tree without full rescan run
     {
@@ -400,21 +399,7 @@ bool CMakeProject::renameFile(const QString &filePath, const QString &newFilePat
         m_allFiles.insert(it, toAdd);
     }
 
-    auto folder = rootProjectNode()->recursiveFindOrCreateFolderNode(newfn.parentDir(), projectDirectory());
-    if (!folder)
-        return false;
-
-    if (folder != node->parentFolderNode()) {
-        // Rename with moving
-        auto added = new FileNode(newfn, node->fileType(), false);
-        added->setEnabled(node->isEnabled());
-        folder->addNode(added);
-        auto old = node->parentFolderNode();
-        old->removeNode(node);
-        delete node;
-    } else {
-        node->setAbsoluteFilePathAndLine(newfn, -1);
-    }
+    updateProjectData();
 
     return true;
 }
@@ -446,7 +431,8 @@ bool CMakeProject::hasBuildTarget(const QString &title) const
 
 QString CMakeProject::displayName() const
 {
-    return rootProjectNode()->displayName();
+    auto root = dynamic_cast<CMakeProjectNode *>(rootProjectNode());
+    return root ? root->displayName() : projectDirectory().fileName();
 }
 
 QStringList CMakeProject::files(FilesMode fileMode) const

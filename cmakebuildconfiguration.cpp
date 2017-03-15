@@ -77,7 +77,7 @@ CMakeBuildConfiguration::~CMakeBuildConfiguration()
 
 bool CMakeBuildConfiguration::isEnabled() const
 {
-    return m_error.isEmpty();
+    return m_error.isEmpty() && !isParsing();
 }
 
 QString CMakeBuildConfiguration::disabledReason() const
@@ -145,6 +145,7 @@ void CMakeBuildConfiguration::ctor()
     connect(m_buildDirManager.get(), &BuildDirManager::dataAvailable,
             this, [this, project]() {
         project->updateProjectData(this);
+        emit enabledChanged();
         emit dataAvailable();
     });
     connect(m_buildDirManager.get(), &BuildDirManager::errorOccured,
@@ -155,6 +156,7 @@ void CMakeBuildConfiguration::ctor()
     connect(m_buildDirManager.get(), &BuildDirManager::configurationStarted,
             this, [this, project]() {
         project->handleParsingStarted();
+        emit enabledChanged();
         emit parsingStarted();
     });
 
@@ -166,6 +168,7 @@ void CMakeBuildConfiguration::ctor()
 
 void CMakeBuildConfiguration::maybeForceReparse()
 {
+    clearError();
     m_buildDirManager->maybeForceReparse();
 }
 
@@ -194,6 +197,7 @@ void CMakeBuildConfiguration::runCMake()
     if (!m_buildDirManager || m_buildDirManager->isParsing())
         return;
 
+    clearError();
     m_buildDirManager->forceReparse();
 }
 
@@ -211,13 +215,16 @@ QList<CMakeBuildTarget> CMakeBuildConfiguration::buildTargets() const
     return m_buildDirManager->buildTargets();
 }
 
-void CMakeBuildConfiguration::generateProjectTree(CMakeListsNode *root,
-                                                  const QList<const FileNode*> &allFiles) const
+CMakeListsNode *
+CMakeBuildConfiguration::generateProjectTree(const QList<const FileNode*> &allFiles) const
 {
+    auto root = new CMakeListsNode(target()->project()->projectFilePath(),
+                                   static_cast<CMakeProject*>(target()->project()));
     if (!m_buildDirManager || m_buildDirManager->isParsing())
-        return;
+        return nullptr;
 
     m_buildDirManager->generateProjectTree(root, allFiles);
+    return root;
 }
 
 void CMakeBuildConfiguration::updateCodeModel(CppTools::RawProjectParts &rpps)
@@ -339,6 +346,14 @@ void CMakeBuildConfiguration::setCurrentCMakeConfiguration(const QList<ConfigMod
     m_buildDirManager->forceReparse();
 }
 
+void CMakeBuildConfiguration::clearError()
+{
+    if (!m_error.isEmpty()) {
+        m_error.clear();
+        emit enabledChanged();
+    }
+}
+
 void CMakeBuildConfiguration::emitBuildTypeChanged()
 {
     emit buildTypeChanged();
@@ -388,10 +403,11 @@ CMakeConfig CMakeBuildConfiguration::cmakeConfiguration() const
 
 void CMakeBuildConfiguration::setError(const QString &message)
 {
-    if (m_error != message) {
-        emit enabledChanged();
+    QString oldMessage = m_error;
+    if (m_error != message)
         m_error = message;
-    }
+    if (oldMessage.isEmpty() && !message.isEmpty())
+        emit enabledChanged();
     emit errorOccured(m_error);
 }
 
@@ -473,8 +489,7 @@ QList<ProjectExplorer::BuildInfo *> CMakeBuildConfigurationFactory::availableBui
 
 int CMakeBuildConfigurationFactory::priority(const ProjectExplorer::Kit *k, const QString &projectPath) const
 {
-    Utils::MimeDatabase mdb;
-    if (k && mdb.mimeTypeForFile(projectPath).matchesName(QLatin1String(Constants::CMAKEPROJECTMIMETYPE)))
+    if (k && Utils::mimeTypeForFile(projectPath).matchesName(Constants::CMAKEPROJECTMIMETYPE))
         return 0;
     return -1;
 }

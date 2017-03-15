@@ -1,6 +1,7 @@
 #include "compat.h"
 
 #include <utils/algorithm.h>
+#include <utils/hostosinfo.h>
 #include <projectexplorer/projectnodes.h>
 
 #include <QDir>

@@ -303,7 +303,7 @@ void ServerModeReader::updateCodeModel(CppTools::RawProjectParts &rpps)
         const QStringList includes = transform(fg->includePaths, [](const IncludePath *ip)  { return ip->path.toString(); });
 
         CppTools::RawProjectPart rpp;
-        rpp.setProjectFile(fg->target->sourceDirectory.toString() + "/CMakeLists.txt");
+        rpp.setProjectFileLocation(fg->target->sourceDirectory.toString() + "/CMakeLists.txt");
         rpp.setDisplayName(fg->target->name + QString::number(counter));
         rpp.setDefines(defineArg.toUtf8());
         rpp.setIncludePaths(includes);
@@ -687,7 +687,7 @@ void ServerModeReader::addFileGroups(ProjectNode *targetRoot,
             return count != alreadyListed.count();
         });
         const QList<FileNode *> newFileNodes = Utils::transform(newSources, [f](const Utils::FileName &fn) {
-            return new FileNode(fn, FileType::Source, f->isGenerated);
+            return new FileNode(fn, Node::fileTypeForFileName(fn), f->isGenerated);
         });
         toList.append(newFileNodes);
 

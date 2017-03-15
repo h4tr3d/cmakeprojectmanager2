@@ -45,9 +45,9 @@
 #include <coreplugin/fileiconprovider.h>
 
 #include <projectexplorer/kitmanager.h>
+#include <projectexplorer/projectmanager.h>
 #include <projectexplorer/projecttree.h>
 
-#include <utils/mimetypes/mimedatabase.h>
 #include <utils/parameteraction.h>
 
 using namespace CMakeProjectManager::Internal;
@@ -59,14 +59,15 @@ bool CMakeProjectPlugin::initialize(const QStringList & /*arguments*/, QString *
     Q_UNUSED(errorMessage)
     const Context projectContext(Constants::PROJECTCONTEXT);
 
-    Utils::MimeDatabase::addMimeTypes(QLatin1String(":cmakeproject/CMakeProjectManager.mimetypes.xml"));
-
     Core::FileIconProvider::registerIconOverlayForSuffix(Constants::FILEOVERLAY_CMAKE, "cmake");
     Core::FileIconProvider::registerIconOverlayForFilename(Constants::FILEOVERLAY_CMAKE, "CMakeLists.txt");
 
     addAutoReleasedObject(new Internal::CMakeSnippetProvider);
     addAutoReleasedObject(new CMakeSettingsPage);
     addAutoReleasedObject(new CMakeManager);
+
+    ProjectManager::registerProjectType<CMakeProject>(Constants::CMAKEPROJECTMIMETYPE);
+
     addAutoReleasedObject(new CMakeBuildStepFactory);
     addAutoReleasedObject(new CMakeRunConfigurationFactory);
     addAutoReleasedObject(new CMakeBuildConfigurationFactory);

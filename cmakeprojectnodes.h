@@ -57,8 +57,6 @@ public:
     bool deleteFiles(const QStringList &filePaths) final;
     bool renameFile(const QString &filePath, const QString &newFilePath) final;
 
-    void makeTree(QList<ProjectExplorer::FileNode *> &files, const Utils::FileName &overrideBaseDir);
-
 private:
     CMakeProject *m_project = nullptr;
 };

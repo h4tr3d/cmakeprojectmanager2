@@ -31,7 +31,6 @@
 #include "cmakekitinformation.h"
 #include "cmakeparser.h"
 #include "cmakeprojectconstants.h"
-#include "cmakeprojectmanager.h"
 #include "cmakeprojectnodes.h"
 
 #include <coreplugin/documentmanager.h>
@@ -169,9 +168,29 @@ void TeaLeafReader::resetData()
     m_files.clear();
 }
 
+static QString findCbpFile(const QDir &directory)
+{
+    // Find the cbp file
+    //   the cbp file is named like the project() command in the CMakeList.txt file
+    //   so this function below could find the wrong cbp file, if the user changes the project()
+    //   2name
+    QDateTime t;
+    QString file;
+    foreach (const QString &cbpFile , directory.entryList()) {
+        if (cbpFile.endsWith(QLatin1String(".cbp"))) {
+            QFileInfo fi(directory.path() + QLatin1Char('/') + cbpFile);
+            if (t.isNull() || fi.lastModified() > t) {
+                file = directory.path() + QLatin1Char('/') + cbpFile;
+                t = fi.lastModified();
+            }
+        }
+    }
+    return file;
+}
+
 void TeaLeafReader::parse(bool force)
 {
-    const QString cbpFile = CMakeManager::findCbpFile(QDir(m_parameters.buildDirectory.toString()));
+    const QString cbpFile = findCbpFile(QDir(m_parameters.buildDirectory.toString()));
     const QFileInfo cbpFileFi = cbpFile.isEmpty() ? QFileInfo() : QFileInfo(cbpFile);
     if (!cbpFileFi.exists()) {
         // Initial create:
@@ -311,7 +330,7 @@ void TeaLeafReader::generateProjectTree(CMakeListsNode *root, const QList<const 
     });
 #endif
 
-    root->makeTree(fileNodes, m_parameters.sourceDirectory);
+    root->buildTree(fileNodes, m_parameters.sourceDirectory);
     m_files.clear(); // Some of the FileNodes in files() were deleted!
 }
 
@@ -357,7 +376,7 @@ void TeaLeafReader::updateCodeModel(CppTools::RawProjectParts &rpps)
         }
         includePaths += m_parameters.buildDirectory.toString();
         CppTools::RawProjectPart rpp;
-        rpp.setProjectFile(QString()); // No project file information available!
+        rpp.setProjectFileLocation(QString()); // No project file information available!
         rpp.setIncludePaths(includePaths);
 
         CppTools::RawProjectPartFlags cProjectFlags;
@@ -404,7 +423,7 @@ void TeaLeafReader::extractData()
     // Do not insert topCMake into m_cmakeFiles: The project already watches that!
 
     // Find cbp file
-    FileName cbpFile = FileName::fromString(CMakeManager::findCbpFile(bldDir.toString()));
+    FileName cbpFile = FileName::fromString(findCbpFile(bldDir.toString()));
     if (cbpFile.isEmpty())
         return;
     m_cmakeFiles.insert(cbpFile);
