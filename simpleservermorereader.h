@@ -13,7 +13,7 @@ class SimpleServerMoreReader : public ServerModeReader
 
 public:
 
-    void generateProjectTree(CMakeListsNode *root,
+    void generateProjectTree(CMakeProjectNode *root,
                              const QList<const ProjectExplorer::FileNode *> &allFiles) final;
 
 };

@@ -46,9 +46,19 @@ public:
 class CMakeListsNode : public ProjectExplorer::ProjectNode
 {
 public:
-    explicit CMakeListsNode(const Utils::FileName &cmakeListPath, CMakeProject *project = nullptr);
+    explicit CMakeListsNode(const Utils::FileName &cmakeListPath);
 
     bool showInSimpleTree() const final;
+    QList<ProjectExplorer::ProjectAction> supportedActions(Node *node) const final;
+};
+
+class CMakeProjectNode : public ProjectExplorer::ProjectNode
+{
+public:
+    CMakeProjectNode(const Utils::FileName &directory, CMakeProject *project = nullptr);
+
+    bool showInSimpleTree() const final;
+    QString tooltip() const final;
     QList<ProjectExplorer::ProjectAction> supportedActions(Node *node) const final;
 
     CMakeProject* project() { return m_project; }
@@ -59,16 +69,6 @@ public:
 
 private:
     CMakeProject *m_project = nullptr;
-};
-
-class CMakeProjectNode : public ProjectExplorer::ProjectNode
-{
-public:
-    CMakeProjectNode(const Utils::FileName &directory);
-
-    bool showInSimpleTree() const final;
-    QString tooltip() const final;
-    QList<ProjectExplorer::ProjectAction> supportedActions(Node *node) const final;
 };
 
 class CMakeTargetNode : public ProjectExplorer::ProjectNode

@@ -13,7 +13,7 @@ using namespace Utils;
 namespace CMakeProjectManager {
 namespace Internal {
 
-void SimpleServerMoreReader::generateProjectTree(CMakeListsNode *root, const QList<const ProjectExplorer::FileNode *> &allFiles)
+void SimpleServerMoreReader::generateProjectTree(CMakeProjectNode *root, const QList<const ProjectExplorer::FileNode *> &allFiles)
 {
     const Project *topLevel = Utils::findOrDefault(m_projects, [this](const Project *p) {
         return m_parameters.sourceDirectory == p->sourceDirectory;
@@ -62,7 +62,7 @@ void SimpleServerMoreReader::generateProjectTree(CMakeListsNode *root, const QLi
         return toAdd;
     });
 
-    root->buildTree(fileNodes, m_parameters.sourceDirectory);
+    root->addNestedNodes(fileNodes, m_parameters.sourceDirectory);
 }
 
 } // namespace Internal

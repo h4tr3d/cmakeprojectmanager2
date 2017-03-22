@@ -218,7 +218,6 @@ QList<CMakeBuildTarget> CMakeBuildConfiguration::buildTargets() const
 CMakeProjectNode *
 CMakeBuildConfiguration::generateProjectTree(const QList<const FileNode*> &allFiles) const
 {
-                                   static_cast<CMakeProject*>(target()->project()));
     if (!m_buildDirManager || m_buildDirManager->isParsing())
         return nullptr;
 
