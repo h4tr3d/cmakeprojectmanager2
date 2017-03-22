@@ -437,28 +437,18 @@ QString CMakeProject::displayName() const
 
 QStringList CMakeProject::files(FilesMode fileMode) const
 {
-    // Copy and filter in one pass. Useful for big trees
     QStringList result;
-    auto valid = [fileMode](const FileNode *fn) {
-        // Skip unknown file types from caching
-        if (fn->fileType() == FileType::Unknown)
-            return false;
-        const bool isGenerated = fn->isGenerated();
-        switch (fileMode)
-        {
-        case Project::SourceFiles:
-            return !isGenerated;
-        case Project::GeneratedFiles:
-            return isGenerated;
-        case Project::AllFiles:
-        default:
-            return true;
-        }
-    };
-
-    for (auto const& node : rootProjectNode()->recursiveFileNodes()) {
-        if (valid(node))
-            result.push_back(node->filePath().toString());
+    if (ProjectNode *rpn = rootProjectNode()) {
+        rpn->forEachNode([&](const FileNode *fn) {
+            // Skip unknown file types from caching
+            if (fn->fileType() == FileType::Unknown)
+                return;
+            const bool isGenerated = fn->isGenerated();
+            if (fileMode == Project::SourceFiles && !isGenerated)
+                result.append(fn->filePath().toString());
+            if (fileMode == Project::GeneratedFiles && isGenerated)
+                result.append(fn->filePath().toString());
+        });
     }
 
     return result;
