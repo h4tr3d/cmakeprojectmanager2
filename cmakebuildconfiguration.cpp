@@ -215,13 +215,15 @@ QList<CMakeBuildTarget> CMakeBuildConfiguration::buildTargets() const
     return m_buildDirManager->buildTargets();
 }
 
-void CMakeBuildConfiguration::generateProjectTree(CMakeListsNode *root,
-                                                  const QList<const FileNode*> &allFiles) const
+CMakeProjectNode *
+CMakeBuildConfiguration::generateProjectTree(const QList<const FileNode*> &allFiles) const
 {
     if (!m_buildDirManager || m_buildDirManager->isParsing())
-        return;
+        return nullptr;
 
+    auto root = new CMakeProjectNode(target()->project()->projectDirectory());
     m_buildDirManager->generateProjectTree(root, allFiles);
+    return root;
 }
 
 void CMakeBuildConfiguration::updateCodeModel(CppTools::RawProjectParts &rpps)
