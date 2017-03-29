@@ -300,7 +300,14 @@ bool CMakeProject::hasBuildTarget(const QString &title) const
     return anyOf(buildTargets(), [title](const CMakeBuildTarget &ct) { return ct.title == title; });
 }
 
+QString CMakeProject::displayName() const
+{
+    auto root = dynamic_cast<CMakeProjectNode *>(rootProjectNode());
+    return root ? root->displayName() : projectDirectory().fileName();
+}
 
+Project::RestoreResult CMakeProject::fromMap(const QVariantMap &map, QString *errorMessage)
+{
     RestoreResult result = Project::fromMap(map, errorMessage);
     if (result != RestoreResult::Ok)
         return result;
