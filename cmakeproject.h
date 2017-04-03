@@ -88,8 +88,6 @@ public:
 
     QString displayName() const final;
 
-    QStringList files(Project::FilesMode fileMode,
-                      const std::function<bool (const ProjectExplorer::FileNode *)> &filter = {}) const final;
     QStringList buildTargetTitles(bool runnable = false) const;
     bool hasBuildTarget(const QString &title) const;
 

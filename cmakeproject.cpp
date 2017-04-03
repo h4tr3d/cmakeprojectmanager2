@@ -430,14 +430,6 @@ QString CMakeProject::displayName() const
     return root ? root->displayName() : projectDirectory().fileName();
 }
 
-QStringList CMakeProject::files(Project::FilesMode fileMode,
-                                const std::function<bool (const FileNode *)> &filter) const
-{
-    return Project::files(fileMode, [&filter](const FileNode* fn) {
-        return fn->fileType() != FileType::Unknown && (!filter || filter(fn));
-    });
-}
-
 Project::RestoreResult CMakeProject::fromMap(const QVariantMap &map, QString *errorMessage)
 {
     RestoreResult result = Project::fromMap(map, errorMessage);
