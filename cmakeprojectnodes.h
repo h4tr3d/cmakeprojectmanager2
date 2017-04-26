@@ -28,6 +28,8 @@
 #include <projectexplorer/projectnodes.h>
 
 namespace CMakeProjectManager {
+class CMakeProject;
+
 namespace Internal {
 
 class CMakeInputsNode : public ProjectExplorer::ProjectNode
@@ -58,6 +60,7 @@ public:
 
     CMakeProject* project() { return m_project; }
 
+    bool supportsAction(ProjectExplorer::ProjectAction action, Node *node) const final;
     bool addFiles(const QStringList &filePaths, QStringList *notAdded) final;
     bool deleteFiles(const QStringList &filePaths) final;
     bool renameFile(const QString &filePath, const QString &newFilePath) final;

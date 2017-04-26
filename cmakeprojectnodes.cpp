@@ -95,6 +95,28 @@ QString CMakeProjectNode::tooltip() const
     return QString();
 }
 
+bool CMakeProjectNode::supportsAction(ProjectExplorer::ProjectAction action, Node *node) const
+{
+    Q_UNUSED(node);
+    if (!m_project)
+        return false;
+
+    const auto t = m_project->activeTarget();
+    if (!t)
+        return false;
+
+    switch (action) {
+        case ProjectExplorer::AddNewFile:
+        case ProjectExplorer::EraseFile:
+        case ProjectExplorer::Rename:
+            return true;
+        default:
+            break;
+    }
+
+    return false;
+}
+
 bool CMakeProjectNode::addFiles(const QStringList &filePaths, QStringList *notAdded)
 {
     Q_UNUSED(notAdded);
@@ -109,6 +131,8 @@ bool CMakeProjectNode::deleteFiles(const QStringList &filePaths)
 bool CMakeProjectNode::renameFile(const QString &filePath, const QString &newFilePath)
 {
     return m_project ? m_project->renameFile(filePath, newFilePath) : false;
+}
+
 CMakeTargetNode::CMakeTargetNode(const Utils::FileName &directory) :
     ProjectExplorer::ProjectNode(directory)
 {
