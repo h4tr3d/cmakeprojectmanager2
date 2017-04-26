@@ -59,19 +59,13 @@ bool CMakeInputsNode::showInSimpleTree() const
     return false;
 }
 
-QList<ProjectExplorer::ProjectAction> CMakeInputsNode::supportedActions(ProjectExplorer::Node *node) const
-{
-    Q_UNUSED(node);
-    return QList<ProjectExplorer::ProjectAction>();
-}
-
 CMakeListsNode::CMakeListsNode(const Utils::FileName &cmakeListPath) :
     ProjectExplorer::ProjectNode(cmakeListPath)
 {
     static QIcon folderIcon;
     if (folderIcon.isNull()) {
         const QIcon overlayIcon(Constants::FILEOVERLAY_CMAKE);
-        QPixmap dirPixmap = qApp->style()->standardIcon(QStyle::SP_DirIcon).pixmap(QSize(16, 16));
+        QPixmap dirPixmap = QApplication::style()->standardIcon(QStyle::SP_DirIcon).pixmap(QSize(16, 16));
 
         folderIcon.addPixmap(Core::FileIconProvider::overlayIcon(dirPixmap, overlayIcon));
     }
@@ -81,12 +75,6 @@ CMakeListsNode::CMakeListsNode(const Utils::FileName &cmakeListPath) :
 bool CMakeListsNode::showInSimpleTree() const
 {
     return false;
-}
-
-QList<ProjectExplorer::ProjectAction> CMakeListsNode::supportedActions(ProjectExplorer::Node *node) const
-{
-    Q_UNUSED(node);
-    return QList<ProjectExplorer::ProjectAction>();
 }
 
 CMakeProjectNode::CMakeProjectNode(const Utils::FileName &directory, CMakeProject *project) :
@@ -107,24 +95,6 @@ QString CMakeProjectNode::tooltip() const
     return QString();
 }
 
-QList<ProjectExplorer::ProjectAction> CMakeProjectNode::supportedActions(ProjectExplorer::Node *node) const
-{
-    Q_UNUSED(node);
-    using ProjectActionList = QList<ProjectExplorer::ProjectAction>;
-
-    if (!m_project)
-        return ProjectActionList();
-
-    const auto t = m_project->activeTarget();
-    if (!t)
-        return ProjectActionList();
-
-    return ProjectActionList()
-            << ProjectExplorer::AddNewFile
-            << ProjectExplorer::EraseFile
-            << ProjectExplorer::Rename;
-}
-
 bool CMakeProjectNode::addFiles(const QStringList &filePaths, QStringList *notAdded)
 {
     Q_UNUSED(notAdded);
@@ -139,8 +109,6 @@ bool CMakeProjectNode::deleteFiles(const QStringList &filePaths)
 bool CMakeProjectNode::renameFile(const QString &filePath, const QString &newFilePath)
 {
     return m_project ? m_project->renameFile(filePath, newFilePath) : false;
-}
-
 CMakeTargetNode::CMakeTargetNode(const Utils::FileName &directory) :
     ProjectExplorer::ProjectNode(directory)
 {
@@ -156,12 +124,6 @@ bool CMakeTargetNode::showInSimpleTree() const
 QString CMakeTargetNode::tooltip() const
 {
     return m_tooltip;
-}
-
-QList<ProjectExplorer::ProjectAction> CMakeTargetNode::supportedActions(ProjectExplorer::Node *node) const
-{
-    Q_UNUSED(node);
-    return QList<ProjectExplorer::ProjectAction>();
 }
 
 void CMakeTargetNode::setTargetInformation(const QList<Utils::FileName> &artifacts,

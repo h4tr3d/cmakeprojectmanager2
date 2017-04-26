@@ -40,6 +40,7 @@
 #include <projectexplorer/taskhub.h>
 
 #include <utils/algorithm.h>
+#include <utils/asconst.h>
 #include <utils/qtcassert.h>
 #include <utils/qtcprocess.h>
 
@@ -294,7 +295,7 @@ void ServerModeReader::generateProjectTree(CMakeProjectNode *root,
 void ServerModeReader::updateCodeModel(CppTools::RawProjectParts &rpps)
 {
     int counter = 0;
-    foreach (const FileGroup *fg, m_fileGroups) {
+    for (const FileGroup *fg : Utils::asConst(m_fileGroups)) {
         ++counter;
         const QString defineArg
                 = transform(fg->defines, [](const QString &s) -> QString {
@@ -414,14 +415,16 @@ void ServerModeReader::extractConfigurationData(const QVariantMap &data)
 {
     const QString name = data.value(NAME_KEY).toString();
     Q_UNUSED(name);
+    QSet<QString> knownTargets; // To filter duplicate target names:-/
     const QVariantList projects = data.value("projects").toList();
     for (const QVariant &p : projects) {
         const QVariantMap pData = p.toMap();
-        m_projects.append(extractProjectData(pData));
+        m_projects.append(extractProjectData(pData, knownTargets));
     }
 }
 
-ServerModeReader::Project *ServerModeReader::extractProjectData(const QVariantMap &data)
+ServerModeReader::Project *ServerModeReader::extractProjectData(const QVariantMap &data,
+                                                                QSet<QString> &knownTargets)
 {
     auto project = new Project;
     project->name = data.value(NAME_KEY).toString();
@@ -430,16 +433,28 @@ ServerModeReader::Project *ServerModeReader::extractProjectData(const QVariantMa
     const QVariantList targets = data.value("targets").toList();
     for (const QVariant &t : targets) {
         const QVariantMap tData = t.toMap();
-        project->targets.append(extractTargetData(tData, project));
+        Target *tp = extractTargetData(tData, project, knownTargets);
+        if (tp)
+            project->targets.append(tp);
     }
     return project;
 }
 
-ServerModeReader::Target *ServerModeReader::extractTargetData(const QVariantMap &data, Project *p)
+ServerModeReader::Target *ServerModeReader::extractTargetData(const QVariantMap &data, Project *p,
+                                                              QSet<QString> &knownTargets)
 {
+    const QString targetName = data.value(NAME_KEY).toString();
+
+    // Remove duplicate targets: CMake unfortunately does duplicate targets for all projects that
+    // contain them. Keep at least till cmake 3.9 is deprecated.
+    const int count = knownTargets.count();
+    knownTargets.insert(targetName);
+    if (knownTargets.count() == count)
+        return nullptr;
+
     auto target = new Target;
     target->project = p;
-    target->name = data.value(NAME_KEY).toString();
+    target->name = targetName;
     target->sourceDirectory = FileName::fromString(data.value(SOURCE_DIRECTORY_KEY).toString());
     target->buildDirectory = FileName::fromString(data.value("buildDirectory").toString());
 
@@ -454,6 +469,8 @@ ServerModeReader::Target *ServerModeReader::extractTargetData(const QVariantMap 
         const QVariantMap fgData = fg.toMap();
         target->fileGroups.append(extractFileGroupData(fgData, srcDir, target));
     }
+
+    fixTarget(target);
 
     m_targets.append(target);
     return target;
@@ -531,6 +548,49 @@ void ServerModeReader::extractCacheData(const QVariantMap &data)
         config.append(item);
     }
     m_cmakeCache = config;
+}
+
+void ServerModeReader::fixTarget(ServerModeReader::Target *target) const
+{
+    QHash<QString, const FileGroup *> languageFallbacks;
+
+    for (const FileGroup *group : Utils::asConst(target->fileGroups)) {
+        if (group->includePaths.isEmpty() && group->compileFlags.isEmpty()
+                && group->defines.isEmpty())
+            continue;
+
+        const FileGroup *fallback = languageFallbacks.value(group->language);
+        if (!fallback || fallback->sources.count() < group->sources.count())
+            languageFallbacks.insert(group->language, group);
+    }
+
+    if (!languageFallbacks.value(""))
+        return; // No empty language groups found, no need to proceed.
+
+    const FileGroup *fallback = languageFallbacks.value("CXX");
+    if (!fallback)
+        fallback = languageFallbacks.value("C");
+    if (!fallback)
+        fallback = languageFallbacks.value("");
+
+    if (!fallback)
+        return;
+
+    for (auto it = target->fileGroups.begin(); it != target->fileGroups.end(); ++it) {
+        if (!(*it)->language.isEmpty())
+            continue;
+        (*it)->language = fallback->language.isEmpty() ? "CXX" : fallback->language;
+
+        if (*it == fallback
+                || !(*it)->includePaths.isEmpty() || !(*it)->defines.isEmpty()
+                || !(*it)->compileFlags.isEmpty())
+            continue;
+
+        for (const IncludePath *ip : fallback->includePaths)
+            (*it)->includePaths.append(new IncludePath(*ip));
+        (*it)->defines = fallback->defines;
+        (*it)->compileFlags = fallback->compileFlags;
+    }
 }
 
 QHash<Utils::FileName, ProjectNode *>
@@ -664,7 +724,6 @@ void ServerModeReader::addHeaderNodes(ProjectNode *root, const QList<FileNode *>
 {
     auto headerNode = new VirtualFolderNode(root->filePath(), Node::DefaultPriority - 5);
     headerNode->setDisplayName(tr("<Headers>"));
-    root->addNode(headerNode);
 
     // knownHeaders are already listed in their targets:
     QSet<Utils::FileName> seenHeaders = Utils::transform<QSet>(knownHeaders, &FileNode::filePath);
@@ -681,6 +740,11 @@ void ServerModeReader::addHeaderNodes(ProjectNode *root, const QList<FileNode *>
             headerNode->addNestedNode(node);
         }
     }
+
+    if (headerNode->nodes().isEmpty())
+        delete headerNode; // No Headers, do not show this Folder.
+    else
+        root->addNode(headerNode);
 }
 
 } // namespace Internal

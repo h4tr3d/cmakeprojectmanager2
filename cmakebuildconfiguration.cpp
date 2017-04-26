@@ -145,18 +145,15 @@ void CMakeBuildConfiguration::ctor()
     connect(m_buildDirManager.get(), &BuildDirManager::dataAvailable,
             this, [this, project]() {
         project->updateProjectData(this);
-        emit enabledChanged();
+        clearError();
         emit dataAvailable();
     });
     connect(m_buildDirManager.get(), &BuildDirManager::errorOccured,
-            this, [this, project](const QString &msg) {
-        project->updateProjectData(this);
-        setError(msg);
-    });
+            this, &CMakeBuildConfiguration::setError);
     connect(m_buildDirManager.get(), &BuildDirManager::configurationStarted,
             this, [this, project]() {
         project->handleParsingStarted();
-        emit enabledChanged();
+        clearError(ForceEnabledChanged::True);
         emit parsingStarted();
     });
 
@@ -179,6 +176,7 @@ bool CMakeBuildConfiguration::isParsing() const
 
 void CMakeBuildConfiguration::resetData()
 {
+    clearError();
     m_buildDirManager->resetData();
 }
 
@@ -346,12 +344,14 @@ void CMakeBuildConfiguration::setCurrentCMakeConfiguration(const QList<ConfigMod
     m_buildDirManager->forceReparse();
 }
 
-void CMakeBuildConfiguration::clearError()
+void CMakeBuildConfiguration::clearError(ForceEnabledChanged fec)
 {
     if (!m_error.isEmpty()) {
         m_error.clear();
-        emit enabledChanged();
+        fec = ForceEnabledChanged::True;
     }
+    if (fec == ForceEnabledChanged::True)
+        emit enabledChanged();
 }
 
 void CMakeBuildConfiguration::emitBuildTypeChanged()
