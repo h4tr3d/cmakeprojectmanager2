@@ -57,9 +57,7 @@ void SimpleServerMoreReader::generateProjectTree(CMakeProjectNode *root, const Q
     );
 
     QList<FileNode *> fileNodes = files + Utils::transform(added, [](const FileNode *fn) {
-        auto toAdd = new FileNode(fn->filePath(), fn->fileType(), fn->isGenerated());
-        toAdd->setEnabled(fn->isEnabled());
-        return toAdd;
+        return fn->clone();
     });
 
     root->addNestedNodes(fileNodes, m_parameters.sourceDirectory);
