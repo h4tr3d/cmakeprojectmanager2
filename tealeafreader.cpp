@@ -312,7 +312,7 @@ void TeaLeafReader::generateProjectTree(CMakeProjectNode *root, const QList<cons
         return Utils::contains(allIncludePaths, [fn](const FileName &inc) { return fn->filePath().isChildOf(inc); });
     });
 
-    QList<FileNode *> fileNodes = m_files + Utils::transform(missingHeaders, [](const FileNode *fn) { return new FileNode(fn->filePath(), fn->fileType(), fn->isGenerated()); });
+    QList<FileNode *> fileNodes = m_files + Utils::transform(missingHeaders, [](const FileNode *fn) { return fn->clone(); });
 #else
     QList<const FileNode *> added;
     std::set_difference(
@@ -324,9 +324,7 @@ void TeaLeafReader::generateProjectTree(CMakeProjectNode *root, const QList<cons
         Node::sortByPath
     );
     QList<FileNode *> fileNodes = m_files + Utils::transform(added, [](const FileNode *fn) {
-        auto toAdd = new FileNode(fn->filePath(), fn->fileType(), fn->isGenerated());
-        toAdd->setEnabled(fn->isEnabled());
-        return toAdd;
+        return fn->clone();
     });
 #endif
 
