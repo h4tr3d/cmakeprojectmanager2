@@ -7,7 +7,7 @@
 namespace CMakeProjectManager {
 namespace Internal {
 
-class SimpleServerMoreReader : public ServerModeReader
+class SimpleServerModeReader : public ServerModeReader
 {
     Q_OBJECT
 

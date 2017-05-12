@@ -83,6 +83,8 @@ QtcPlugin {
         "treescanner.cpp",
         "treescanner.h",
         "compat.cpp",
-        "compat.h"
+        "compat.h",
+        "simpleservermodereader.cpp",
+        "simpleservermodereader.h"
     ]
 }

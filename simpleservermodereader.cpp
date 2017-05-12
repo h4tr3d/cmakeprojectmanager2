@@ -1,4 +1,4 @@
-#include "simpleservermorereader.h"
+#include "simpleservermodereader.h"
 
 #include "cmakeprojectnodes.h"
 
@@ -13,7 +13,7 @@ using namespace Utils;
 namespace CMakeProjectManager {
 namespace Internal {
 
-void SimpleServerMoreReader::generateProjectTree(CMakeProjectNode *root, const QList<const ProjectExplorer::FileNode *> &allFiles)
+void SimpleServerModeReader::generateProjectTree(CMakeProjectNode *root, const QList<const ProjectExplorer::FileNode *> &allFiles)
 {
     const Project *topLevel = Utils::findOrDefault(m_projects, [this](const Project *p) {
         return m_parameters.sourceDirectory == p->sourceDirectory;
