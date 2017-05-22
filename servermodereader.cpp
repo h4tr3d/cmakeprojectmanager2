@@ -204,7 +204,11 @@ QList<CMakeBuildTarget> ServerModeReader::buildTargets() const
         else
             type = UtilityType;
         ct.targetType = type;
-        ct.workingDirectory = t->buildDirectory;
+        if (t->artifacts.isEmpty()) {
+            ct.workingDirectory = t->buildDirectory;
+        } else {
+            ct.workingDirectory = Utils::FileName::fromString(t->artifacts.at(0).toFileInfo().absolutePath());
+        }
         ct.sourceDirectory = t->sourceDirectory;
         return ct;
     });
@@ -397,7 +401,8 @@ void ServerModeReader::handleProgress(int min, int cur, int max, const QString &
 void ServerModeReader::handleSignal(const QString &signal, const QVariantMap &data)
 {
     Q_UNUSED(data);
-    if (signal == "dirty")
+    // CMake on Windows sends false dirty signals on each edit (QTCREATORBUG-17944)
+    if (!HostOsInfo::isWindowsHost() && signal == "dirty")
         emit dirty();
 }
 
@@ -702,14 +707,15 @@ void ServerModeReader::addFileGroups(ProjectNode *targetRoot,
     }
 
     // Split up files in groups (based on location):
+    const bool inSourceBuild = (m_parameters.buildDirectory == m_parameters.sourceDirectory);
     QList<FileNode *> sourceFileNodes;
     QList<FileNode *> buildFileNodes;
     QList<FileNode *> otherFileNodes;
     foreach (FileNode *fn, toList) {
-        if (fn->filePath().isChildOf(m_parameters.sourceDirectory))
-            sourceFileNodes.append(fn);
-        else if (fn->filePath().isChildOf(m_parameters.buildDirectory))
+        if (fn->filePath().isChildOf(m_parameters.buildDirectory) && !inSourceBuild)
             buildFileNodes.append(fn);
+        else if (fn->filePath().isChildOf(m_parameters.sourceDirectory))
+            sourceFileNodes.append(fn);
         else
             otherFileNodes.append(fn);
     }
