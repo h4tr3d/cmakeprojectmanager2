@@ -312,7 +312,16 @@ void TeaLeafReader::generateProjectTree(CMakeProjectNode *root, const QList<cons
         return Utils::contains(allIncludePaths, [fn](const FileName &inc) { return fn->filePath().isChildOf(inc); });
     });
 
-    QList<FileNode *> fileNodes = m_files + Utils::transform(missingHeaders, [](const FileNode *fn) { return fn->clone(); });
+    // filter duplicates:
+    auto alreadySeen = QSet<FileName>::fromList(Utils::transform(m_files, &FileNode::filePath));
+    const QList<const FileNode *> unseenMissingHeaders = Utils::filtered(missingHeaders, [&alreadySeen](const FileNode *fn) {
+        const int count = alreadySeen.count();
+        alreadySeen.insert(fn->filePath());
+        return (alreadySeen.count() != count);
+    });
+
+    const QList<FileNode *> fileNodes = m_files
+            + Utils::transform(unseenMissingHeaders, [](const FileNode *fn) { return fn->clone(); });
 #else
     QList<const FileNode *> added;
     std::set_difference(
