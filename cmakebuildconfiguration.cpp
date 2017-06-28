@@ -222,6 +222,10 @@ CMakeBuildConfiguration::generateProjectTree(const QList<const FileNode*> &allFi
     auto root = new CMakeProjectNode(target()->project()->projectDirectory(),
                                      static_cast<CMakeProject*>(target()->project()));
     m_buildDirManager->generateProjectTree(root, allFiles);
+    if (root->isEmpty()) {
+        delete root;
+        return nullptr;
+    }
     return root;
 }
 
@@ -281,7 +285,9 @@ QList<ConfigModel::DataItem> CMakeBuildConfiguration::completeCMakeConfiguration
         j.values = i.values;
         j.inCMakeCache = i.inCMakeCache;
 
-        j.isAdvanced = i.isAdvanced || i.type == CMakeConfigItem::INTERNAL;
+        j.isAdvanced = i.isAdvanced;
+        j.isHidden = i.type == CMakeConfigItem::INTERNAL || i.type == CMakeConfigItem::STATIC;
+
         switch (i.type) {
         case CMakeConfigItem::FILEPATH:
             j.type = ConfigModel::DataItem::FILE;
