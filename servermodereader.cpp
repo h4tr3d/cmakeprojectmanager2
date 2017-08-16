@@ -250,9 +250,12 @@ static void addCMakeVFolder(FolderNode *base, const Utils::FileName &basePath, i
 {
     if (files.isEmpty())
         return;
-    auto folder = new VirtualFolderNode(basePath, priority);
-    folder->setDisplayName(displayName);
-    base->addNode(folder);
+    FolderNode *folder = base;
+    if (!displayName.isEmpty()) {
+        folder = new VirtualFolderNode(basePath, priority);
+        folder->setDisplayName(displayName);
+        base->addNode(folder);
+    }
     folder->addNestedNodes(files);
     for (FolderNode *fn : folder->folderNodes())
         fn->compress();
@@ -268,9 +271,7 @@ static void addCMakeInputs(FolderNode *root,
     ProjectNode *cmakeVFolder = new CMakeInputsNode(root->filePath());
     root->addNode(cmakeVFolder);
 
-    addCMakeVFolder(cmakeVFolder, sourceDir, 1000,
-                    QCoreApplication::translate("CMakeProjectManager::Internal::ServerModeReader", "<Source Directory>"),
-                    sourceInputs);
+    addCMakeVFolder(cmakeVFolder, sourceDir, 1000, QString(), sourceInputs);
     addCMakeVFolder(cmakeVFolder, buildDir, 100,
                     QCoreApplication::translate("CMakeProjectManager::Internal::ServerModeReader", "<Build Directory>"),
                     buildInputs);
@@ -336,7 +337,7 @@ void ServerModeReader::updateCodeModel(CppTools::RawProjectParts &rpps)
 
         CppTools::RawProjectPart rpp;
         rpp.setProjectFileLocation(fg->target->sourceDirectory.toString() + "/CMakeLists.txt");
-        rpp.setBuildSystemTarget(fg->target->name + '|' + rpp.projectFile);
+        rpp.setBuildSystemTarget(fg->target->name);
         rpp.setDisplayName(fg->target->name + QString::number(counter));
         rpp.setDefines(defineArg.toUtf8());
         rpp.setIncludePaths(includes);
@@ -417,8 +418,7 @@ void ServerModeReader::handleProgress(int min, int cur, int max, const QString &
 
     if (!m_future)
         return;
-    int progress = m_progressStepMinimum
-            + (((max - min) / (cur - min)) * (m_progressStepMaximum  - m_progressStepMinimum));
+    const int progress = calculateProgress(m_progressStepMinimum, min, cur, max, m_progressStepMaximum);
     m_future->setProgressValue(progress);
 }
 
@@ -428,6 +428,14 @@ void ServerModeReader::handleSignal(const QString &signal, const QVariantMap &da
     // CMake on Windows sends false dirty signals on each edit (QTCREATORBUG-17944)
     if (!HostOsInfo::isWindowsHost() && signal == "dirty")
         emit dirty();
+}
+
+int ServerModeReader::calculateProgress(const int minRange, const int min, const int cur, const int max, const int maxRange)
+{
+    if (minRange == maxRange || min == max)
+        return minRange;
+    const int clampedCur = std::min(std::max(cur, min), max);
+    return minRange + ((clampedCur - min) / (max - min)) * (maxRange - minRange);
 }
 
 void ServerModeReader::extractCodeModelData(const QVariantMap &data)
@@ -750,12 +758,13 @@ static CMakeTargetNode *createTargetNode(const QHash<Utils::FileName, ProjectNod
     ProjectNode *cmln = cmakeListsNodes.value(dir);
     QTC_ASSERT(cmln, return nullptr);
 
-    Utils::FileName targetName = dir;
-    targetName.appendPath(".target::" + displayName);
+    QByteArray targetId = CMakeTargetNode::generateId(dir, displayName);
 
-    CMakeTargetNode *tn = static_cast<CMakeTargetNode *>(cmln->projectNode(targetName));
+    CMakeTargetNode *tn = static_cast<CMakeTargetNode *>(cmln->findNode([&targetId](const Node *n) {
+        return n->id() == targetId;
+    }));
     if (!tn) {
-        tn = new CMakeTargetNode(targetName);
+        tn = new CMakeTargetNode(dir, displayName);
         cmln->addNode(tn);
     }
     tn->setDisplayName(displayName);
@@ -842,7 +851,7 @@ void ServerModeReader::addFileGroups(ProjectNode *targetRoot,
             otherFileNodes.append(fn);
     }
 
-    addCMakeVFolder(targetRoot, sourceDirectory, 1000, tr("<Source Directory>"), sourceFileNodes);
+    addCMakeVFolder(targetRoot, sourceDirectory, 1000,  QString(), sourceFileNodes);
     addCMakeVFolder(targetRoot, buildDirectory, 100, tr("<Build Directory>"), buildFileNodes);
     addCMakeVFolder(targetRoot, Utils::FileName(), 10, tr("<Other Locations>"), otherFileNodes);
 }
@@ -880,3 +889,59 @@ void ServerModeReader::addHeaderNodes(ProjectNode *root, const QList<FileNode *>
 
 } // namespace Internal
 } // namespace CMakeProjectManager
+
+#if defined(WITH_TESTS)
+
+#include "cmakeprojectplugin.h"
+#include <QTest>
+
+namespace CMakeProjectManager {
+namespace Internal {
+
+void CMakeProjectPlugin::testServerModeReaderProgress_data()
+{
+    QTest::addColumn<int>("minRange");
+    QTest::addColumn<int>("min");
+    QTest::addColumn<int>("cur");
+    QTest::addColumn<int>("max");
+    QTest::addColumn<int>("maxRange");
+    QTest::addColumn<int>("expected");
+
+    QTest::newRow("empty range") << 100 << 10 << 11 << 20 << 100 << 100;
+    QTest::newRow("one range (low)") << 0 << 10 << 11 << 20 << 1 << 0;
+    QTest::newRow("one range (high)") << 20 << 10 << 19 << 20 << 20 << 20;
+    QTest::newRow("large range") << 30 << 10 << 11 << 20 << 100000 << 30;
+
+    QTest::newRow("empty progress") << -5 << 10 << 10 << 10 << 99995 << -5;
+    QTest::newRow("one progress (low)") << 42 << 10 << 10 << 11 << 100042 << 42;
+    QTest::newRow("one progress (high)") << 0 << 10 << 11 << 11 << 100000 << 100000;
+    QTest::newRow("large progress") << 0 << 10 << 10 << 11 << 100000 << 0;
+
+    QTest::newRow("cur too low") << 0 << 10 << 9 << 100 << 100000 << 0;
+    QTest::newRow("cur too high") << 0 << 10 << 101 << 100 << 100000 << 100000;
+    QTest::newRow("cur much too low") << 0 << 10 << -1000 << 100 << 100000 << 0;
+    QTest::newRow("cur much too high") << 0 << 10 << 1110000 << 100 << 100000 << 100000;
+}
+
+void CMakeProjectPlugin::testServerModeReaderProgress()
+{
+    QFETCH(int, minRange);
+    QFETCH(int, min);
+    QFETCH(int, cur);
+    QFETCH(int, max);
+    QFETCH(int, maxRange);
+    QFETCH(int, expected);
+
+    ServerModeReader reader;
+    const int r = reader.calculateProgress(minRange, min, cur, max, maxRange);
+
+    QCOMPARE(r, expected);
+
+    QVERIFY(r <= maxRange);
+    QVERIFY(r >= minRange);
+}
+
+} // namespace Internal
+} // namespace CMakeProjectManager
+
+#endif

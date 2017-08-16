@@ -37,7 +37,7 @@ class CMakeInputsNode : public ProjectExplorer::ProjectNode
 public:
     CMakeInputsNode(const Utils::FileName &cmakeLists);
 
-    static Utils::FileName inputsPathFromCMakeListsPath(const Utils::FileName &cmakeLists);
+    static QByteArray generateId(const Utils::FileName &inputFile);
 
     bool showInSimpleTree() const final;
 };
@@ -72,7 +72,9 @@ private:
 class CMakeTargetNode : public ProjectExplorer::ProjectNode
 {
 public:
-    CMakeTargetNode(const Utils::FileName &directory);
+    CMakeTargetNode(const Utils::FileName &directory, const QString &target);
+
+    static QByteArray generateId(const Utils::FileName &directory, const QString &target);
 
     void setTargetInformation(const QList<Utils::FileName> &artifacts, const QString &type);
 

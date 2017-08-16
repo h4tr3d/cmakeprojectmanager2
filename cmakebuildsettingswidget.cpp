@@ -158,7 +158,7 @@ CMakeBuildSettingsWidget::CMakeBuildSettingsWidget(CMakeBuildConfiguration *bc) 
     QFrame *findWrapper = Core::ItemViewFind::createSearchableWrapper(m_configView, Core::ItemViewFind::LightColored);
     findWrapper->setFrameStyle(QFrame::StyledPanel);
 
-    m_progressIndicator = new Utils::ProgressIndicator(Utils::ProgressIndicator::Large, findWrapper);
+    m_progressIndicator = new Utils::ProgressIndicator(Utils::ProgressIndicatorSize::Large, findWrapper);
     m_progressIndicator->attachToWidget(findWrapper);
     m_progressIndicator->raise();
     m_progressIndicator->hide();
@@ -204,7 +204,7 @@ CMakeBuildSettingsWidget::CMakeBuildSettingsWidget(CMakeBuildConfiguration *bc) 
     setError(bc->error());
     setWarning(bc->warning());
 
-    connect(project, &CMakeProject::parsingStarted, this, [this]() {
+    connect(project, &ProjectExplorer::Project::parsingStarted, this, [this]() {
         updateButtonState();
         m_showProgressTimer.start();
     });
@@ -214,7 +214,7 @@ CMakeBuildSettingsWidget::CMakeBuildSettingsWidget(CMakeBuildConfiguration *bc) 
     else
         m_configModel->setConfiguration(m_buildConfiguration->completeCMakeConfiguration());
 
-    connect(m_buildConfiguration, &CMakeBuildConfiguration::dataAvailable,
+    connect(m_buildConfiguration->target()->project(), &ProjectExplorer::Project::parsingFinished,
             this, [this, buildDirChooser, stretcher]() {
         updateButtonState();
         m_configModel->setConfiguration(m_buildConfiguration->completeCMakeConfiguration());
