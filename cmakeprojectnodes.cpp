@@ -93,7 +93,7 @@ QString CMakeProjectNode::tooltip() const
     return QString();
 }
 
-bool CMakeProjectNode::supportsAction(ProjectExplorer::ProjectAction action, Node *node) const
+bool CMakeProjectNode::supportsAction(ProjectExplorer::ProjectAction action, const Node *node) const
 {
     Q_UNUSED(node);
     if (!m_project)
