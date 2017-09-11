@@ -32,6 +32,7 @@
 #include "servermode.h"
 
 #include <coreplugin/editormanager/editormanager.h>
+#include <coreplugin/fileiconprovider.h>
 #include <coreplugin/messagemanager.h>
 #include <coreplugin/progressmanager/progressmanager.h>
 #include <projectexplorer/projectexplorerconstants.h>
@@ -157,7 +158,7 @@ void ServerModeReader::resetData()
 void ServerModeReader::parse(bool force)
 {
     emit configurationStarted();
-    Core::MessageManager::write(tr("Starting to parse CMake project for Qt Creator."));
+    Core::MessageManager::write(tr("Starting to parse CMake project."));
 
     QTC_ASSERT(m_cmakeServer, return);
     QVariantMap extra;
@@ -293,10 +294,10 @@ void ServerModeReader::generateProjectTree(CMakeProjectNode *root,
         const FileName path = fn->filePath();
         if (path.fileName().compare("CMakeLists.txt", HostOsInfo::fileNameCaseSensitivity()) == 0)
             cmakeLists.append(fn);
-        else if (path.isChildOf(m_parameters.sourceDirectory))
-            cmakeFilesSource.append(fn);
         else if (path.isChildOf(m_parameters.buildDirectory))
             cmakeFilesBuild.append(fn);
+        else if (path.isChildOf(m_parameters.sourceDirectory))
+            cmakeFilesSource.append(fn);
         else
             cmakeFilesOther.append(fn);
     }
@@ -862,8 +863,10 @@ void ServerModeReader::addHeaderNodes(ProjectNode *root, const QList<FileNode *>
     if (root->isEmpty())
         return;
 
+    static QIcon headerNodeIcon = Core::FileIconProvider::directoryIcon(ProjectExplorer::Constants::FILEOVERLAY_H);
     auto headerNode = new VirtualFolderNode(root->filePath(), Node::DefaultPriority - 5);
     headerNode->setDisplayName(tr("<Headers>"));
+    headerNode->setIcon(headerNodeIcon);
 
     // knownHeaders are already listed in their targets:
     QSet<Utils::FileName> seenHeaders = Utils::transform<QSet>(knownHeaders, &FileNode::filePath);
