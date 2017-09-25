@@ -64,6 +64,11 @@ private:
     void updateAdvancedCheckBox();
     void updateFromKit();
 
+    void updateSelection(const QModelIndex &current, const QModelIndex &previous);
+    QAction *createForceAction(int type, const QModelIndex &idx);
+
+    bool eventFilter(QObject *target, QEvent *event);
+
     CMakeBuildConfiguration *m_buildConfiguration;
     QTreeView *m_configView;
     ConfigModel *m_configModel;

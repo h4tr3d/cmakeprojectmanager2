@@ -155,7 +155,7 @@ void CMakeProject::updateProjectData(CMakeBuildConfiguration *bc)
     }
 
     updateApplicationAndDeploymentTargets();
-    t->updateDefaultRunConfigurations();
+    updateTargetRunConfigurations(t);
 
     createGeneratedCodeModelSupport();
 
@@ -579,6 +579,34 @@ QStringList CMakeProject::filesGeneratedFrom(const QString &sourceFile) const
     }
 }
 
+void CMakeProject::updateTargetRunConfigurations(Target *t)
+{
+    // *Update* existing runconfigurations (no need to update new ones!):
+    QHash<QString, const CMakeBuildTarget *> buildTargetHash;
+    const QList<CMakeBuildTarget> buildTargetList = buildTargets();
+    foreach (const CMakeBuildTarget &bt, buildTargetList) {
+        if (bt.targetType != ExecutableType || bt.executable.isEmpty())
+            continue;
+
+        buildTargetHash.insert(bt.title, &bt);
+    }
+
+    foreach (RunConfiguration *rc, t->runConfigurations()) {
+        auto cmakeRc = qobject_cast<CMakeRunConfiguration *>(rc);
+        if (!cmakeRc)
+            continue;
+
+        auto btIt = buildTargetHash.constFind(cmakeRc->title());
+        if (btIt != buildTargetHash.constEnd()) {
+            cmakeRc->setExecutable(btIt.value()->executable.toString());
+            cmakeRc->setBaseWorkingDirectory(btIt.value()->workingDirectory);
+        }
+    }
+
+    // create new and remove obsolete RCs using the factories
+    t->updateDefaultRunConfigurations();
+}
+
 void CMakeProject::updateApplicationAndDeploymentTargets()
 {
     Target *t = activeTarget();
@@ -690,7 +718,7 @@ void CMakeBuildTarget::clear()
     targetType = UtilityType;
     includeFiles.clear();
     compilerOptions.clear();
-    defines.clear();
+    macros.clear();
     files.clear();
 }
 

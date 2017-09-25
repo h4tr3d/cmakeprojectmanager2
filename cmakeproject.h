@@ -30,6 +30,7 @@
 #include "treescanner.h"
 
 #include <projectexplorer/extracompiler.h>
+#include <projectexplorer/projectmacro.h>
 #include <projectexplorer/project.h>
 
 #include <utils/fileutils.h>
@@ -72,7 +73,7 @@ public:
     // code model
     QList<Utils::FileName> includeFiles;
     QStringList compilerOptions;
-    QByteArray defines;
+    ProjectExplorer::Macros macros;
     QList<Utils::FileName> files;
 
     void clear();
@@ -127,6 +128,7 @@ private:
 
     void createGeneratedCodeModelSupport();
     QStringList filesGeneratedFrom(const QString &sourceFile) const final;
+    void updateTargetRunConfigurations(ProjectExplorer::Target *t);
     void updateApplicationAndDeploymentTargets();
 
     ProjectExplorer::Target *m_connectedTarget = nullptr;
