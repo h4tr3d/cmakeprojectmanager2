@@ -86,11 +86,8 @@ Utils::FileName BuildDirManager::workDirectory(const BuildDirParameters &paramet
 
 void BuildDirManager::emitDataAvailable()
 {
-    if (!isParsing()) {
-        m_cmakeCache.clear();
-        m_buildTargets.clear();
+    if (!isParsing())
         emit dataAvailable();
-    }
 }
 
 void BuildDirManager::emitErrorOccured(const QString &message) const

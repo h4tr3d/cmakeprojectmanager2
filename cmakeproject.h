@@ -125,7 +125,7 @@ private:
     Internal::TreeScanner m_treeScanner;
     Internal::BuildDirManager m_buildDirManager;
 
-    bool m_waitingForScan = false;
+    bool m_waitingForScan = true;
     bool m_waitingForParse = false;
     bool m_combinedScanAndParseResult = false;
 

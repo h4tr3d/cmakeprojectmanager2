@@ -362,7 +362,7 @@ CMakeProjectNode *CMakeProject::generateProjectTree(const QList<const FileNode *
     if (m_buildDirManager.isParsing())
         return nullptr;
 
-    auto root = std::make_unique<CMakeProjectNode>(projectDirectory());
+    auto root = std::make_unique<CMakeProjectNode>(projectDirectory(), static_cast<CMakeProject*>(activeTarget()->project()));
     m_buildDirManager.generateProjectTree(root.get(), allFiles);
     return root ? root.release() : nullptr;
 }
