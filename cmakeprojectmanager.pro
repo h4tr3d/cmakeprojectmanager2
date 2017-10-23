@@ -12,9 +12,11 @@ include($$QTCREATOR_SOURCES/src/qtcreatorplugin.pri)
 INCLUDEPATH += $$QTCREATOR_SOURCES/src/plugins/texteditor
 
 HEADERS = builddirmanager.h \
+    builddirparameters.h \
     builddirreader.h \
     cmakebuildinfo.h \
     cmakebuildstep.h \
+    cmakebuildtarget.h \
     cmakeconfigitem.h \
     cmakeproject.h \
     cmakeprojectimporter.h \
@@ -48,8 +50,10 @@ HEADERS = builddirmanager.h \
     simpleservermodereader.h
 
 SOURCES = builddirmanager.cpp \
+    builddirparameters.cpp \
     builddirreader.cpp \
     cmakebuildstep.cpp \
+    cmakebuildtarget.cpp \
     cmakeconfigitem.cpp \
     cmakeproject.cpp \
     cmakeprojectimporter.cpp \
