@@ -104,7 +104,7 @@ void ServerModeReader::setParameters(const BuildDirParameters &p)
     BuildDirReader::setParameters(p);
     if (!m_cmakeServer) {
         m_cmakeServer.reset(new ServerMode(p.environment,
-                                           p.sourceDirectory, p.buildDirectory,
+                                           p.sourceDirectory, p.workDirectory,
                                            p.cmakeTool->cmakeExecutable(),
                                            p.generator, p.extraGenerator, p.platform, p.toolset,
                                            true, 1));
@@ -155,7 +155,7 @@ bool ServerModeReader::isCompatible(const BuildDirParameters &p)
             && p.platform == m_parameters.platform
             && p.toolset == m_parameters.toolset
             && p.sourceDirectory == m_parameters.sourceDirectory
-            && p.buildDirectory == m_parameters.buildDirectory;
+            && p.workDirectory == m_parameters.workDirectory;
 }
 
 void ServerModeReader::resetData()
@@ -323,7 +323,7 @@ void ServerModeReader::generateProjectTree(CMakeProjectNode *root,
         const FileName path = fn->filePath();
         if (path.fileName().compare("CMakeLists.txt", HostOsInfo::fileNameCaseSensitivity()) == 0)
             cmakeLists.append(fn);
-        else if (path.isChildOf(m_parameters.buildDirectory))
+        else if (path.isChildOf(m_parameters.workDirectory))
             cmakeFilesBuild.append(fn);
         else if (path.isChildOf(m_parameters.sourceDirectory))
             cmakeFilesSource.append(fn);
@@ -345,7 +345,7 @@ void ServerModeReader::generateProjectTree(CMakeProjectNode *root,
     addHeaderNodes(root, knownHeaders, allFiles);
 
     if (!cmakeFilesSource.isEmpty() || !cmakeFilesBuild.isEmpty() || !cmakeFilesOther.isEmpty())
-        addCMakeInputs(root, m_parameters.sourceDirectory, m_parameters.buildDirectory,
+        addCMakeInputs(root, m_parameters.sourceDirectory, m_parameters.workDirectory,
                        cmakeFilesSource, cmakeFilesBuild, cmakeFilesOther);
 }
 
@@ -859,12 +859,12 @@ void ServerModeReader::addFileGroups(ProjectNode *targetRoot,
     }
 
     // Split up files in groups (based on location):
-    const bool inSourceBuild = (m_parameters.buildDirectory == m_parameters.sourceDirectory);
+    const bool inSourceBuild = (m_parameters.workDirectory == m_parameters.sourceDirectory);
     QList<FileNode *> sourceFileNodes;
     QList<FileNode *> buildFileNodes;
     QList<FileNode *> otherFileNodes;
     foreach (FileNode *fn, toList) {
-        if (fn->filePath().isChildOf(m_parameters.buildDirectory) && !inSourceBuild)
+        if (fn->filePath().isChildOf(m_parameters.workDirectory) && !inSourceBuild)
             buildFileNodes.append(fn);
         else if (fn->filePath().isChildOf(m_parameters.sourceDirectory))
             sourceFileNodes.append(fn);
