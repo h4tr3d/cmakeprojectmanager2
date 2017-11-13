@@ -54,10 +54,11 @@ public:
 
     QString buildSystemTarget() const final { return m_buildSystemTarget; }
 
+    Utils::OutputFormatter *createOutputFormatter() const final;
+
 private:
     void initialize(Core::Id id, const QString &target,
                const Utils::FileName &workingDirectory, const QString &title);
-    void copyFrom(const CMakeRunConfiguration *source);
 
     bool fromMap(const QVariantMap &map) override;
     QString defaultDisplayName() const;
