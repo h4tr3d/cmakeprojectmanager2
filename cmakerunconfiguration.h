@@ -35,7 +35,6 @@ class CMakeRunConfiguration : public ProjectExplorer::RunConfiguration
 {
     Q_OBJECT
     friend class CMakeRunConfigurationWidget;
-    friend class ProjectExplorer::IRunConfigurationFactory;
 
 public:
     explicit CMakeRunConfiguration(ProjectExplorer::Target *target);
@@ -56,10 +55,9 @@ public:
 
     Utils::OutputFormatter *createOutputFormatter() const final;
 
-private:
-    void initialize(Core::Id id, const QString &target,
-               const Utils::FileName &workingDirectory, const QString &title);
+    void initialize(Core::Id id) override;
 
+private:
     bool fromMap(const QVariantMap &map) override;
     QString defaultDisplayName() const;
 
@@ -90,21 +88,12 @@ public:
     bool canCreate(ProjectExplorer::Target *parent, Core::Id id) const override;
     bool canRestore(ProjectExplorer::Target *parent, const QVariantMap &map) const override;
     bool canClone(ProjectExplorer::Target *parent, ProjectExplorer::RunConfiguration *product) const override;
-    ProjectExplorer::RunConfiguration *clone(ProjectExplorer::Target *parent,
-                                             ProjectExplorer::RunConfiguration *product) override;
 
     QList<Core::Id> availableCreationIds(ProjectExplorer::Target *parent, CreationMode mode) const override;
     QString displayNameForId(Core::Id id) const override;
 
     static Core::Id idFromBuildTarget(const QString &target);
     static QString buildTargetFromId(Core::Id id);
-
-private:
-    bool canHandle(ProjectExplorer::Target *parent) const;
-
-    ProjectExplorer::RunConfiguration *doCreate(ProjectExplorer::Target *parent, Core::Id id) override;
-    ProjectExplorer::RunConfiguration *doRestore(ProjectExplorer::Target *parent,
-                                                 const QVariantMap &map) override;
 };
 
 } // namespace Internal

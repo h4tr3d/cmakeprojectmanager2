@@ -70,15 +70,21 @@ CMakeRunConfiguration::CMakeRunConfiguration(Target *target)
     addExtraAspect(new WorkingDirectoryAspect(this, "CMakeProjectManager.CMakeRunConfiguration.UserWorkingDirectory"));
 }
 
-void CMakeRunConfiguration::initialize(Core::Id id, const QString &target,
-                                  const Utils::FileName &workingDirectory, const QString &title)
+void CMakeRunConfiguration::initialize(Core::Id id)
 {
     RunConfiguration::initialize(id);
-    m_buildSystemTarget = target;
-    m_executable = target;
-    m_title = title;
+    QString executable = id.suffixAfter(CMAKE_RC_PREFIX);
 
-    extraAspect<WorkingDirectoryAspect>()->setDefaultWorkingDirectory(workingDirectory);
+    CMakeProject *project = static_cast<CMakeProject *>(target()->project());
+
+    m_buildSystemTarget = executable;
+    m_executable = executable;
+
+    if (!executable.isEmpty()) {
+        const CMakeBuildTarget ct = project->buildTargetForTitle(executable);
+        m_title = ct.title;
+        extraAspect<WorkingDirectoryAspect>()->setDefaultWorkingDirectory(ct.workingDirectory);
+    }
 
     setDefaultDisplayName(defaultDisplayName());
 }
@@ -213,7 +219,11 @@ CMakeRunConfigurationWidget::CMakeRunConfigurationWidget(CMakeRunConfiguration *
 // Factory
 CMakeRunConfigurationFactory::CMakeRunConfigurationFactory(QObject *parent) :
     IRunConfigurationFactory(parent)
-{ setObjectName(QLatin1String("CMakeRunConfigurationFactory")); }
+{
+    setObjectName("CMakeRunConfigurationFactory");
+    registerRunConfiguration<CMakeRunConfiguration>();
+    setSupportedProjectType<CMakeProject>();
+}
 
 // used to show the list of possible additons to a project, returns a list of ids
 QList<Core::Id> CMakeRunConfigurationFactory::availableCreationIds(Target *parent, CreationMode mode) const
@@ -234,27 +244,12 @@ QString CMakeRunConfigurationFactory::displayNameForId(Core::Id id) const
     return buildTargetFromId(id);
 }
 
-bool CMakeRunConfigurationFactory::canHandle(Target *parent) const
-{
-    if (!parent->project()->supportsKit(parent->kit()))
-        return false;
-    return qobject_cast<CMakeProject *>(parent->project());
-}
-
 bool CMakeRunConfigurationFactory::canCreate(Target *parent, Core::Id id) const
 {
     if (!canHandle(parent))
         return false;
     CMakeProject *project = static_cast<CMakeProject *>(parent->project());
     return project->hasBuildTarget(buildTargetFromId(id));
-}
-
-RunConfiguration *CMakeRunConfigurationFactory::doCreate(Target *parent, Core::Id id)
-{
-    CMakeProject *project = static_cast<CMakeProject *>(parent->project());
-    const QString title(buildTargetFromId(id));
-    const CMakeBuildTarget &ct = project->buildTargetForTitle(title);
-    return createHelper<CMakeRunConfiguration>(parent, id, title, ct.workingDirectory, ct.title);
 }
 
 bool CMakeRunConfigurationFactory::canClone(Target *parent, RunConfiguration *source) const
@@ -264,24 +259,11 @@ bool CMakeRunConfigurationFactory::canClone(Target *parent, RunConfiguration *so
     return source->id().name().startsWith(CMAKE_RC_PREFIX);
 }
 
-RunConfiguration *CMakeRunConfigurationFactory::clone(Target *parent, RunConfiguration * source)
-{
-    if (!canClone(parent, source))
-        return 0;
-    return cloneHelper<CMakeRunConfiguration>(parent, source);
-}
-
 bool CMakeRunConfigurationFactory::canRestore(Target *parent, const QVariantMap &map) const
 {
     if (!qobject_cast<CMakeProject *>(parent->project()))
         return false;
     return idFromMap(map).name().startsWith(CMAKE_RC_PREFIX);
-}
-
-RunConfiguration *CMakeRunConfigurationFactory::doRestore(Target *parent, const QVariantMap &map)
-{
-    const Core::Id id = idFromMap(map);
-    return createHelper<CMakeRunConfiguration>(parent, id, buildTargetFromId(id), Utils::FileName(), QString());
 }
 
 QString CMakeRunConfigurationFactory::buildTargetFromId(Core::Id id)
