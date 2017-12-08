@@ -232,18 +232,57 @@ CMakeRunConfigurationFactory::CMakeRunConfigurationFactory(QObject *parent) :
     IRunConfigurationFactory(parent)
 {
     setObjectName("CMakeRunConfigurationFactory");
-    registerRunConfiguration<CMakeRunConfiguration>(CMAKE_RC_PREFIX);
+    registerRunConfiguration<CMakeRunConfiguration>();
     setSupportedProjectType<CMakeProject>();
 }
 
-QList<QString> CMakeRunConfigurationFactory::availableBuildTargets(Target *parent, CreationMode) const
+// used to show the list of possible additons to a project, returns a list of ids
+QList<Core::Id> CMakeRunConfigurationFactory::availableCreationIds(Target *parent, CreationMode mode) const
 {
+    Q_UNUSED(mode)
+    if (!canHandle(parent))
+        return QList<Core::Id>();
     CMakeProject *project = static_cast<CMakeProject *>(parent->project());
-    return project->buildTargetTitles(true);
+    QList<Core::Id> allIds;
+    foreach (const QString &buildTarget, project->buildTargetTitles(true))
+        allIds << idFromBuildTarget(buildTarget);
+    return allIds;
 }
 
-bool CMakeRunConfigurationFactory::canCreateHelper(Target *parent, const QString &buildTarget) const
+// used to translate the ids to names to display to the user
+QString CMakeRunConfigurationFactory::displayNameForId(Core::Id id) const
 {
+    return buildTargetFromId(id);
+}
+
+bool CMakeRunConfigurationFactory::canCreate(Target *parent, Core::Id id) const
+{
+    if (!canHandle(parent))
+        return false;
     CMakeProject *project = static_cast<CMakeProject *>(parent->project());
-    return project->hasBuildTarget(buildTarget);
+    return project->hasBuildTarget(buildTargetFromId(id));
+}
+
+bool CMakeRunConfigurationFactory::canClone(Target *parent, RunConfiguration *source) const
+{
+    if (!canHandle(parent))
+        return false;
+    return source->id().name().startsWith(CMAKE_RC_PREFIX);
+}
+
+bool CMakeRunConfigurationFactory::canRestore(Target *parent, const QVariantMap &map) const
+{
+    if (!qobject_cast<CMakeProject *>(parent->project()))
+        return false;
+    return idFromMap(map).name().startsWith(CMAKE_RC_PREFIX);
+}
+
+QString CMakeRunConfigurationFactory::buildTargetFromId(Core::Id id)
+{
+    return id.suffixAfter(CMAKE_RC_PREFIX);
+}
+
+Core::Id CMakeRunConfigurationFactory::idFromBuildTarget(const QString &target)
+{
+    return Core::Id(CMAKE_RC_PREFIX).withSuffix(target);
 }
