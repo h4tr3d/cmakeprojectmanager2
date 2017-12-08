@@ -146,38 +146,43 @@ static void readAndDeleteLegacyCMakeSettings ()
 
 static QList<CMakeTool *> autoDetectCMakeTools()
 {
+    FileNameList suspects;
+
     Utils::Environment env = Environment::systemEnvironment();
 
-    Utils::FileNameList path = env.path();
-    path = Utils::filteredUnique(path);
+    QStringList path = env.path();
+    path.removeDuplicates();
 
     if (HostOsInfo::isWindowsHost()) {
         const QString progFiles = QLatin1String(qgetenv("ProgramFiles"));
-        path.append(Utils::FileName::fromString(progFiles + "/CMake"));
-        path.append(Utils::FileName::fromString(progFiles + "/CMake/bin"));
+        path.append(progFiles + "/CMake");
+        path.append(progFiles + "/CMake/bin");
         const QString progFilesX86 = QLatin1String(qgetenv("ProgramFiles(x86)"));
         if (!progFilesX86.isEmpty()) {
-            path.append(Utils::FileName::fromString(progFilesX86 + "/CMake"));
-            path.append(Utils::FileName::fromString(progFilesX86 + "/CMake/bin"));
+            path.append(progFilesX86 + "/CMake");
+            path.append(progFilesX86 + "/CMake/bin");
         }
     }
 
     if (HostOsInfo::isMacHost()) {
-        path.append(Utils::FileName::fromString("/Applications/CMake.app/Contents/bin"));
-        path.append(Utils::FileName::fromString("/usr/local/bin"));
-        path.append(Utils::FileName::fromString("/opt/local/bin"));
+        path.append("/Applications/CMake.app/Contents/bin");
+        path.append("/usr/local/bin");
+        path.append("/opt/local/bin");
     }
 
-    const QStringList execs = env.appendExeExtensions(QLatin1String("cmake"));
+    QStringList execs = env.appendExeExtensions(QLatin1String("cmake"));
 
-    FileNameList suspects;
-    foreach (const Utils::FileName &base, path) {
+    foreach (QString base, path) {
+        const QChar slash = QLatin1Char('/');
         if (base.isEmpty())
             continue;
+        // Avoid turning '/' into '//' on Windows which triggers Windows to check
+        // for network drives!
+        if (!base.endsWith(slash))
+            base += slash;
 
-        QFileInfo fi;
-        for (const QString &exec : execs) {
-            fi.setFile(base.toString(), exec);
+        foreach (const QString &exec, execs) {
+            QFileInfo fi(base + exec);
             if (fi.exists() && fi.isFile() && fi.isExecutable())
                 suspects << FileName::fromString(fi.absoluteFilePath());
         }
