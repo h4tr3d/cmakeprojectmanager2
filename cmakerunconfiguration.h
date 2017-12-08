@@ -94,6 +94,9 @@ public:
 
     static Core::Id idFromBuildTarget(const QString &target);
     static QString buildTargetFromId(Core::Id id);
+
+private:
+    bool canHandle(ProjectExplorer::Target *parent) const;
 };
 
 } // namespace Internal

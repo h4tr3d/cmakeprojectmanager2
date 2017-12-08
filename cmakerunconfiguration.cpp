@@ -233,7 +233,6 @@ CMakeRunConfigurationFactory::CMakeRunConfigurationFactory(QObject *parent) :
 {
     setObjectName("CMakeRunConfigurationFactory");
     registerRunConfiguration<CMakeRunConfiguration>();
-    setSupportedProjectType<CMakeProject>();
 }
 
 // used to show the list of possible additons to a project, returns a list of ids
@@ -253,6 +252,13 @@ QList<Core::Id> CMakeRunConfigurationFactory::availableCreationIds(Target *paren
 QString CMakeRunConfigurationFactory::displayNameForId(Core::Id id) const
 {
     return buildTargetFromId(id);
+}
+
+bool CMakeRunConfigurationFactory::canHandle(Target *parent) const
+{
+    if (!parent->project()->supportsKit(parent->kit()))
+        return false;
+    return qobject_cast<CMakeProject *>(parent->project());
 }
 
 bool CMakeRunConfigurationFactory::canCreate(Target *parent, Core::Id id) const
