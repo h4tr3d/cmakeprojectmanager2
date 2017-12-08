@@ -230,10 +230,7 @@ CMakeRunConfigurationWidget::CMakeRunConfigurationWidget(CMakeRunConfiguration *
 // Factory
 CMakeRunConfigurationFactory::CMakeRunConfigurationFactory(QObject *parent) :
     IRunConfigurationFactory(parent)
-{
-    setObjectName("CMakeRunConfigurationFactory");
-    registerRunConfiguration<CMakeRunConfiguration>();
-}
+{ setObjectName(QLatin1String("CMakeRunConfigurationFactory")); }
 
 // used to show the list of possible additons to a project, returns a list of ids
 QList<Core::Id> CMakeRunConfigurationFactory::availableCreationIds(Target *parent, CreationMode mode) const
@@ -279,6 +276,13 @@ bool CMakeRunConfigurationFactory::canClone(Target *parent, RunConfiguration *so
     if (!canHandle(parent))
         return false;
     return source->id().name().startsWith(CMAKE_RC_PREFIX);
+}
+
+RunConfiguration *CMakeRunConfigurationFactory::clone(Target *parent, RunConfiguration * source)
+{
+    if (!canClone(parent, source))
+        return 0;
+    return cloneHelper<CMakeRunConfiguration>(parent, source);
 }
 
 bool CMakeRunConfigurationFactory::canRestore(Target *parent, const QVariantMap &map) const
