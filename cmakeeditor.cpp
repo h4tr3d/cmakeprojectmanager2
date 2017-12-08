@@ -113,7 +113,7 @@ public:
 
 private:
     bool save(const QString &fileName = QString());
-    Utils::Link findLinkAt(const QTextCursor &cursor, bool resolveTarget = true, bool inNextSplit = false) override;
+    Link findLinkAt(const QTextCursor &cursor, bool resolveTarget = true, bool inNextSplit = false) override;
     void contextMenuEvent(QContextMenuEvent *e) override;
 };
 
@@ -132,10 +132,10 @@ static bool isValidFileNameChar(const QChar &c)
             || c == QLatin1Char('\\');
 }
 
-Utils::Link CMakeEditorWidget::findLinkAt(const QTextCursor &cursor,
-                                          bool/* resolveTarget*/, bool /*inNextSplit*/)
+CMakeEditorWidget::Link CMakeEditorWidget::findLinkAt(const QTextCursor &cursor,
+                                                      bool/* resolveTarget*/, bool /*inNextSplit*/)
 {
-    Utils::Link link;
+    Link link;
 
     int lineNumber = 0, positionInBlock = 0;
     convertPosition(cursor.position(), &lineNumber, &positionInBlock);
