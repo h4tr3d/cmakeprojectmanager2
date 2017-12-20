@@ -146,6 +146,7 @@ bool CMakeRunConfiguration::fromMap(const QVariantMap &map)
         extraAspect<WorkingDirectoryAspect>()->setDefaultWorkingDirectory(ct.workingDirectory);
     }
 
+    setDisplayName(defaultDisplayName());
     setDefaultDisplayName(defaultDisplayName());
 
     return true;
@@ -237,7 +238,7 @@ CMakeRunConfigurationFactory::CMakeRunConfigurationFactory(QObject *parent) :
 {
     setObjectName("CMakeRunConfigurationFactory");
     registerRunConfiguration<CMakeRunConfiguration>(CMAKE_RC_PREFIX);
-    setSupportedProjectType<CMakeProject>();
+    addSupportedProjectType(CMakeProjectManager::Constants::CMAKEPROJECT_ID);
 }
 
 QList<QString> CMakeRunConfigurationFactory::availableBuildTargets(Target *parent, CreationMode) const
