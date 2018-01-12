@@ -11,7 +11,7 @@ set(CMAKE_INCLUDE_CURRENT_DIR ON)
 # Modules
 find_package(Qt5Widgets REQUIRED)
 find_package(Qt5Core REQUIRED)
-set(QT_MODULES Widgets)
+set(QT_MODULES Qt5::Core Qt5::Widgets)
 
 include_directories(${QT_INCLUDES})
 
@@ -56,6 +56,5 @@ endif()
 aux_source_directory(. SRC_LIST)
 
 add_executable(${PROJECT_NAME} ${SRC_LIST})
-qt5_use_modules(${PROJECT_NAME} ${QT_MODULES})
-target_link_libraries(${PROJECT_NAME} ${CMAKE_THREAD_LIBS_INIT})
+target_link_libraries(${PROJECT_NAME} ${CMAKE_THREAD_LIBS_INIT} ${QT_MODULES})
 
