@@ -521,7 +521,10 @@ bool CMakeProject::eraseFiles(const QStringList &filePaths)
         }
     }
 
-    updateProjectData();
+    // Real deleting occurs after function exit.
+    QTimer::singleShot(200, this, [this](){
+        this->updateProjectData();
+    });
 
     return true;
 }
