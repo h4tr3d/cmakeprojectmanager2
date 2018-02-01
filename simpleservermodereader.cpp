@@ -19,8 +19,9 @@ void SimpleServerModeReader::generateProjectTree(CMakeProjectNode *root, const Q
         return m_parameters.sourceDirectory == p->sourceDirectory;
     });
     if (topLevel)
-        root->setDisplayName(topLevel->name);
+        m_topLevelNameCache = topLevel->name;
 
+    root->setDisplayName(m_topLevelNameCache);
 
     // Compose sources list from the CMake data
     QList<FileNode *> files = m_cmakeInputsFileNodes;
@@ -41,8 +42,25 @@ void SimpleServerModeReader::generateProjectTree(CMakeProjectNode *root, const Q
         }
     }
 
-    // Keep list sorted and remove dups
-    Utils::sort(files, Node::sortByPath);
+    // Update tree look after adding files without CMake parsing. Otherwise all files will be look like non-project one
+    if (files.isEmpty()) {
+        for (auto it = m_filesCache.begin(); it != m_filesCache.end();) {
+            //qDebug() << "try:" << std::get<0>(*it) << std::get<0>(*it).exists();
+            if (!std::get<0>(*it).exists()) {
+                it = m_filesCache.erase(it);
+                continue;
+            }
+            files.append(new FileNode(std::get<0>(*it), std::get<1>(*it), std::get<2>(*it)));
+            ++it;
+        }
+    } else {
+        // Keep list sorted and remove dups
+        Utils::sort(files, Node::sortByPath);
+
+        m_filesCache = Utils::transform(files, [](const FileNode *node) {
+            return std::make_tuple(node->filePath(), node->fileType(), node->isGenerated());
+        });
+    }
 
     m_cmakeInputsFileNodes.clear(); // Clean out, they are not going to be used anymore!
 
