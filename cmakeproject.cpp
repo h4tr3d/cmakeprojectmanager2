@@ -369,17 +369,12 @@ bool CMakeProject::needsConfiguration() const
     return targets().isEmpty();
 }
 
-bool CMakeProject::requiresTargetPanel() const
-{
-    return !targets().isEmpty();
-}
-
 bool CMakeProject::knowsAllBuildExecutables() const
 {
     return false;
 }
 
-bool CMakeProject::supportsKit(Kit *k, QString *errorMessage) const
+bool CMakeProject::supportsKit(const Kit *k, QString *errorMessage) const
 {
     if (!CMakeKitInformation::cmakeTool(k)) {
         if (errorMessage)

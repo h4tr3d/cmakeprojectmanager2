@@ -69,10 +69,9 @@ public:
     CMakeBuildTarget buildTargetForTitle(const QString &title);
 
     bool needsConfiguration() const final;
-    bool requiresTargetPanel() const final;
     bool knowsAllBuildExecutables() const final;
 
-    bool supportsKit(ProjectExplorer::Kit *k, QString *errorMessage = 0) const final;
+    bool supportsKit(const ProjectExplorer::Kit *k, QString *errorMessage = nullptr) const final;
 
     void runCMake();
     void runCMakeAndScanProjectTree();

@@ -30,12 +30,50 @@
 #include "cmakeproject.h"
 
 #include <coreplugin/fileiconprovider.h>
+#include <cpptools/cpptoolsconstants.h>
 #include <projectexplorer/target.h>
-
 #include <utils/algorithm.h>
+#include <utils/mimetypes/mimedatabase.h>
+#include <utils/optional.h>
+
+
+#include <QClipboard>
+#include <QDir>
+#include <QGuiApplication>
+#include <QMessageBox>
 
 using namespace CMakeProjectManager;
 using namespace CMakeProjectManager::Internal;
+
+namespace {
+void noAutoAdditionNotify(const QStringList &filePaths, const ProjectExplorer::ProjectNode *node)
+{
+    Utils::optional<QString> srcPath{};
+
+    for (const QString &file : filePaths) {
+        if (Utils::mimeTypeForFile(file).name() == CppTools::Constants::CPP_SOURCE_MIMETYPE) {
+            srcPath = file;
+            break;
+        }
+    }
+
+    if (srcPath) {
+        QMessageBox::StandardButton reply =
+            QMessageBox::question(nullptr, QMessageBox::tr("Copy to Clipboard?"),
+                                  QMessageBox::tr("Files are not automatically added to the CMakeLists.txt file of the CMake project."
+                                                  "\nCopy the path to the source files to the clipboard?"),
+                                  QMessageBox::Yes | QMessageBox::No);
+
+        if (QMessageBox::Yes == reply) {
+            QClipboard *clip = QGuiApplication::clipboard();
+
+            QDir projDir{node->filePath().toFileInfo().absoluteFilePath()};
+            clip->setText(QDir::cleanPath(projDir.relativeFilePath(srcPath.value())));
+        }
+    }
+}
+
+}
 
 CMakeInputsNode::CMakeInputsNode(const Utils::FileName &cmakeLists) :
     ProjectExplorer::ProjectNode(cmakeLists, generateId(cmakeLists))
@@ -67,6 +105,17 @@ CMakeListsNode::CMakeListsNode(const Utils::FileName &cmakeListPath) :
 bool CMakeListsNode::showInSimpleTree() const
 {
     return false;
+}
+
+bool CMakeListsNode::supportsAction(ProjectExplorer::ProjectAction action, const ProjectExplorer::Node *) const
+{
+    return action == ProjectExplorer::ProjectAction::AddNewFile;
+}
+
+Utils::optional<Utils::FileName> CMakeListsNode::visibleAfterAddFileAction() const
+{
+    Utils::FileName projFile{filePath()};
+    return projFile.appendPath("CMakeLists.txt");
 }
 
 CMakeProjectNode::CMakeProjectNode(const Utils::FileName &directory, CMakeProject *project) :
@@ -110,9 +159,9 @@ bool CMakeProjectNode::supportsAction(ProjectExplorer::ProjectAction action, con
     return false;
 }
 
-bool CMakeProjectNode::addFiles(const QStringList &filePaths, QStringList *notAdded)
+bool CMakeProjectNode::addFiles(const QStringList &filePaths, QStringList *)
 {
-    Q_UNUSED(notAdded);
+    noAutoAdditionNotify(filePaths, this);
     return m_project ? m_project->addFiles(filePaths) : false;
 }
 
@@ -147,6 +196,24 @@ bool CMakeTargetNode::showInSimpleTree() const
 QString CMakeTargetNode::tooltip() const
 {
     return m_tooltip;
+}
+
+bool CMakeTargetNode::supportsAction(ProjectExplorer::ProjectAction action,
+                                     const ProjectExplorer::Node *) const
+{
+    return action == ProjectExplorer::ProjectAction::AddNewFile;
+}
+
+bool CMakeTargetNode::addFiles(const QStringList &filePaths, QStringList *)
+{
+    noAutoAdditionNotify(filePaths, this);
+    return true; // Return always true as autoadd is not supported!
+}
+
+Utils::optional<Utils::FileName> CMakeTargetNode::visibleAfterAddFileAction() const
+{
+    Utils::FileName projFile{filePath()};
+    return projFile.appendPath("CMakeLists.txt");
 }
 
 void CMakeTargetNode::setTargetInformation(const QList<Utils::FileName> &artifacts,
