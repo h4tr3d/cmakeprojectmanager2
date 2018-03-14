@@ -63,12 +63,8 @@ public:
     explicit CMakeProject(const Utils::FileName &filename);
     ~CMakeProject() final;
 
-    QStringList buildTargetTitles(bool runnable = false) const;
-    bool hasBuildTarget(const QString &title) const;
+    QStringList buildTargetTitles() const;
 
-    CMakeBuildTarget buildTargetForTitle(const QString &title);
-
-    bool needsConfiguration() const final;
     bool knowsAllBuildExecutables() const final;
 
     bool supportsKit(const ProjectExplorer::Kit *k, QString *errorMessage = nullptr) const final;
