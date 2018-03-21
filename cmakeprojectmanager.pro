@@ -40,6 +40,8 @@ HEADERS = builddirmanager.h \
     cmakebuildsettingswidget.h \
     cmakeindenter.h \
     cmakeautocompleter.h \
+    cmakespecificsettings.h \
+    cmakespecificsettingspage.h \
     configmodel.h \
     configmodelitemdelegate.h \
     servermode.h \
@@ -75,6 +77,8 @@ SOURCES = builddirmanager.cpp \
     cmakebuildsettingswidget.cpp \
     cmakeindenter.cpp \
     cmakeautocompleter.cpp \
+    cmakespecificsettings.cpp \
+    cmakespecificsettingspage.cpp \
     configmodel.cpp \
     configmodelitemdelegate.cpp \
     servermode.cpp \
@@ -86,6 +90,9 @@ SOURCES = builddirmanager.cpp \
 
 RESOURCES += cmakeproject.qrc
 
+FORMS += \
+    cmakespecificsettingspage.ui
+
 OTHER_FILES += README.txt
 
 WIZARD_FILES = wizard/cmake2/*
@@ -94,5 +101,3 @@ wizardfiles.files = $$WIZARD_FILES
 wizardfiles.path = $$QTC_PREFIX/share/qtcreator/templates/wizards/projects/cmake2/
 wizardfiles.CONFIG += no_check_exist
 INSTALLS += wizardfiles
-
-
