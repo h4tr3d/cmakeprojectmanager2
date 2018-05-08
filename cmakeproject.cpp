@@ -52,7 +52,6 @@
 #include <qmljs/qmljsmodelmanagerinterface.h>
 
 #include <utils/algorithm.h>
-#include <utils/asconst.h>
 #include <utils/qtcassert.h>
 #include <utils/stringutils.h>
 #include <utils/hostosinfo.h>
@@ -276,7 +275,7 @@ void CMakeProject::updateProjectData(CMakeBuildConfiguration *bc)
     auto newRoot = generateProjectTree(m_allFiles);
     if (newRoot) {
         setDisplayName(newRoot->displayName());
-        setRootProjectNode(newRoot);
+        setRootProjectNode(std::move(newRoot));
     }
 
     updateApplicationAndDeploymentTargets();
@@ -352,14 +351,15 @@ void CMakeProject::updateQmlJSCodeModel()
     modelManager->updateProjectInfo(projectInfo, this);
 }
 
-CMakeProjectNode *CMakeProject::generateProjectTree(const QList<const FileNode *> &allFiles) const
+std::unique_ptr<CMakeProjectNode>
+CMakeProject::generateProjectTree(const QList<const FileNode *> &allFiles) const
 {
     if (m_buildDirManager.isParsing())
         return nullptr;
 
     auto root = std::make_unique<CMakeProjectNode>(projectDirectory(), static_cast<CMakeProject*>(activeTarget()->project()));
     m_buildDirManager.generateProjectTree(root.get(), allFiles);
-    return root ? root.release() : nullptr;
+    return root;
 }
 
 bool CMakeProject::knowsAllBuildExecutables() const
@@ -367,14 +367,16 @@ bool CMakeProject::knowsAllBuildExecutables() const
     return false;
 }
 
-bool CMakeProject::supportsKit(const Kit *k, QString *errorMessage) const
+QList<Task> CMakeProject::projectIssues(const Kit *k) const
 {
-    if (!CMakeKitInformation::cmakeTool(k)) {
-        if (errorMessage)
-            *errorMessage = tr("No cmake tool set.");
-        return false;
-    }
-    return true;
+    QList<Task> result = Project::projectIssues(k);
+
+    if (!CMakeKitInformation::cmakeTool(k))
+        result.append(createProjectTask(Task::TaskType::Error, tr("No cmake tool set.")));
+    if (ToolChainKitInformation::toolChains(k).isEmpty())
+        result.append(createProjectTask(Task::TaskType::Warning, tr("No compilers set in kit.")));
+
+    return result;
 }
 
 void CMakeProject::runCMake()
@@ -762,7 +764,6 @@ void CMakeProject::updateApplicationAndDeploymentTargets()
         }
         if (ct.targetType == ExecutableType) {
             BuildTargetInfo bti;
-            bti.targetName = ct.title;
             bti.displayName = ct.title;
             bti.targetFilePath = ct.executable;
             bti.projectFilePath = ct.sourceDirectory;

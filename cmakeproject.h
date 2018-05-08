@@ -67,7 +67,7 @@ public:
 
     bool knowsAllBuildExecutables() const final;
 
-    bool supportsKit(const ProjectExplorer::Kit *k, QString *errorMessage = nullptr) const final;
+    QList<ProjectExplorer::Task> projectIssues(const ProjectExplorer::Kit *k) const final;
 
     void runCMake();
     void runCMakeAndScanProjectTree();
@@ -104,7 +104,7 @@ private:
     void updateProjectData(Internal::CMakeBuildConfiguration *bc);
     void updateQmlJSCodeModel();
 
-    Internal::CMakeProjectNode *
+    std::unique_ptr<Internal::CMakeProjectNode>
     generateProjectTree(const QList<const ProjectExplorer::FileNode*> &allFiles) const;
 
     void createGeneratedCodeModelSupport();

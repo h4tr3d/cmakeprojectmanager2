@@ -166,7 +166,6 @@ void TeaLeafReader::resetData()
 
     m_projectName.clear();
     m_buildTargets.clear();
-    qDeleteAll(m_files);
     m_files.clear();
 }
 
@@ -265,7 +264,7 @@ CMakeConfig TeaLeafReader::takeParsedConfiguration()
 
 void TeaLeafReader::generateProjectTree(CMakeProjectNode *root, const QList<const FileNode *> &allFiles)
 {
-    if (m_files.isEmpty())
+    if (m_files.size() == 0)
         return;
 
     root->setDisplayName(m_projectName);
@@ -315,15 +314,14 @@ void TeaLeafReader::generateProjectTree(CMakeProjectNode *root, const QList<cons
     });
 
     // filter duplicates:
-    auto alreadySeen = QSet<FileName>::fromList(Utils::transform(m_files, &FileNode::filePath));
+    auto alreadySeen = Utils::transform<QSet>(m_files, &FileNode::filePath);
     const QList<const FileNode *> unseenMissingHeaders = Utils::filtered(missingHeaders, [&alreadySeen](const FileNode *fn) {
         const int count = alreadySeen.count();
         alreadySeen.insert(fn->filePath());
         return (alreadySeen.count() != count);
     });
 
-    const QList<FileNode *> fileNodes = m_files
-            + Utils::transform(unseenMissingHeaders, [](const FileNode *fn) { return fn->clone(); });
+    root->addNestedNodes(std::move(m_files), m_parameters.sourceDirectory);
 #else
     QList<const FileNode *> added;
     std::set_difference(
@@ -339,8 +337,11 @@ void TeaLeafReader::generateProjectTree(CMakeProjectNode *root, const QList<cons
     });
 #endif
 
-    root->addNestedNodes(fileNodes, m_parameters.sourceDirectory);
-    m_files.clear(); // Some of the FileNodes in files() were deleted!
+    std::vector<std::unique_ptr<FileNode>> fileNodes
+            = transform<std::vector>(unseenMissingHeaders, [](const FileNode *fn) {
+        return std::unique_ptr<FileNode>(fn->clone());
+    });
+    root->addNestedNodes(std::move(fileNodes), m_parameters.sourceDirectory);
 }
 
 static void processCMakeIncludes(const CMakeBuildTarget &cbt, const ToolChain *tc,
@@ -386,7 +387,7 @@ void TeaLeafReader::updateCodeModel(CppTools::RawProjectParts &rpps)
         includePaths += m_parameters.workDirectory.toString();
         CppTools::RawProjectPart rpp;
         rpp.setProjectFileLocation(cbt.sourceDirectory.toString() + "/CMakeLists.txt");
-        rpp.setBuildSystemTarget(cbt.title);
+        rpp.setBuildSystemTarget(cbt.title + QChar('\n') + cbt.sourceDirectory.toString() + QChar('/'));
         rpp.setIncludePaths(includePaths);
 
         CppTools::RawProjectPartFlags cProjectFlags;
@@ -434,7 +435,7 @@ void TeaLeafReader::extractData()
     resetData();
 
     m_projectName = m_parameters.projectName;
-    m_files.append(new FileNode(topCMake, FileType::Project, false));
+    m_files.emplace_back(std::make_unique<FileNode>(topCMake, FileType::Project, false));
     // Do not insert topCMake into m_cmakeFiles: The project already watches that!
 
     // Find cbp file
@@ -457,18 +458,20 @@ void TeaLeafReader::extractData()
 
     m_projectName = cbpparser.projectName();
 
-    m_files = cbpparser.fileList();
+    m_files = cbpparser.takeFileList();
     if (cbpparser.hasCMakeFiles()) {
-        m_files.append(cbpparser.cmakeFileList());
-        foreach (const FileNode *node, cbpparser.cmakeFileList())
+        std::vector<std::unique_ptr<FileNode>> cmakeNodes = cbpparser.takeCmakeFileList();
+        for (const std::unique_ptr<FileNode> &node : cmakeNodes)
             m_cmakeFiles.insert(node->filePath());
+
+        std::move(std::begin(cmakeNodes), std::end(cmakeNodes), std::back_inserter(m_files));
     }
 
     // Make sure the top cmakelists.txt file is always listed:
-    if (!contains(m_files, [topCMake](FileNode *fn) { return fn->filePath() == topCMake; }))
-        m_files.append(new FileNode(topCMake, FileType::Project, false));
-
-    Utils::sort(m_files, &Node::sortByPath);
+    if (!contains(m_files, [topCMake](const std::unique_ptr<FileNode> &fn) {
+                      return fn->filePath() == topCMake;
+                  }))
+        m_files.emplace_back(std::make_unique<FileNode>(topCMake, FileType::Project, false));
 
     m_buildTargets = cbpparser.buildTargets();
 }

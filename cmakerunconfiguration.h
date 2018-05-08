@@ -35,35 +35,20 @@ class CMakeRunConfiguration : public ProjectExplorer::RunConfiguration
     Q_OBJECT
 
 public:
-    explicit CMakeRunConfiguration(ProjectExplorer::Target *target);
-
-    QString buildSystemTarget() const final { return m_buildSystemTarget; }
+    CMakeRunConfiguration(ProjectExplorer::Target *target, Core::Id id);
 
 private:
-    ProjectExplorer::Runnable runnable() const override;
-    QWidget *createConfigurationWidget() override;
-
-    QVariantMap toMap() const override;
     QString disabledReason() const override;
 
-    Utils::OutputFormatter *createOutputFormatter() const final;
-
-    bool fromMap(const QVariantMap &map) override;
     void doAdditionalSetup(const ProjectExplorer::RunConfigurationCreationInfo &) override;
     bool isBuildTargetValid() const;
     void updateTargetInformation();
 
     void updateEnabledState() final;
-    QString extraId() const final;
-
-    QString m_buildSystemTarget;
-    QString m_title;
 };
 
 class CMakeRunConfigurationFactory : public ProjectExplorer::RunConfigurationFactory
 {
-    Q_OBJECT
-
 public:
     CMakeRunConfigurationFactory();
 };

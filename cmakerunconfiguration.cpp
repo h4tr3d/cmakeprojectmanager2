@@ -35,37 +35,13 @@
 #include <projectexplorer/runconfigurationaspects.h>
 #include <projectexplorer/target.h>
 
-#include <utils/qtcassert.h>
-
-#include <QFormLayout>
-
 using namespace ProjectExplorer;
 
 namespace CMakeProjectManager {
 namespace Internal {
 
-const char CMAKE_RC_PREFIX[] = "CMakeProjectManager.CMakeRunConfiguration.";
-const char TITLE_KEY[] = "CMakeProjectManager.CMakeRunConfiguation.Title";
-
-// Configuration widget
-class CMakeRunConfigurationWidget : public QWidget
-{
-public:
-    CMakeRunConfigurationWidget(RunConfiguration *rc)
-    {
-        auto fl = new QFormLayout(this);
-        fl->setMargin(0);
-        fl->setFieldGrowthPolicy(QFormLayout::ExpandingFieldsGrow);
-
-        rc->extraAspect<ExecutableAspect>()->addToMainConfigurationWidget(this, fl);
-        rc->extraAspect<ArgumentsAspect>()->addToMainConfigurationWidget(this, fl);
-        rc->extraAspect<WorkingDirectoryAspect>()->addToMainConfigurationWidget(this, fl);
-        rc->extraAspect<TerminalAspect>()->addToMainConfigurationWidget(this, fl);
-    }
-};
-
-CMakeRunConfiguration::CMakeRunConfiguration(Target *target)
-    : RunConfiguration(target, CMAKE_RC_PREFIX)
+CMakeRunConfiguration::CMakeRunConfiguration(Target *target, Core::Id id)
+    : RunConfiguration(target, id)
 {
     // Workaround for QTCREATORBUG-19354:
     auto cmakeRunEnvironmentModifier = [](RunConfiguration *rc, Utils::Environment &env) {
@@ -85,50 +61,21 @@ CMakeRunConfiguration::CMakeRunConfiguration(Target *target)
 
     connect(target->project(), &Project::parsingFinished,
             this, &CMakeRunConfiguration::updateTargetInformation);
-}
 
-QString CMakeRunConfiguration::extraId() const
-{
-    return m_buildSystemTarget;
-}
-
-Runnable CMakeRunConfiguration::runnable() const
-{
-    StandardRunnable r;
-    r.executable = extraAspect<ExecutableAspect>()->executable().toString();
-    r.commandLineArguments = extraAspect<ArgumentsAspect>()->arguments();
-    r.workingDirectory = extraAspect<WorkingDirectoryAspect>()->workingDirectory().toString();
-    r.environment = extraAspect<LocalEnvironmentAspect>()->environment();
-    r.runMode = extraAspect<TerminalAspect>()->runMode();
-    return r;
-}
-
-QVariantMap CMakeRunConfiguration::toMap() const
-{
-    QVariantMap map(RunConfiguration::toMap());
-    map.insert(QLatin1String(TITLE_KEY), m_title);
-    return map;
-}
-
-bool CMakeRunConfiguration::fromMap(const QVariantMap &map)
-{
-    RunConfiguration::fromMap(map);
-    m_title = map.value(QLatin1String(TITLE_KEY)).toString();
-    m_buildSystemTarget = ProjectExplorer::idFromMap(map).suffixAfter(id());
-    return true;
+    if (QtSupport::QtKitInformation::qtVersion(target->kit()))
+        setOutputFormatter<QtSupport::QtOutputFormatter>();
 }
 
 void CMakeRunConfiguration::doAdditionalSetup(const RunConfigurationCreationInfo &info)
 {
-    m_buildSystemTarget = info.buildKey;
-    m_title = info.displayName;
+    Q_UNUSED(info);
     updateTargetInformation();
 }
 
 bool CMakeRunConfiguration::isBuildTargetValid() const
 {
     return Utils::anyOf(target()->applicationTargets().list, [this](const BuildTargetInfo &bti) {
-        return bti.buildKey == m_buildSystemTarget;
+        return bti.buildKey == buildKey();
     });
 }
 
@@ -140,11 +87,6 @@ void CMakeRunConfiguration::updateEnabledState()
         RunConfiguration::updateEnabledState();
 }
 
-QWidget *CMakeRunConfiguration::createConfigurationWidget()
-{
-    return wrapWidget(new CMakeRunConfigurationWidget(this));
-}
-
 QString CMakeRunConfiguration::disabledReason() const
 {
     if (!isBuildTargetValid())
@@ -152,18 +94,9 @@ QString CMakeRunConfiguration::disabledReason() const
     return RunConfiguration::disabledReason();
 }
 
-Utils::OutputFormatter *CMakeRunConfiguration::createOutputFormatter() const
-{
-    if (QtSupport::QtKitInformation::qtVersion(target()->kit()))
-        return new QtSupport::QtOutputFormatter(target()->project());
-    return RunConfiguration::createOutputFormatter();
-}
-
 void CMakeRunConfiguration::updateTargetInformation()
 {
-    setDefaultDisplayName(m_title);
-
-    BuildTargetInfo bti = target()->applicationTargets().buildTargetInfo(m_buildSystemTarget);
+    BuildTargetInfo bti = target()->applicationTargets().buildTargetInfo(buildKey());
     extraAspect<ExecutableAspect>()->setExecutable(bti.targetFilePath);
     extraAspect<WorkingDirectoryAspect>()->setDefaultWorkingDirectory(bti.workingDirectory);
     extraAspect<LocalEnvironmentAspect>()->buildEnvironmentHasChanged();
@@ -176,7 +109,7 @@ void CMakeRunConfiguration::updateTargetInformation()
 // Factory
 CMakeRunConfigurationFactory::CMakeRunConfigurationFactory()
 {
-    registerRunConfiguration<CMakeRunConfiguration>(CMAKE_RC_PREFIX);
+    registerRunConfiguration<CMakeRunConfiguration>("CMakeProjectManager.CMakeRunConfiguration.");
     addSupportedProjectType(CMakeProjectManager::Constants::CMAKEPROJECT_ID);
     addSupportedTargetDeviceType(ProjectExplorer::Constants::DESKTOP_DEVICE_TYPE);
 }
