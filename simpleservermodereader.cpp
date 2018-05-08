@@ -5,6 +5,8 @@
 #include "utils/algorithm.h"
 #include "projectexplorer/projectnodes.h"
 
+#include <vector>
+
 #include <QDebug>
 
 using namespace ProjectExplorer;
@@ -24,7 +26,8 @@ void SimpleServerModeReader::generateProjectTree(CMakeProjectNode *root, const Q
     root->setDisplayName(m_topLevelNameCache);
 
     // Compose sources list from the CMake data
-    QList<FileNode *> files = m_cmakeInputsFileNodes;
+    auto files = std::move(m_cmakeInputsFileNodes);
+    m_cmakeInputsFileNodes.clear(); // Clean out, they are not going to be used anymore!
     QSet<Utils::FileName> alreadyListed;
     for (auto project : m_projects) {
         for (auto target : project->targets) {
@@ -34,51 +37,46 @@ void SimpleServerModeReader::generateProjectTree(CMakeProjectNode *root, const Q
                     alreadyListed.insert(fn);
                     return count != alreadyListed.count();
                 });
-                const QList<FileNode *> newFileNodes = Utils::transform(newSources, [group](const Utils::FileName &fn) {
-                    return new FileNode(fn, FileType::Source, group->isGenerated);
-                });
-                files.append(newFileNodes);
+                files.reserve(files.size() + newSources.count());
+                for (auto const &fn : newSources) {
+                    files.emplace_back(new FileNode(fn, FileType::Source, group->isGenerated));
+                }
             }
         }
     }
 
     // Update tree look after adding files without CMake parsing. Otherwise all files will be look like non-project one
-    if (files.isEmpty()) {
+    if (files.empty()) {
+        files.reserve(m_filesCache.count());
         for (auto it = m_filesCache.begin(); it != m_filesCache.end();) {
             //qDebug() << "try:" << std::get<0>(*it) << std::get<0>(*it).exists();
             if (!std::get<0>(*it).exists()) {
                 it = m_filesCache.erase(it);
                 continue;
             }
-            files.append(new FileNode(std::get<0>(*it), std::get<1>(*it), std::get<2>(*it)));
+            files.emplace_back(new FileNode(std::get<0>(*it), std::get<1>(*it), std::get<2>(*it)));
             ++it;
         }
     } else {
-        // Keep list sorted and remove dups
-        Utils::sort(files, Node::sortByPath);
-
-        m_filesCache = Utils::transform(files, [](const FileNode *node) {
+        m_filesCache = Utils::transform<QList>(files, [](const std::unique_ptr<FileNode>& node) {
             return std::make_tuple(node->filePath(), node->fileType(), node->isGenerated());
         });
     }
 
-    m_cmakeInputsFileNodes.clear(); // Clean out, they are not going to be used anymore!
+    auto alreadySeen = Utils::transform<QSet>(files, &FileNode::filePath);
+    QList<const FileNode *> added = 
+        Utils::filtered(allFiles, [&alreadySeen](const FileNode *fn) -> bool {
+            const int count = alreadySeen.count();
+            alreadySeen.insert(fn->filePath());
+            return (alreadySeen.count() != count);
+        });
 
-    QList<const FileNode *> added;
-    std::set_difference(
-        allFiles.begin(),
-        allFiles.end(),
-        files.begin(),
-        files.end(),
-        std::back_inserter(added),
-        Node::sortByPath
-    );
-
-    QList<FileNode *> fileNodes = files + Utils::transform(added, [](const FileNode *fn) {
-        return fn->clone();
+    auto addedNodes = Utils::transform<std::vector>(added, [](const FileNode *fn) {
+        return std::unique_ptr<FileNode>(fn->clone());
     });
 
-    root->addNestedNodes(fileNodes, m_parameters.sourceDirectory);
+    root->addNestedNodes(std::move(files), m_parameters.sourceDirectory);
+    root->addNestedNodes(std::move(addedNodes), m_parameters.sourceDirectory);
 }
 
 } // namespace Internal

@@ -322,26 +322,28 @@ void TeaLeafReader::generateProjectTree(CMakeProjectNode *root, const QList<cons
     });
 
     root->addNestedNodes(std::move(m_files), m_parameters.sourceDirectory);
-#else
-    QList<const FileNode *> added;
-    std::set_difference(
-        allFiles.begin(),
-        allFiles.end(),
-        m_files.begin(),
-        m_files.end(),
-        std::back_inserter(added),
-        Node::sortByPath
-    );
-    QList<FileNode *> fileNodes = m_files + Utils::transform(added, [](const FileNode *fn) {
-        return fn->clone();
-    });
-#endif
 
     std::vector<std::unique_ptr<FileNode>> fileNodes
             = transform<std::vector>(unseenMissingHeaders, [](const FileNode *fn) {
         return std::unique_ptr<FileNode>(fn->clone());
     });
     root->addNestedNodes(std::move(fileNodes), m_parameters.sourceDirectory);
+#else
+    auto alreadySeen = Utils::transform<QSet>(m_files, &FileNode::filePath);
+    QList<const FileNode *> added = 
+        Utils::filtered(allFiles, [&alreadySeen](const FileNode *fn) -> bool {
+            const int count = alreadySeen.count();
+            alreadySeen.insert(fn->filePath());
+            return (alreadySeen.count() != count);
+        });
+
+    auto addedNodes = Utils::transform<std::vector>(added, [](const FileNode *fn) {
+        return std::unique_ptr<FileNode>(fn->clone());
+    });
+    
+    root->addNestedNodes(std::move(m_files), m_parameters.sourceDirectory);
+    root->addNestedNodes(std::move(addedNodes), m_parameters.sourceDirectory);
+#endif
 }
 
 static void processCMakeIncludes(const CMakeBuildTarget &cbt, const ToolChain *tc,
