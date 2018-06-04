@@ -42,8 +42,9 @@ namespace Internal {
 
 BuildDirReader *BuildDirReader::createReader(const BuildDirParameters &p)
 {
-    QTC_ASSERT(p.isValid() && p.cmakeTool, return nullptr);
-    if (p.cmakeTool->hasServerMode())
+    CMakeTool *cmake = p.cmakeTool();
+    QTC_ASSERT(p.isValid() && cmake, return nullptr);
+    if (cmake->hasServerMode())
         //return new ServerModeReader;
         return new SimpleServerModeReader;
     return new TeaLeafReader;

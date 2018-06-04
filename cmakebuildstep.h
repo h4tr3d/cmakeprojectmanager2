@@ -55,7 +55,6 @@ public:
     explicit CMakeBuildStep(ProjectExplorer::BuildStepList *bsl);
 
     CMakeBuildConfiguration *cmakeBuildConfiguration() const;
-    CMakeBuildConfiguration *targetsActiveBuildConfiguration() const;
 
     bool init(QList<const BuildStep *> &earlierSteps) override;
     void run(QFutureInterface<bool> &fi) override;
@@ -139,8 +138,6 @@ private:
 
 class CMakeBuildStepFactory : public ProjectExplorer::BuildStepFactory
 {
-    Q_OBJECT
-
 public:
     CMakeBuildStepFactory();
 };

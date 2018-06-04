@@ -83,13 +83,16 @@ Core::Id CMakeKitInformation::id()
     return TOOL_ID;
 }
 
-CMakeTool *CMakeKitInformation::cmakeTool(const Kit *k)
+Core::Id CMakeKitInformation::cmakeToolId(const Kit *k)
 {
     if (!k)
-        return nullptr;
+        return {};
+    return Core::Id::fromSetting(k->value(TOOL_ID));
+}
 
-    const QVariant id = k->value(TOOL_ID);
-    return CMakeToolManager::findById(Core::Id::fromSetting(id));
+CMakeTool *CMakeKitInformation::cmakeTool(const Kit *k)
+{
+    return CMakeToolManager::findById(cmakeToolId(k));
 }
 
 void CMakeKitInformation::setCMakeTool(Kit *k, const Core::Id id)
@@ -491,7 +494,7 @@ CMakeConfig CMakeConfigurationKitInformation::configuration(const Kit *k)
     if (!k)
         return CMakeConfig();
     const QStringList tmp = k->value(CONFIGURATION_ID).toStringList();
-    return Utils::transform(tmp, [](const QString &s) { return CMakeConfigItem::fromString(s); });
+    return Utils::transform(tmp, &CMakeConfigItem::fromString);
 }
 
 void CMakeConfigurationKitInformation::setConfiguration(Kit *k, const CMakeConfig &config)
