@@ -43,9 +43,10 @@ namespace ProjectExplorer { class Kit; }
 
 namespace CMakeProjectManager {
 
-class CMAKE_EXPORT CMakeTool : public QObject
+namespace Internal {  class IntrospectionData;  }
+
+class CMAKE_EXPORT CMakeTool
 {
-    Q_OBJECT
 public:
     enum Detection {
         ManualDetection,
@@ -79,7 +80,7 @@ public:
 
     explicit CMakeTool(Detection d, const Core::Id &id);
     explicit CMakeTool(const QVariantMap &map, bool fromSdk);
-    ~CMakeTool() override = default;
+    ~CMakeTool();
 
     static Core::Id createId();
 
@@ -120,8 +121,11 @@ private:
     QStringList parseVariableOutput(const QString &output);
 
     void fetchGeneratorsFromHelp() const;
+    void parseGeneratorsFromHelp(const QStringList &lines) const;
     void fetchVersionFromVersionOutput() const;
+    void parseVersionFormVersionOutput(const QStringList &lines) const;
     void fetchFromCapabilities() const;
+    void parseFromCapabilities(const QString &input) const;
 
     Core::Id m_id;
     QString m_displayName;
@@ -131,18 +135,7 @@ private:
     bool m_isAutoDetected = false;
     bool m_autoCreateBuildDirectory = false;
 
-    mutable bool m_didAttemptToRun = false;
-    mutable bool m_didRun = false;
-    mutable bool m_hasServerMode = false;
-
-    mutable bool m_queriedServerMode = false;
-    mutable bool m_triedCapabilities = false;
-
-    mutable QList<Generator> m_generators;
-    mutable QMap<QString, QStringList> m_functionArgs;
-    mutable QStringList m_variables;
-    mutable QStringList m_functions;
-    mutable Version m_version;
+    std::unique_ptr<Internal::IntrospectionData> m_introspection;
 
     PathMapper m_pathMapper;
 };

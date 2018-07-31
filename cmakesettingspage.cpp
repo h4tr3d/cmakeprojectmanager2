@@ -108,8 +108,7 @@ public:
         m_executable(executable),
         m_isAutoRun(autoRun),
         m_autoCreateBuildDirectory(autoCreate),
-        m_autodetected(autodetected),
-        m_changed(true)
+        m_autodetected(autodetected)
     {}
 
     CMakeToolTreeItem() = default;
@@ -281,13 +280,11 @@ void CMakeToolItemModel::apply()
     foreach (CMakeToolTreeItem *item, toRegister) {
         CMakeTool::Detection detection = item->m_autodetected ? CMakeTool::AutoDetection
                                                               : CMakeTool::ManualDetection;
-        CMakeTool *cmake = new CMakeTool(detection, item->m_id);
+        auto cmake = std::make_unique<CMakeTool>(detection, item->m_id);
         cmake->setDisplayName(item->m_name);
         cmake->setCMakeExecutable(item->m_executable);
-        if (!CMakeToolManager::registerCMakeTool(cmake)) {
+        if (!CMakeToolManager::registerCMakeTool(std::move(cmake)))
             item->m_changed = true;
-            delete cmake;
-        }
     }
 
     CMakeToolManager::setDefaultCMakeTool(defaultItemId());
