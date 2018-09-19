@@ -469,7 +469,11 @@ bool CMakeProject::addFiles(const QStringList &filePaths)
                        m_allFiles.end(),
                        Node::sortByPath);
 
-    updateProjectData();
+
+    // Real adding occurs after function exit.
+    QTimer::singleShot(200, this, [this](){
+        this->updateProjectData();
+    });
 
     return true;
 }
@@ -553,7 +557,9 @@ bool CMakeProject::renameFile(const QString &filePath, const QString &newFilePat
         m_allFiles.insert(it, toAdd);
     }
 
-    updateProjectData();
+    QTimer::singleShot(200, this, [this](){
+        this->updateProjectData();
+    });
 
     return true;
 }
