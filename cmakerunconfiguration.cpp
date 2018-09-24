@@ -44,20 +44,21 @@ CMakeRunConfiguration::CMakeRunConfiguration(Target *target, Core::Id id)
     : RunConfiguration(target, id)
 {
     // Workaround for QTCREATORBUG-19354:
-    auto cmakeRunEnvironmentModifier = [](RunConfiguration *rc, Utils::Environment &env) {
-        if (!Utils::HostOsInfo::isWindowsHost() || !rc)
+    auto cmakeRunEnvironmentModifier = [target](Utils::Environment &env) {
+        if (!Utils::HostOsInfo::isWindowsHost())
             return;
 
-        const Kit *k = rc->target()->kit();
+        const Kit *k = target->kit();
         const QtSupport::BaseQtVersion *qt = QtSupport::QtKitInformation::qtVersion(k);
         if (qt)
             env.prependOrSetPath(qt->qmakeProperty("QT_INSTALL_BINS"));
     };
-    addExtraAspect(new LocalEnvironmentAspect(this, cmakeRunEnvironmentModifier));
-    addExtraAspect(new ExecutableAspect(this));
-    addExtraAspect(new ArgumentsAspect(this));
-    addExtraAspect(new TerminalAspect(this));
-    addExtraAspect(new WorkingDirectoryAspect(this));
+    auto envAspect = addAspect<LocalEnvironmentAspect>(target, cmakeRunEnvironmentModifier);
+
+    addAspect<ExecutableAspect>();
+    addAspect<ArgumentsAspect>();
+    addAspect<WorkingDirectoryAspect>(envAspect);
+    addAspect<TerminalAspect>();
 
     connect(target->project(), &Project::parsingFinished,
             this, &CMakeRunConfiguration::updateTargetInformation);
