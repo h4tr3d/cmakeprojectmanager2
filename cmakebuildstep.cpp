@@ -410,10 +410,13 @@ QStringList CMakeBuildStep::specialTargets()
 //
 
 CMakeBuildStepConfigWidget::CMakeBuildStepConfigWidget(CMakeBuildStep *buildStep) :
+    BuildStepConfigWidget(buildStep),
     m_buildStep(buildStep),
     m_toolArguments(new QLineEdit),
     m_buildTargetsList(new QListWidget)
 {
+    setDisplayName(tr("Build", "CMakeProjectManager::CMakeBuildStepConfigWidget display name."));
+
     auto fl = new QFormLayout(this);
     fl->setMargin(0);
     fl->setFieldGrowthPolicy(QFormLayout::ExpandingFieldsGrow);
@@ -469,11 +472,6 @@ void CMakeBuildStepConfigWidget::itemChanged(QListWidgetItem *item)
     updateDetails();
 }
 
-QString CMakeBuildStepConfigWidget::displayName() const
-{
-    return tr("Build", "CMakeProjectManager::CMakeBuildStepConfigWidget display name.");
-}
-
 void CMakeBuildStepConfigWidget::buildTargetsChanged()
 {
     {
@@ -527,8 +525,7 @@ void CMakeBuildStepConfigWidget::updateDetails()
 {
     BuildConfiguration *bc = m_buildStep->buildConfiguration();
     if (!bc) {
-        m_summaryText = tr("<b>No build configuration found on this kit.</b>");
-        emit updateSummary();
+        setSummaryText(tr("<b>No build configuration found on this kit.</b>"));
         return;
     }
 
@@ -538,14 +535,8 @@ void CMakeBuildStepConfigWidget::updateDetails()
     param.setWorkingDirectory(bc->buildDirectory().toString());
     param.setCommand(m_buildStep->cmakeCommand());
     param.setArguments(m_buildStep->allArguments(0));
-    m_summaryText = param.summary(displayName());
 
-    emit updateSummary();
-}
-
-QString CMakeBuildStepConfigWidget::summaryText() const
-{
-    return m_summaryText;
+    setSummaryText(param.summary(displayName()));
 }
 
 //

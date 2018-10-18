@@ -120,8 +120,6 @@ class CMakeBuildStepConfigWidget : public ProjectExplorer::BuildStepConfigWidget
     Q_OBJECT
 public:
     CMakeBuildStepConfigWidget(CMakeBuildStep *buildStep);
-    QString displayName() const override;
-    QString summaryText() const override;
 
 private:
     void itemChanged(QListWidgetItem*);
@@ -133,7 +131,6 @@ private:
     CMakeBuildStep *m_buildStep;
     QLineEdit *m_toolArguments;
     QListWidget *m_buildTargetsList;
-    QString m_summaryText;
 };
 
 class CMakeBuildStepFactory : public ProjectExplorer::BuildStepFactory
