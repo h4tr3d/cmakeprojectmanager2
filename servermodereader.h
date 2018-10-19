@@ -188,3 +188,7 @@ protected:
 
 } // namespace Internal
 } // namespace CMakeProjectManager
+
+Q_DECLARE_LOGGING_CATEGORY(cmakeServerModeReader);
+
+

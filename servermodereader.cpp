@@ -67,6 +67,8 @@ const char SOURCES_KEY[] = "sources";
 
 const int MAX_PROGRESS = 1400;
 
+Q_LOGGING_CATEGORY(cmakeServerModeReader, "qtc.cmake.serverModeReader", QtWarningMsg);
+
 // --------------------------------------------------------------------
 // ServerModeReader:
 // --------------------------------------------------------------------
@@ -364,11 +366,31 @@ void ServerModeReader::updateCodeModel(CppTools::RawProjectParts &rpps)
         const QStringList flags = QtcProcess::splitArgs(fg->compileFlags);
         const QStringList includes = transform(fg->includePaths, [](const IncludePath *ip)  { return ip->path.toString(); });
 
+        qCDebug(cmakeServerModeReader) << "File Group for target " << fg->target->name
+                                       << "compile flags:" << fg->compileFlags
+                                       << "includes:" << includes;
+
+        // Extract files, pre-included via '-include' directive as pre-compiled headers
+        // -include option valid for GCC and CLang, /FI option valid for MSVC and Intel
+        // NOTE: to handle macrosses and other declarations from the such files you must turn off
+        //    Tools -> Options -> C++ -> Code Model -> Ignore precompiled headers
+        QStringList pchFiles;
+        for (int idx = 0; idx < flags.length(); ++idx) {
+            auto const& flag = flags.at(idx);
+            if (flag == "-include" || flag == "/FI") {
+                if (++idx < flags.length())
+                    pchFiles << flags.at(idx);
+            } else if (flag.startsWith("/FI")) {
+                pchFiles << flag.mid(3);
+            }
+        }
+
         CppTools::RawProjectPart rpp;
         rpp.setProjectFileLocation(fg->target->sourceDirectory.toString() + "/CMakeLists.txt");
         rpp.setBuildSystemTarget(fg->target->name + QChar('\n') + fg->target->sourceDirectory.toString() + QChar('/'));
         rpp.setDisplayName(fg->target->name + QString::number(counter));
         rpp.setMacros(fg->macros);
+        rpp.setPreCompiledHeaders(pchFiles);
         rpp.setIncludePaths(includes);
 
         CppTools::RawProjectPartFlags cProjectFlags;
