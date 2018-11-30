@@ -140,7 +140,7 @@ void CMakeKitInformation::fix(Kit *k)
 KitInformation::ItemList CMakeKitInformation::toUserOutput(const Kit *k) const
 {
     const CMakeTool *const tool = cmakeTool(k);
-    return ItemList() << qMakePair(tr("CMake"), tool == 0 ? tr("Unconfigured") : tool->displayName());
+    return ItemList() << qMakePair(tr("CMake"), tool ? tool->displayName() : tr("Unconfigured"));
 }
 
 KitConfigWidget *CMakeKitInformation::createConfigWidget(Kit *k) const
@@ -567,7 +567,7 @@ QList<Task> CMakeConfigurationKitInformation::validate(const Kit *k) const
     Utils::FileName tcCPath;
     Utils::FileName tcCxxPath;
     foreach (const CMakeConfigItem &i, config) {
-        // Do not use expand(QByteArray) as we can not be sure the input is latin1
+        // Do not use expand(QByteArray) as we cannot be sure the input is latin1
         const Utils::FileName expandedValue
             = Utils::FileName::fromString(k->macroExpander()->expand(QString::fromUtf8(i.value)));
         if (i.key == CMAKE_QMAKE_KEY)

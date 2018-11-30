@@ -173,7 +173,7 @@ CMakeProject::CMakeProject(const FileName &fileName) : Project(Constants::CMAKEM
 
         if (senderBc && senderBc->isActive()) {
             // The environment on our BC has changed:
-            // * Error out if the reader updates, can not happen since all BCs share a target/kit.
+            // * Error out if the reader updates, cannot happen since all BCs share a target/kit.
             // * run cmake without configuration arguments if the reader stays
             m_buildDirManager.setParametersAndRequestParse(
                         BuildDirParameters(senderBc),
@@ -186,7 +186,7 @@ CMakeProject::CMakeProject(const FileName &fileName) : Project(Constants::CMAKEM
 
         if (senderBc && senderBc->isActive() && senderBc == m_buildDirManager.buildConfiguration()) {
             // The build directory of our BC has changed:
-            // * Error out if the reader updates, can not happen since all BCs share a target/kit.
+            // * Error out if the reader updates, cannot happen since all BCs share a target/kit.
             // * run cmake without configuration arguments if the reader stays
             //   If no configuration exists, then the arguments will get added automatically by
             //   the reader.
@@ -201,7 +201,7 @@ CMakeProject::CMakeProject(const FileName &fileName) : Project(Constants::CMAKEM
 
         if (senderBc && senderBc->isActive() && senderBc == m_buildDirManager.buildConfiguration()) {
             // The CMake configuration has changed on our BC:
-            // * Error out if the reader updates, can not happen since all BCs share a target/kit.
+            // * Error out if the reader updates, cannot happen since all BCs share a target/kit.
             // * run cmake with configuration arguments if the reader stays
             m_buildDirManager.setParametersAndRequestParse(
                         BuildDirParameters(senderBc),
@@ -332,7 +332,7 @@ void CMakeProject::updateQmlJSCodeModel()
     projectInfo.importPaths.clear();
 
     QString cmakeImports;
-    CMakeBuildConfiguration *bc = qobject_cast<CMakeBuildConfiguration *>(activeTarget()->activeBuildConfiguration());
+    auto bc = qobject_cast<const CMakeBuildConfiguration *>(activeTarget()->activeBuildConfiguration());
     if (!bc)
         return;
 
@@ -735,26 +735,23 @@ void CMakeProject::updateApplicationAndDeploymentTargets()
     if (!t)
         return;
 
-    QFile deploymentFile;
-    QTextStream deploymentStream;
-    QString deploymentPrefix;
-
     QDir sourceDir(t->project()->projectDirectory().toString());
     QDir buildDir(t->activeBuildConfiguration()->buildDirectory().toString());
 
-    deploymentFile.setFileName(sourceDir.filePath("QtCreatorDeployment.txt"));
-    // If we don't have a global QtCreatorDeployment.txt check for one created by the active build configuration
-    if (!deploymentFile.exists())
-        deploymentFile.setFileName(buildDir.filePath("QtCreatorDeployment.txt"));
-    if (deploymentFile.open(QFile::ReadOnly | QFile::Text)) {
-        deploymentStream.setDevice(&deploymentFile);
-        deploymentPrefix = deploymentStream.readLine();
-        if (!deploymentPrefix.endsWith('/'))
-            deploymentPrefix.append('/');
-    }
-
     BuildTargetInfoList appTargetList;
     DeploymentData deploymentData;
+
+    QString deploymentPrefix;
+    QString deploymentFilePath = sourceDir.filePath("QtCreatorDeployment.txt");
+    bool hasDeploymentFile = QFileInfo::exists(deploymentFilePath);
+    if (!hasDeploymentFile) {
+        deploymentFilePath = buildDir.filePath("QtCreatorDeployment.txt");
+        hasDeploymentFile = QFileInfo::exists(deploymentFilePath);
+    }
+    if (hasDeploymentFile) {
+        deploymentPrefix = deploymentData.addFilesFromDeploymentFile(deploymentFilePath,
+                                                                     sourceDir.absolutePath());
+    }
 
     foreach (const CMakeBuildTarget &ct, buildTargets()) {
         if (ct.targetType == UtilityType)
@@ -776,19 +773,6 @@ void CMakeProject::updateApplicationAndDeploymentTargets()
             bti.workingDirectory = ct.workingDirectory;
             bti.buildKey = ct.title + QChar('\n') + bti.projectFilePath.toString();
             appTargetList.list.append(bti);
-        }
-    }
-
-    QString absoluteSourcePath = sourceDir.absolutePath();
-    if (!absoluteSourcePath.endsWith('/'))
-        absoluteSourcePath.append('/');
-    if (deploymentStream.device()) {
-        while (!deploymentStream.atEnd()) {
-            QString line = deploymentStream.readLine();
-            if (!line.contains(':'))
-                continue;
-            QStringList file = line.split(':');
-            deploymentData.addFile(absoluteSourcePath + file.at(0), deploymentPrefix + file.at(1));
         }
     }
 

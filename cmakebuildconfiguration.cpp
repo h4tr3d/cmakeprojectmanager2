@@ -62,7 +62,7 @@ const char CONFIGURATION_KEY[] = "CMake.Configuration";
 CMakeBuildConfiguration::CMakeBuildConfiguration(Target *parent, Core::Id id)
     : BuildConfiguration(parent, id)
 {
-    CMakeProject *project = static_cast<CMakeProject *>(target()->project());
+    auto project = static_cast<const CMakeProject *>(target()->project());
     setBuildDirectory(shadowBuildDirectory(project->projectFilePath(),
                                            target()->kit(),
                                            displayName(), BuildConfiguration::Unknown));
@@ -80,7 +80,7 @@ void CMakeBuildConfiguration::initialize(const BuildInfo *info)
     cleanSteps->appendStep(new CMakeBuildStep(cleanSteps));
 
     if (info->buildDirectory.isEmpty()) {
-        CMakeProject *project = static_cast<CMakeProject *>(target()->project());
+        auto project = static_cast<const CMakeProject *>(target()->project());
         setBuildDirectory(CMakeBuildConfiguration::shadowBuildDirectory(project->projectFilePath(),
                                                                         target()->kit(),
                                                                         info->displayName, info->buildType));
@@ -161,15 +161,16 @@ FileName CMakeBuildConfiguration::shadowBuildDirectory(const FileName &projectFi
     ProjectMacroExpander expander(projectFilePath.toString(), projectName, k, bcName, buildType);
     QDir projectDir = QDir(Project::projectDirectory(projectFilePath).toString());
     QString buildPath = expander.expand(ProjectExplorerPlugin::buildDirectoryTemplate());
+    buildPath.replace(" ", "-");
     return FileName::fromUserInput(projectDir.absoluteFilePath(buildPath));
 }
 
 void CMakeBuildConfiguration::buildTarget(const QString &buildTarget)
 {
     const Core::Id buildStep = ProjectExplorer::Constants::BUILDSTEPS_BUILD;
-    CMakeBuildStep *cmBs
-            = qobject_cast<CMakeBuildStep *>(Utils::findOrDefault(stepList(buildStep)->steps(),
-                                                                  [](const ProjectExplorer::BuildStep *bs) {
+    auto cmBs = qobject_cast<CMakeBuildStep *>(Utils::findOrDefault(
+                                                   stepList(buildStep)->steps(),
+                                                   [](const ProjectExplorer::BuildStep *bs) {
         return bs->id() == Constants::CMAKE_BUILD_STEP_ID;
     }));
 
