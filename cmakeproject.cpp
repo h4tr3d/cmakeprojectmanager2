@@ -48,6 +48,7 @@
 #include <projectexplorer/target.h>
 #include <projectexplorer/toolchain.h>
 #include <qtsupport/baseqtversion.h>
+#include <qtsupport/qtcppkitinfo.h>
 #include <qtsupport/qtkitinformation.h>
 #include <qmljs/qmljsmodelmanagerinterface.h>
 
@@ -81,7 +82,7 @@ static CMakeBuildConfiguration *activeBc(const CMakeProject *p)
   \class CMakeProject
 */
 CMakeProject::CMakeProject(const FileName &fileName) : Project(Constants::CMAKEMIMETYPE, fileName),
-    m_cppCodeModelUpdater(new CppTools::CppProjectUpdater(this))
+    m_cppCodeModelUpdater(new CppTools::CppProjectUpdater)
 {
     setId(CMakeProjectManager::Constants::CMAKEPROJECT_ID);
     setProjectLanguages(Core::Context(ProjectExplorer::Constants::CXX_LANGUAGE_ID));
@@ -267,9 +268,6 @@ void CMakeProject::updateProjectData(CMakeBuildConfiguration *bc)
     QTC_ASSERT(bc == aBc, return);
     QTC_ASSERT(m_treeScanner.isFinished() && !m_buildDirManager.isParsing(), return);
 
-    Target *t = bc->target();
-    Kit *k = t->kit();
-
     bc->setBuildTargets(m_buildDirManager.takeBuildTargets());
     bc->setConfigurationFromCMake(m_buildDirManager.takeCMakeConfiguration());
 
@@ -279,35 +277,29 @@ void CMakeProject::updateProjectData(CMakeBuildConfiguration *bc)
         setRootProjectNode(std::move(newRoot));
     }
 
-    updateApplicationAndDeploymentTargets();
+    Target *t = bc->target();
+    t->setApplicationTargets(bc->appTargets());
+    t->setDeploymentData(bc->deploymentData());
+
     t->updateDefaultRunConfigurations();
 
     createGeneratedCodeModelSupport();
 
-    ToolChain *tcC = ToolChainKitInformation::toolChain(k, ProjectExplorer::Constants::C_LANGUAGE_ID);
-    ToolChain *tcCxx = ToolChainKitInformation::toolChain(k, ProjectExplorer::Constants::CXX_LANGUAGE_ID);
-
-    CppTools::ProjectPart::QtVersion activeQtVersion = CppTools::ProjectPart::NoQt;
-    if (QtSupport::BaseQtVersion *qtVersion = QtSupport::QtKitInformation::qtVersion(k)) {
-        if (qtVersion->qtVersion() < QtSupport::QtVersionNumber(5,0,0))
-            activeQtVersion = CppTools::ProjectPart::Qt4;
-        else
-            activeQtVersion = CppTools::ProjectPart::Qt5;
-    }
+    QtSupport::CppKitInfo kitInfo(this);
+    QTC_ASSERT(kitInfo.isValid(), return);
 
     CppTools::RawProjectParts rpps;
     m_buildDirManager.updateCodeModel(rpps);
 
     for (CppTools::RawProjectPart &rpp : rpps) {
-        // TODO: Set the Qt version only if target actually depends on Qt.
-        rpp.setQtVersion(activeQtVersion);
-        if (tcCxx)
-            rpp.setFlagsForCxx({tcCxx, rpp.flagsForCxx.commandLineFlags});
-        if (tcC)
-            rpp.setFlagsForC({tcC, rpp.flagsForC.commandLineFlags});
+        rpp.setQtVersion(kitInfo.projectPartQtVersion); // TODO: Check if project actually uses Qt.
+        if (kitInfo.cxxToolChain)
+            rpp.setFlagsForCxx({kitInfo.cxxToolChain, rpp.flagsForCxx.commandLineFlags});
+        if (kitInfo.cToolChain)
+            rpp.setFlagsForC({kitInfo.cToolChain, rpp.flagsForC.commandLineFlags});
     }
 
-    m_cppCodeModelUpdater->update({this, tcC, tcCxx, k, rpps});
+    m_cppCodeModelUpdater->update({this, kitInfo, rpps});
 
     updateQmlJSCodeModel();
 
@@ -315,7 +307,7 @@ void CMakeProject::updateProjectData(CMakeBuildConfiguration *bc)
 
     emit fileListChanged();
 
-    emit bc->emitBuildTypeChanged();
+    bc->emitBuildTypeChanged();
 }
 
 void CMakeProject::updateQmlJSCodeModel()
@@ -562,13 +554,6 @@ bool CMakeProject::renameFile(const QString &filePath, const QString &newFilePat
     return true;
 }
 
-QList<CMakeBuildTarget> CMakeProject::buildTargets() const
-{
-    CMakeBuildConfiguration *bc = activeBc(this);
-
-    return bc ? bc->buildTargets() : QList<CMakeBuildTarget>();
-}
-
 void CMakeProject::handleReparseRequest(int reparseParameters)
 {
     QTC_ASSERT(!(reparseParameters & BuildDirManager::REPARSE_FAIL), return);
@@ -611,7 +596,8 @@ void CMakeProject::startParsing(int reparseParameters)
 
 QStringList CMakeProject::buildTargetTitles() const
 {
-    return transform(buildTargets(), &CMakeBuildTarget::title);
+    CMakeBuildConfiguration *bc = activeBc(this);
+    return bc ? bc->buildTargetTitles() : QStringList();
 }
 
 Project::RestoreResult CMakeProject::fromMap(const QVariantMap &map, QString *errorMessage)
@@ -727,57 +713,6 @@ QStringList CMakeProject::filesGeneratedFrom(const QString &sourceFile) const
         // TODO: Other types will be added when adapters for their compilers become available.
         return QStringList();
     }
-}
-
-void CMakeProject::updateApplicationAndDeploymentTargets()
-{
-    Target *t = activeTarget();
-    if (!t)
-        return;
-
-    QDir sourceDir(t->project()->projectDirectory().toString());
-    QDir buildDir(t->activeBuildConfiguration()->buildDirectory().toString());
-
-    BuildTargetInfoList appTargetList;
-    DeploymentData deploymentData;
-
-    QString deploymentPrefix;
-    QString deploymentFilePath = sourceDir.filePath("QtCreatorDeployment.txt");
-    bool hasDeploymentFile = QFileInfo::exists(deploymentFilePath);
-    if (!hasDeploymentFile) {
-        deploymentFilePath = buildDir.filePath("QtCreatorDeployment.txt");
-        hasDeploymentFile = QFileInfo::exists(deploymentFilePath);
-    }
-    if (hasDeploymentFile) {
-        deploymentPrefix = deploymentData.addFilesFromDeploymentFile(deploymentFilePath,
-                                                                     sourceDir.absolutePath());
-    }
-
-    foreach (const CMakeBuildTarget &ct, buildTargets()) {
-        if (ct.targetType == UtilityType)
-            continue;
-
-        if (ct.targetType == ExecutableType || ct.targetType == DynamicLibraryType) {
-            if (!ct.executable.isEmpty()) {
-                deploymentData.addFile(ct.executable.toString(),
-                                       deploymentPrefix + buildDir.relativeFilePath(ct.executable.toFileInfo().dir().path()),
-                                       DeployableFile::TypeExecutable);
-            }
-        }
-        if (ct.targetType == ExecutableType) {
-            BuildTargetInfo bti;
-            bti.displayName = ct.title;
-            bti.targetFilePath = ct.executable;
-            bti.projectFilePath = ct.sourceDirectory;
-            bti.projectFilePath.appendString('/');
-            bti.workingDirectory = ct.workingDirectory;
-            bti.buildKey = ct.title + QChar('\n') + bti.projectFilePath.toString();
-            appTargetList.list.append(bti);
-        }
-    }
-
-    t->setApplicationTargets(appTargetList);
-    t->setDeploymentData(deploymentData);
 }
 
 bool CMakeProject::mustUpdateCMakeStateBeforeBuild()
