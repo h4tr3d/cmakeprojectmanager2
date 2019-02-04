@@ -14,7 +14,6 @@ INCLUDEPATH += $$QTCREATOR_SOURCES/src/plugins/texteditor
 HEADERS = builddirmanager.h \
     builddirparameters.h \
     builddirreader.h \
-    cmakebuildinfo.h \
     cmakebuildstep.h \
     cmakebuildtarget.h \
     cmakeconfigitem.h \

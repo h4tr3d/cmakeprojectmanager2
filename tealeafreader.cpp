@@ -361,12 +361,13 @@ static void processCMakeIncludes(const CMakeBuildTarget &cbt, const ToolChain *t
     }
 }
 
-void TeaLeafReader::updateCodeModel(CppTools::RawProjectParts &rpps)
+CppTools::RawProjectParts TeaLeafReader::createRawProjectParts() const
 {
     const ToolChain *tcCxx = ToolChainManager::findToolChain(m_parameters.cxxToolChainId);
     const ToolChain *tcC = ToolChainManager::findToolChain(m_parameters.cToolChainId);
     const FileName sysroot = m_parameters.sysRoot;
 
+    CppTools::RawProjectParts rpps;
     QHash<QString, QStringList> targetDataCacheCxx;
     QHash<QString, QStringList> targetDataCacheC;
     foreach (const CMakeBuildTarget &cbt, m_buildTargets) {
@@ -409,6 +410,8 @@ void TeaLeafReader::updateCodeModel(CppTools::RawProjectParts &rpps)
                                             : CppTools::ProjectPart::Library);
         rpps.append(rpp);
     }
+
+    return rpps;
 }
 
 void TeaLeafReader::cleanUpProcess()
@@ -594,7 +597,7 @@ void TeaLeafReader::processCMakeError()
 
 QStringList TeaLeafReader::getFlagsFor(const CMakeBuildTarget &buildTarget,
                                        QHash<QString, QStringList> &cache,
-                                       Id lang)
+                                       Id lang) const
 {
     // check cache:
     auto it = cache.constFind(buildTarget.title);
@@ -613,7 +616,7 @@ QStringList TeaLeafReader::getFlagsFor(const CMakeBuildTarget &buildTarget,
 
 bool TeaLeafReader::extractFlagsFromMake(const CMakeBuildTarget &buildTarget,
                                          QHash<QString, QStringList> &cache,
-                                         Id lang)
+                                         Id lang) const
 {
     QString flagsPrefix;
 
@@ -668,7 +671,7 @@ bool TeaLeafReader::extractFlagsFromMake(const CMakeBuildTarget &buildTarget,
 
 bool TeaLeafReader::extractFlagsFromNinja(const CMakeBuildTarget &buildTarget,
                                           QHash<QString, QStringList> &cache,
-                                          Id lang)
+                                          Id lang) const
 {
     Q_UNUSED(buildTarget)
     if (!cache.isEmpty()) // We fill the cache in one go!
@@ -686,7 +689,7 @@ bool TeaLeafReader::extractFlagsFromNinja(const CMakeBuildTarget &buildTarget,
     // found
     // Get "all" target's working directory
     QByteArray ninjaFile;
-    QString buildNinjaFile = takeBuildTargets().at(0).workingDirectory.toString();
+    QString buildNinjaFile = m_buildTargets.at(0).workingDirectory.toString();
     buildNinjaFile += "/build.ninja";
     QFile buildNinja(buildNinjaFile);
     if (buildNinja.exists()) {

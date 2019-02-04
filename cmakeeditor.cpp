@@ -41,7 +41,6 @@
 #include <projectexplorer/projectexplorer.h>
 #include <projectexplorer/session.h>
 
-#include <texteditor/highlighterutils.h>
 #include <texteditor/texteditoractionhandler.h>
 #include <texteditor/texteditorconstants.h>
 
@@ -61,7 +60,7 @@ namespace Internal {
 // CMakeEditor
 //
 
-void CMakeEditor::contextHelpId(const HelpIdCallback &callback) const
+void CMakeEditor::contextHelp(const HelpCallback &callback) const
 {
     int pos = position();
 
@@ -72,7 +71,7 @@ void CMakeEditor::contextHelpId(const HelpIdCallback &callback) const
             break;
         chr = characterAt(pos);
         if (chr == QLatin1Char('(')) {
-            callback(QString());
+            callback({});
             return;
         }
     } while (chr.unicode() != QChar::ParagraphSeparator);
@@ -98,12 +97,12 @@ void CMakeEditor::contextHelpId(const HelpIdCallback &callback) const
 
     // Not a command
     if (chr != QLatin1Char('(')) {
-        callback(QString());
+        callback({});
         return;
     }
 
-    QString command = textAt(begin, end - begin).toLower();
-    callback(QLatin1String("command/") + command);
+    const QString id = "command/" + textAt(begin, end - begin).toLower();
+    callback(id);
 }
 
 //
@@ -229,7 +228,7 @@ CMakeEditorFactory::CMakeEditorFactory()
     setEditorCreator([]() { return new CMakeEditor; });
     setEditorWidgetCreator([]() { return new CMakeEditorWidget; });
     setDocumentCreator(createCMakeDocument);
-    setIndenterCreator([]() { return new CMakeIndenter; });
+    setIndenterCreator([](QTextDocument *doc) { return new CMakeIndenter(doc); });
     setUseGenericHighlighter(true);
     setCommentDefinition(Utils::CommentDefinition::HashStyle);
     setCodeFoldingSupported(true);

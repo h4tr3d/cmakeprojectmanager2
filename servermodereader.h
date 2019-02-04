@@ -60,7 +60,7 @@ public:
     CMakeConfig takeParsedConfiguration() final;
     void generateProjectTree(CMakeProjectNode *root,
                              const QList<const ProjectExplorer::FileNode *> &allFiles) override;
-    void updateCodeModel(CppTools::RawProjectParts &rpps) final;
+    CppTools::RawProjectParts createRawProjectParts() const final;
 
 protected:
     void handleReply(const QVariantMap &data, const QString &inReplyTo);

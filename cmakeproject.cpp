@@ -283,13 +283,14 @@ void CMakeProject::updateProjectData(CMakeBuildConfiguration *bc)
 
     t->updateDefaultRunConfigurations();
 
-    createGeneratedCodeModelSupport();
+    qDeleteAll(m_extraCompilers);
+    m_extraCompilers = findExtraCompilers();
+    CppTools::GeneratedCodeModelSupport::update(m_extraCompilers);
 
     QtSupport::CppKitInfo kitInfo(this);
     QTC_ASSERT(kitInfo.isValid(), return);
 
-    CppTools::RawProjectParts rpps;
-    m_buildDirManager.updateCodeModel(rpps);
+    CppTools::RawProjectParts rpps = m_buildDirManager.createRawProjectParts();
 
     for (CppTools::RawProjectPart &rpp : rpps) {
         rpp.setQtVersion(kitInfo.projectPartQtVersion); // TODO: Check if project actually uses Qt.
@@ -720,10 +721,9 @@ bool CMakeProject::mustUpdateCMakeStateBeforeBuild()
     return m_delayedParsingTimer.isActive();
 }
 
-void CMakeProject::createGeneratedCodeModelSupport()
+QList<ProjectExplorer::ExtraCompiler *> CMakeProject::findExtraCompilers() const
 {
-    qDeleteAll(m_extraCompilers);
-    m_extraCompilers.clear();
+    QList<ProjectExplorer::ExtraCompiler *> extraCompilers;
     const QList<ExtraCompilerFactory *> factories =
             ExtraCompilerFactory::extraCompilerFactories();
 
@@ -753,10 +753,10 @@ void CMakeProject::createGeneratedCodeModelSupport()
         const FileNameList fileNames
                 = transform(generated,
                             [](const QString &s) { return FileName::fromString(s); });
-        m_extraCompilers.append(factory->create(this, file, fileNames));
+        extraCompilers.append(factory->create(this, file, fileNames));
     }
 
-    CppTools::GeneratedCodeModelSupport::update(m_extraCompilers);
+    return extraCompilers;
 }
 
 } // namespace CMakeProjectManager
