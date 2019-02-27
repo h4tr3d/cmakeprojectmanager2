@@ -39,7 +39,9 @@ void SimpleServerModeReader::generateProjectTree(CMakeProjectNode *root, const Q
                 });
                 files.reserve(files.size() + newSources.count());
                 for (auto const &fn : newSources) {
-                    files.emplace_back(new FileNode(fn, FileType::Source, group->isGenerated));
+                    auto node = new FileNode(fn, FileType::Source);
+                    node->setIsGenerated(group->isGenerated);
+                    files.emplace_back(node);
                 }
             }
         }
@@ -54,7 +56,9 @@ void SimpleServerModeReader::generateProjectTree(CMakeProjectNode *root, const Q
                 it = m_filesCache.erase(it);
                 continue;
             }
-            files.emplace_back(new FileNode(std::get<0>(*it), std::get<1>(*it), std::get<2>(*it)));
+            auto node = new FileNode(std::get<0>(*it), std::get<1>(*it));
+            node->setIsGenerated(std::get<2>(*it));
+            files.emplace_back(node);
             ++it;
         }
     } else {

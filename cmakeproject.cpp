@@ -442,8 +442,9 @@ bool CMakeProject::addFiles(const QStringList &filePaths)
         auto fn = FileName::fromString(filePath);
         auto type = TreeScanner::genericFileType(mimeType, fn);
 
-        auto node = new FileNode(fn, type, false);
+        auto node = new FileNode(fn, type);
         node->setEnabled(false);
+        node->setIsGenerated(false);
         nodes << node;
     }
 
@@ -476,9 +477,11 @@ bool CMakeProject::eraseFiles(const QStringList &filePaths)
         const auto mimeType = Utils::mimeTypeForFile(filePath);
         auto fn = FileName::fromString(filePath);
         auto type = TreeScanner::genericFileType(mimeType, fn);
+        auto toRemove = new FileNode(fn, type);
+        toRemove->setIsGenerated(false);
 
         // To update list
-        removed << new FileNode(fn, type, false);
+        removed << toRemove;
     }
 
     // Update tree without full rescan run
@@ -521,7 +524,8 @@ bool CMakeProject::renameFile(const QString &filePath, const QString &newFilePat
     auto newfn = FileName::fromString(newFilePath);
     const auto mimeType = Utils::mimeTypeForFile(filePath);
     auto type = TreeScanner::genericFileType(mimeType, fn);
-    auto node = new FileNode(fn, type, false);
+    auto node = new FileNode(fn, type);
+    node->setIsGenerated(false);
 
     // Update tree without full rescan run
     {
@@ -537,7 +541,8 @@ bool CMakeProject::renameFile(const QString &filePath, const QString &newFilePat
         m_allFiles.removeAt(static_cast<int>(std::distance(m_allFiles.begin(), it)));
 
         // We add only one new file. Use std::lower_bound to insert item to right place
-        auto toAdd = new FileNode(newfn, node->fileType(), false); // do not copy parent and other
+        auto toAdd = new FileNode(newfn, node->fileType()); // do not copy parent and other
+        toAdd->setIsGenerated(false);
         toAdd->setEnabled(false);
 
         it = std::lower_bound(m_allFiles.begin(),
