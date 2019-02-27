@@ -35,7 +35,6 @@ HEADERS = builddirmanager.h \
     cmaketoolmanager.h \
     cmake_global.h \
     cmakekitinformation.h \
-    cmakekitconfigwidget.h \
     cmakecbpparser.h \
     cmakebuildsettingswidget.h \
     cmakeindenter.h \
@@ -73,7 +72,6 @@ SOURCES = builddirmanager.cpp \
     cmakesettingspage.cpp \
     cmaketoolmanager.cpp \
     cmakekitinformation.cpp \
-    cmakekitconfigwidget.cpp \
     cmakecbpparser.cpp \
     cmakebuildsettingswidget.cpp \
     cmakeindenter.cpp \

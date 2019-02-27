@@ -42,8 +42,6 @@ QtcPlugin {
         "cmakeeditor.h",
         "cmakefilecompletionassist.cpp",
         "cmakefilecompletionassist.h",
-        "cmakekitconfigwidget.h",
-        "cmakekitconfigwidget.cpp",
         "cmakekitinformation.h",
         "cmakekitinformation.cpp",
         "cmakelocatorfilter.cpp",

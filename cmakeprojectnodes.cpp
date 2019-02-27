@@ -110,17 +110,12 @@ void noAutoAdditionNotify(const QStringList &filePaths, const ProjectExplorer::P
 }
 
 CMakeInputsNode::CMakeInputsNode(const Utils::FileName &cmakeLists) :
-    ProjectExplorer::ProjectNode(cmakeLists, generateId(cmakeLists))
+    ProjectExplorer::ProjectNode(cmakeLists)
 {
     setPriority(Node::DefaultPriority - 10); // Bottom most!
     setDisplayName(QCoreApplication::translate("CMakeFilesProjectNode", "CMake Modules"));
     setIcon(QIcon(":/projectexplorer/images/session.png")); // TODO: Use a better icon!
     setListInProject(false);
-}
-
-QByteArray CMakeInputsNode::generateId(const Utils::FileName &inputFile)
-{
-    return inputFile.toString().toUtf8() + "/cmakeInputs";
 }
 
 bool CMakeInputsNode::showInSimpleTree() const
@@ -210,16 +205,16 @@ bool CMakeProjectNode::renameFile(const QString &filePath, const QString &newFil
 }
 
 CMakeTargetNode::CMakeTargetNode(const Utils::FileName &directory, const QString &target) :
-    ProjectExplorer::ProjectNode(directory, generateId(directory, target))
+    ProjectExplorer::ProjectNode(directory), m_target(target)
 {
     setPriority(Node::DefaultProjectPriority + 900);
     setIcon(QIcon(":/projectexplorer/images/build.png")); // TODO: Use proper icon!
     setListInProject(false);
 }
 
-QByteArray CMakeTargetNode::generateId(const Utils::FileName &directory, const QString &target)
+QString CMakeTargetNode::generateId(const Utils::FileName &directory, const QString &target)
 {
-    return directory.toString().toUtf8() + "///::///" + target.toUtf8();
+    return directory.toString() + "///::///" + target;
 }
 
 bool CMakeTargetNode::showInSimpleTree() const
@@ -234,7 +229,7 @@ QString CMakeTargetNode::tooltip() const
 
 QString CMakeTargetNode::buildKey() const
 {
-    return QString::fromUtf8(id());
+    return generateId(filePath(), m_target);
 }
 
 bool CMakeTargetNode::supportsAction(ProjectExplorer::ProjectAction action,

@@ -49,7 +49,7 @@ CMakeRunConfiguration::CMakeRunConfiguration(Target *target, Core::Id id)
             return;
 
         const Kit *k = target->kit();
-        const QtSupport::BaseQtVersion *qt = QtSupport::QtKitInformation::qtVersion(k);
+        const QtSupport::BaseQtVersion *qt = QtSupport::QtKitAspect::qtVersion(k);
         if (qt)
             env.prependOrSetPath(qt->qmakeProperty("QT_INSTALL_BINS"));
     };
@@ -63,7 +63,7 @@ CMakeRunConfiguration::CMakeRunConfiguration(Target *target, Core::Id id)
     connect(target->project(), &Project::parsingFinished,
             this, &CMakeRunConfiguration::updateTargetInformation);
 
-    if (QtSupport::QtKitInformation::qtVersion(target->kit()))
+    if (QtSupport::QtKitAspect::qtVersion(target->kit()))
         setOutputFormatter<QtSupport::QtOutputFormatter>();
 }
 
@@ -73,31 +73,9 @@ void CMakeRunConfiguration::doAdditionalSetup(const RunConfigurationCreationInfo
     updateTargetInformation();
 }
 
-bool CMakeRunConfiguration::isBuildTargetValid() const
-{
-    return Utils::anyOf(target()->applicationTargets().list, [this](const BuildTargetInfo &bti) {
-        return bti.buildKey == buildKey();
-    });
-}
-
-void CMakeRunConfiguration::updateEnabledState()
-{
-    if (!isBuildTargetValid())
-        setEnabled(false);
-    else
-        RunConfiguration::updateEnabledState();
-}
-
-QString CMakeRunConfiguration::disabledReason() const
-{
-    if (!isBuildTargetValid())
-        return tr("The project no longer builds the target associated with this run configuration.");
-    return RunConfiguration::disabledReason();
-}
-
 void CMakeRunConfiguration::updateTargetInformation()
 {
-    BuildTargetInfo bti = target()->applicationTargets().buildTargetInfo(buildKey());
+    BuildTargetInfo bti = buildTargetInfo();
     aspect<ExecutableAspect>()->setExecutable(bti.targetFilePath);
     aspect<WorkingDirectoryAspect>()->setDefaultWorkingDirectory(bti.workingDirectory);
     aspect<LocalEnvironmentAspect>()->buildEnvironmentHasChanged();

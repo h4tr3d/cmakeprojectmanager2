@@ -271,7 +271,8 @@ static void addCMakeVFolder(FolderNode *base, const Utils::FileName &basePath, i
         return;
     FolderNode *folder = base;
     if (!displayName.isEmpty()) {
-        auto newFolder = std::make_unique<VirtualFolderNode>(basePath, priority);
+        auto newFolder = std::make_unique<VirtualFolderNode>(basePath);
+        newFolder->setPriority(priority);
         newFolder->setDisplayName(displayName);
         folder = newFolder.get();
         base->addNode(std::move(newFolder));
@@ -713,18 +714,28 @@ void ServerModeReader::extractCMakeInputsData(const QVariantMap &data)
         const QVariantMap &section = bf.toMap();
         const QStringList sources = section.value(SOURCES_KEY).toStringList();
 
-        const bool isTemporary = section.value("isTemporary").toBool();
-        const bool isCMake = section.value("isCMake").toBool();
+        const bool isTemporary = section.value("isTemporary").toBool(); // generated file
+        const bool isCMake = section.value("isCMake").toBool(); // part of the cmake installation
 
         for (const QString &s : sources) {
             const FileName sfn = FileName::fromString(QDir::cleanPath(srcDir.absoluteFilePath(s)));
             const int oldCount = m_cmakeFiles.count();
             m_cmakeFiles.insert(sfn);
-            if (oldCount < m_cmakeFiles.count() && (!isCMake || sfn.toString().endsWith("/CMakeLists.txt"))) {
-                // Always include CMakeLists.txt files, even when cmake things these are part of its
-                // stuff. This unbreaks cmake binaries running from their own build directory.
-                m_cmakeInputsFileNodes.emplace_back(
-                            std::make_unique<FileNode>(sfn, FileType::Project, isTemporary));
+            if (oldCount < m_cmakeFiles.count()) {
+                const bool isCMakeListsFile = sfn.toString().endsWith("/CMakeLists.txt");
+
+                if (isCMake && !isCMakeListsFile)
+                    // Skip files that cmake considers to be part of the installation -- but include
+                    // CMakeLists.txt files. This unbreaks cmake binaries running from their own
+                    // build directory.
+                    continue;
+
+                auto node = std::make_unique<FileNode>(sfn, FileType::Project);
+                node->setIsGenerated(isTemporary && !isCMakeListsFile);  // CMakeLists.txt are never
+                                                                         // generated, independent
+                                                                         // what cmake thinks:-)
+
+                m_cmakeInputsFileNodes.emplace_back(std::move(node));
             }
         }
     }
@@ -852,10 +863,10 @@ static CMakeTargetNode *createTargetNode(const QHash<Utils::FileName, ProjectNod
     ProjectNode *cmln = cmakeListsNodes.value(dir);
     QTC_ASSERT(cmln, return nullptr);
 
-    QByteArray targetId = CMakeTargetNode::generateId(dir, displayName);
+    QString targetId = CMakeTargetNode::generateId(dir, displayName);
 
     CMakeTargetNode *tn = static_cast<CMakeTargetNode *>(cmln->findNode([&targetId](const Node *n) {
-        return n->id() == targetId;
+        return n->buildKey() == targetId;
     }));
     if (!tn) {
         auto newNode = std::make_unique<CMakeTargetNode>(dir, displayName);
@@ -930,8 +941,8 @@ void ServerModeReader::addFileGroups(ProjectNode *targetRoot,
         std::vector<std::unique_ptr<FileNode>> newFileNodes
                 = Utils::transform<std::vector>(newSources,
                                                 [f, &knownHeaderNodes](const Utils::FileName &fn) {
-            auto node
-                    = std::make_unique<FileNode>(fn, Node::fileTypeForFileName(fn), f->isGenerated);
+            auto node = std::make_unique<FileNode>(fn, Node::fileTypeForFileName(fn));
+            node->setIsGenerated(f->isGenerated);
             if (node->fileType() == FileType::Header)
                 knownHeaderNodes.append(node.get());
             return node;
@@ -966,8 +977,8 @@ void ServerModeReader::addHeaderNodes(ProjectNode *root, const QList<FileNode *>
 
     static QIcon headerNodeIcon
             = Core::FileIconProvider::directoryIcon(ProjectExplorer::Constants::FILEOVERLAY_H);
-    auto headerNode
-            = std::make_unique<VirtualFolderNode>(root->filePath(), Node::DefaultPriority - 5);
+    auto headerNode = std::make_unique<VirtualFolderNode>(root->filePath());
+    headerNode->setPriority(Node::DefaultPriority - 5);
     headerNode->setDisplayName(tr("<Headers>"));
     headerNode->setIcon(headerNodeIcon);
 

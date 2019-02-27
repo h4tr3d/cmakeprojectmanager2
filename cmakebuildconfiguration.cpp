@@ -344,7 +344,7 @@ void CMakeBuildConfiguration::setConfigurationForCMake(const CMakeConfig &config
     m_configurationForCMake = removeDuplicates(config);
 
     const Kit *k = target()->kit();
-    CMakeConfig kitConfig = CMakeConfigurationKitInformation::configuration(k);
+    CMakeConfig kitConfig = CMakeConfigurationKitAspect::configuration(k);
     bool hasKitOverride = false;
     foreach (const CMakeConfigItem &i, m_configurationForCMake) {
         const QString b = CMakeConfigItem::expandedValueOf(k, i.key, kitConfig);
@@ -364,7 +364,7 @@ void CMakeBuildConfiguration::setConfigurationForCMake(const CMakeConfig &config
 
 CMakeConfig CMakeBuildConfiguration::configurationForCMake() const
 {
-    return removeDuplicates(CMakeConfigurationKitInformation::configuration(target()->kit()) + m_configurationForCMake);
+    return removeDuplicates(CMakeConfigurationKitAspect::configuration(target()->kit()) + m_configurationForCMake);
 }
 
 void CMakeBuildConfiguration::setError(const QString &message)
@@ -455,16 +455,11 @@ QList<BuildInfo> CMakeBuildConfigurationFactory::availableSetups(const Kit *k, c
 {
     QList<BuildInfo> result;
     const FileName projectPathName = FileName::fromString(projectPath);
-    for (int type = BuildTypeNone; type != BuildTypeLast; ++type) {
+    for (int type = BuildTypeDebug; type != BuildTypeLast; ++type) {
         BuildInfo info = createBuildInfo(k,
                                          ProjectExplorer::Project::projectDirectory(projectPathName).toString(),
                                          BuildType(type));
-        if (type == BuildTypeNone) {
-            //: The name of the build configuration created by default for a cmake project.
-            info.displayName = tr("Default");
-        } else {
-            info.displayName = info.typeName;
-        }
+        info.displayName = info.typeName;
         info.buildDirectory
                 = CMakeBuildConfiguration::shadowBuildDirectory(projectPathName, k,
                                                                 info.displayName, info.buildType);
@@ -516,10 +511,10 @@ BuildInfo CMakeBuildConfigurationFactory::createBuildInfo(const Kit *k,
     if (!buildTypeItem.isNull())
         extra.configuration.append(buildTypeItem);
 
-    const QString sysRoot = SysRootKitInformation::sysRoot(k).toString();
+    const QString sysRoot = SysRootKitAspect::sysRoot(k).toString();
     if (!sysRoot.isEmpty()) {
         extra.configuration.append(CMakeConfigItem("CMAKE_SYSROOT", sysRoot.toUtf8()));
-        ProjectExplorer::ToolChain *tc = ProjectExplorer::ToolChainKitInformation::toolChain(
+        ProjectExplorer::ToolChain *tc = ProjectExplorer::ToolChainKitAspect::toolChain(
             k, ProjectExplorer::Constants::CXX_LANGUAGE_ID);
         if (tc) {
             const QByteArray targetTriple = tc->originalTargetTriple().toUtf8();
