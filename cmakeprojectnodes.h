@@ -25,6 +25,8 @@
 
 #pragma once
 
+#include "cmakeconfigitem.h"
+
 #include <projectexplorer/projectnodes.h>
 
 namespace CMakeProjectManager {
@@ -36,8 +38,6 @@ class CMakeInputsNode : public ProjectExplorer::ProjectNode
 {
 public:
     CMakeInputsNode(const Utils::FileName &cmakeLists);
-
-    bool showInSimpleTree() const final;
 };
 
 class CMakeListsNode : public ProjectExplorer::ProjectNode
@@ -55,7 +55,6 @@ class CMakeProjectNode : public ProjectExplorer::ProjectNode
 public:
     CMakeProjectNode(const Utils::FileName &directory, CMakeProject *project = nullptr);
 
-    bool showInSimpleTree() const final;
     QString tooltip() const final;
 
     CMakeProject* project() { return m_project; }
@@ -78,7 +77,6 @@ public:
 
     void setTargetInformation(const QList<Utils::FileName> &artifacts, const QString &type);
 
-    bool showInSimpleTree() const final;
     QString tooltip() const final;
     QString buildKey() const final;
 
@@ -86,9 +84,12 @@ public:
     bool addFiles(const QStringList &filePaths, QStringList *notAdded) override;
     Utils::optional<Utils::FileName> visibleAfterAddFileAction() const override;
 
+    QVariant data(Core::Id role) const override;
+    void setConfig(const CMakeConfig &config);
+
 private:
     QString m_tooltip;
-    QString m_target;
+    CMakeConfig m_config;
 };
 
 } // namespace Internal
