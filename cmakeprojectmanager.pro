@@ -46,7 +46,6 @@ HEADERS = builddirmanager.h \
     servermode.h \
     servermodereader.h \
     tealeafreader.h \
-    treescanner.h \
     compat.h \
     simpleservermodereader.h
 
@@ -83,7 +82,6 @@ SOURCES = builddirmanager.cpp \
     servermode.cpp \
     servermodereader.cpp \
     tealeafreader.cpp \
-    treescanner.cpp \
     compat.cpp \
     simpleservermodereader.cpp
 
