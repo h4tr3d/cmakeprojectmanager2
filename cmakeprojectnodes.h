@@ -37,23 +37,23 @@ namespace Internal {
 class CMakeInputsNode : public ProjectExplorer::ProjectNode
 {
 public:
-    CMakeInputsNode(const Utils::FileName &cmakeLists);
+    CMakeInputsNode(const Utils::FilePath &cmakeLists);
 };
 
 class CMakeListsNode : public ProjectExplorer::ProjectNode
 {
 public:
-    explicit CMakeListsNode(const Utils::FileName &cmakeListPath);
+    explicit CMakeListsNode(const Utils::FilePath &cmakeListPath);
 
     bool showInSimpleTree() const final;
     bool supportsAction(ProjectExplorer::ProjectAction action, const Node *node) const override;
-    Utils::optional<Utils::FileName> visibleAfterAddFileAction() const override;
+    Utils::optional<Utils::FilePath> visibleAfterAddFileAction() const override;
 };
 
 class CMakeProjectNode : public ProjectExplorer::ProjectNode
 {
 public:
-    CMakeProjectNode(const Utils::FileName &directory, CMakeProject *project = nullptr);
+    explicit CMakeProjectNode(const Utils::FilePath &directory, CMakeProject *project = nullptr);
 
     QString tooltip() const final;
 
@@ -71,24 +71,29 @@ private:
 class CMakeTargetNode : public ProjectExplorer::ProjectNode
 {
 public:
-    CMakeTargetNode(const Utils::FileName &directory, const QString &target);
+    CMakeTargetNode(const Utils::FilePath &directory, const QString &target);
 
-    static QString generateId(const Utils::FileName &directory, const QString &target);
+    static QString generateId(const Utils::FilePath &directory, const QString &target);
 
-    void setTargetInformation(const QList<Utils::FileName> &artifacts, const QString &type);
+    void setTargetInformation(const QList<Utils::FilePath> &artifacts, const QString &type);
 
     QString tooltip() const final;
     QString buildKey() const final;
+    Utils::FilePath buildDirectory() const;
+    void setBuildDirectory(const Utils::FilePath &directory);
 
     bool supportsAction(ProjectExplorer::ProjectAction action, const Node *node) const override;
     bool addFiles(const QStringList &filePaths, QStringList *notAdded) override;
-    Utils::optional<Utils::FileName> visibleAfterAddFileAction() const override;
+    Utils::optional<Utils::FilePath> visibleAfterAddFileAction() const override;
+
+    void build() override;
 
     QVariant data(Core::Id role) const override;
     void setConfig(const CMakeConfig &config);
 
 private:
     QString m_tooltip;
+    Utils::FilePath m_buildDirectory;
     CMakeConfig m_config;
 };
 

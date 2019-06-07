@@ -53,7 +53,6 @@ SOURCES = builddirmanager.cpp \
     builddirparameters.cpp \
     builddirreader.cpp \
     cmakebuildstep.cpp \
-    cmakebuildtarget.cpp \
     cmakeconfigitem.cpp \
     cmakeproject.cpp \
     cmakeprojectimporter.cpp \

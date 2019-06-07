@@ -64,11 +64,11 @@ public:
 
     QStringList buildTargetTitles() const;
     const QList<CMakeBuildTarget> &buildTargets() const;
-    ProjectExplorer::BuildTargetInfoList appTargets() const;
+    const QList<ProjectExplorer::BuildTargetInfo> appTargets() const;
     ProjectExplorer::DeploymentData deploymentData() const;
 
-    static Utils::FileName
-    shadowBuildDirectory(const Utils::FileName &projectFilePath, const ProjectExplorer::Kit *k,
+    static Utils::FilePath
+    shadowBuildDirectory(const Utils::FilePath &projectFilePath, const ProjectExplorer::Kit *k,
                          const QString &bcName, BuildConfiguration::BuildType buildType);
 
     // Context menu action:

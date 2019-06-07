@@ -60,14 +60,14 @@ class CMAKE_EXPORT CMakeProject : public ProjectExplorer::Project
     Q_OBJECT
 
 public:
-    explicit CMakeProject(const Utils::FileName &filename);
+    explicit CMakeProject(const Utils::FilePath &filename);
     ~CMakeProject() final;
 
     QStringList buildTargetTitles() const;
 
     bool knowsAllBuildExecutables() const final;
 
-    QList<ProjectExplorer::Task> projectIssues(const ProjectExplorer::Kit *k) const final;
+    ProjectExplorer::Tasks projectIssues(const ProjectExplorer::Kit *k) const final;
 
     void runCMake();
     void runCMakeAndScanProjectTree();

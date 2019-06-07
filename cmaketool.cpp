@@ -102,7 +102,7 @@ CMakeTool::CMakeTool(const QVariantMap &map, bool fromSdk) :
     if (!fromSdk)
         m_isAutoDetected = map.value(CMAKE_INFORMATION_AUTODETECTED, false).toBool();
 
-    setCMakeExecutable(Utils::FileName::fromString(map.value(CMAKE_INFORMATION_COMMAND).toString()));
+    setCMakeExecutable(Utils::FilePath::fromString(map.value(CMAKE_INFORMATION_COMMAND).toString()));
 }
 
 CMakeTool::~CMakeTool() = default;
@@ -112,7 +112,7 @@ Core::Id CMakeTool::createId()
     return Core::Id::fromString(QUuid::createUuid().toString());
 }
 
-void CMakeTool::setCMakeExecutable(const Utils::FileName &executable)
+void CMakeTool::setCMakeExecutable(const Utils::FilePath &executable)
 {
     if (m_executable == executable)
         return;
@@ -187,11 +187,10 @@ QVariantMap CMakeTool::toMap() const
     return data;
 }
 
-Utils::FileName CMakeTool::cmakeExecutable() const
+Utils::FilePath CMakeTool::cmakeExecutable() const
 {
     if (Utils::HostOsInfo::isMacHost() && m_executable.endsWith(".app")) {
-        Utils::FileName toTest = m_executable;
-        toTest = toTest.appendPath("Contents/bin/cmake");
+        const Utils::FilePath toTest = m_executable.pathAppended("Contents/bin/cmake");
         if (toTest.exists())
             return toTest;
     }
@@ -249,6 +248,13 @@ bool CMakeTool::hasServerMode() const
     return m_introspection->m_hasServerMode;
 }
 
+bool CMakeTool::hasFileApi() const
+{
+    readInformation(QueryType::VERSION);
+    return m_introspection->m_version.major > 3
+            || (m_introspection->m_version.major == 3 && m_introspection->m_version.minor >= 14);
+}
+
 CMakeTool::Version CMakeTool::version() const
 {
     readInformation(QueryType::VERSION);
@@ -280,7 +286,7 @@ CMakeTool::PathMapper CMakeTool::pathMapper() const
 {
     if (m_pathMapper)
         return m_pathMapper;
-    return [](const Utils::FileName &fn) { return fn; };
+    return [](const Utils::FilePath &fn) { return fn; };
 }
 
 void CMakeTool::readInformation(CMakeTool::QueryType type) const

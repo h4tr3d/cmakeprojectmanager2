@@ -27,13 +27,14 @@
 
 #include <projectexplorer/project.h>
 
+namespace Utils { class ParameterAction; }
+
 QT_BEGIN_NAMESPACE
 class QAction;
 QT_END_NAMESPACE
 
 namespace CMakeProjectManager {
 namespace Internal {
-
 
 class CMakeManager : public QObject
 {
@@ -47,11 +48,17 @@ private:
     void clearCMakeCache(ProjectExplorer::Project *project);
     void runCMake(ProjectExplorer::Project *project);
     void rescanProject(ProjectExplorer::Project *project);
+    void buildFileContextMenu();
+    void buildFile(ProjectExplorer::Node *node = nullptr);
+    void updateBuildFileAction();
+    void enableBuildFileMenus(ProjectExplorer::Node *node);
 
     QAction *m_runCMakeAction;
     QAction *m_clearCMakeCacheAction;
     QAction *m_runCMakeActionContextMenu;
     QAction *m_rescanProjectAction;
+    QAction *m_buildFileContextMenu;
+    Utils::ParameterAction *m_buildFileAction;
 };
 
 } // namespace Internal

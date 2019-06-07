@@ -50,6 +50,7 @@
 #include <QSet>
 
 using namespace ProjectExplorer;
+using namespace Utils;
 
 namespace CMakeProjectManager {
 namespace Internal {
@@ -61,9 +62,9 @@ namespace Internal {
 BuildDirManager::BuildDirManager() = default;
 BuildDirManager::~BuildDirManager() = default;
 
-Utils::FileName BuildDirManager::workDirectory(const BuildDirParameters &parameters) const
+Utils::FilePath BuildDirManager::workDirectory(const BuildDirParameters &parameters) const
 {
-    const Utils::FileName bdir = parameters.buildDirectory;
+    const Utils::FilePath bdir = parameters.buildDirectory;
     const CMakeTool *cmake = parameters.cmakeTool();
     if (bdir.exists()) {
         m_buildDirToTempDir.erase(bdir);
@@ -87,7 +88,7 @@ Utils::FileName BuildDirManager::workDirectory(const BuildDirParameters &paramet
             return bdir;
         }
     }
-    return Utils::FileName::fromString(tmpDirIt->second->path());
+    return Utils::FilePath::fromString(tmpDirIt->second->path());
 }
 
 void BuildDirManager::emitDataAvailable()
@@ -107,7 +108,7 @@ void BuildDirManager::updateReaderType(const BuildDirParameters &p,
                                        std::function<void()> todo)
 {
     if (!m_reader || !m_reader->isCompatible(p)) {
-        m_reader.reset(BuildDirReader::createReader(p));
+        m_reader = BuildDirReader::createReader(p);
         connect(m_reader.get(), &BuildDirReader::configurationStarted,
                 this, &BuildDirManager::parsingStarted);
         connect(m_reader.get(), &BuildDirReader::dataAvailable,
@@ -260,7 +261,7 @@ bool BuildDirManager::persistCMakeState()
     if (m_parameters.workDirectory == m_parameters.buildDirectory)
         return false;
 
-    const Utils::FileName buildDir = m_parameters.buildDirectory;
+    const Utils::FilePath buildDir = m_parameters.buildDirectory;
     QDir dir(buildDir.toString());
     dir.mkpath(buildDir.toString());
 
@@ -310,8 +311,8 @@ void BuildDirManager::clearCache()
     QTC_ASSERT(m_parameters.isValid(), return);
     QTC_ASSERT(!m_isHandlingError, return);
 
-    auto cmakeCache = m_parameters.workDirectory.appendPath("CMakeCache.txt");
-    auto cmakeFiles = m_parameters.workDirectory.appendPath("CMakeFiles");
+    const FilePath cmakeCache = m_parameters.workDirectory.pathAppended("CMakeCache.txt");
+    const FilePath cmakeFiles = m_parameters.workDirectory.pathAppended("CMakeFiles");
 
     const bool mustCleanUp = cmakeCache.exists() || cmakeFiles.exists();
     if (!mustCleanUp)
@@ -366,7 +367,7 @@ CMakeConfig BuildDirManager::takeCMakeConfiguration() const
     return result;
 }
 
-CMakeConfig BuildDirManager::parseCMakeConfiguration(const Utils::FileName &cacheFile,
+CMakeConfig BuildDirManager::parseCMakeConfiguration(const Utils::FilePath &cacheFile,
                                                      QString *errorMessage)
 {
     if (!cacheFile.exists()) {
