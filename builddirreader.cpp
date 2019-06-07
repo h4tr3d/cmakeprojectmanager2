@@ -46,7 +46,7 @@ std::unique_ptr<BuildDirReader> BuildDirReader::createReader(const BuildDirParam
     QTC_ASSERT(p.isValid() && cmake, return {});
     if (cmake->hasServerMode())
         //return std::make_unique<ServerModeReader>();
-        return std::make_unique<SimpleServerModeReader>;
+        return std::make_unique<SimpleServerModeReader>();
     return std::make_unique<TeaLeafReader>();
 }
 

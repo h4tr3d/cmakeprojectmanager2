@@ -28,11 +28,11 @@ void SimpleServerModeReader::generateProjectTree(CMakeProjectNode *root, const Q
     // Compose sources list from the CMake data
     auto files = std::move(m_cmakeInputsFileNodes);
     m_cmakeInputsFileNodes.clear(); // Clean out, they are not going to be used anymore!
-    QSet<Utils::FileName> alreadyListed;
+    QSet<Utils::FilePath> alreadyListed;
     for (auto project : m_projects) {
         for (auto target : project->targets) {
             for (auto group : target->fileGroups) {
-                const QList<FileName> newSources = Utils::filtered(group->sources, [&alreadyListed](const Utils::FileName &fn) {
+                const QList<FilePath> newSources = Utils::filtered(group->sources, [&alreadyListed](const Utils::FileName &fn) {
                     const int count = alreadyListed.count();
                     alreadyListed.insert(fn);
                     return count != alreadyListed.count();

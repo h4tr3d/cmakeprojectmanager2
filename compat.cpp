@@ -12,9 +12,9 @@ namespace CMakeProjectManager {
 namespace Compat {
 namespace ProjectExplorer {
 
-FileNode *recursiveFileNode(ProjectNode *projectNode, const Utils::FileName &file, const Utils::FileName &overrideBaseDir)
+FileNode *recursiveFileNode(ProjectNode *projectNode, const Utils::FilePath &file, const Utils::FileName &overrideBaseDir)
 {
-    Utils::FileName dir = file.parentDir();
+    auto dir = file.parentDir();
 
     auto baseDir = overrideBaseDir.isEmpty() ? projectNode->filePath() : overrideBaseDir;
 
@@ -26,7 +26,7 @@ FileNode *recursiveFileNode(ProjectNode *projectNode, const Utils::FileName &fil
     const ::ProjectExplorer::FolderNode *parent = projectNode;
     auto probeDir = baseDir;
     foreach (const QString &part, parts) {
-        probeDir.appendPath(part);
+        probeDir.pathAppended(part);
         // Find folder in subFolders
         parent = Utils::findOrDefault(parent->folderNodes(), [&probeDir](const FolderNode *fn) {
             return fn->filePath() == probeDir;

@@ -487,7 +487,7 @@ bool CMakeProject::addFiles(const QStringList &filePaths)
     QList<const FileNode *> nodes; // nodes to store in persistent tree
     for (auto &filePath : filePaths) {
         const auto mimeType = Utils::mimeTypeForFile(filePath);
-        auto fn = FileName::fromString(filePath);
+        auto fn = FilePath::fromString(filePath);
         auto type = TreeScanner::genericFileType(mimeType, fn);
 
         auto node = new FileNode(fn, type);
@@ -523,7 +523,7 @@ bool CMakeProject::eraseFiles(const QStringList &filePaths)
     QList<const FileNode *> removed;
     for (auto& filePath : filePaths) {
         const auto mimeType = Utils::mimeTypeForFile(filePath);
-        auto fn = FileName::fromString(filePath);
+        auto fn = FilePath::fromString(filePath);
         auto type = TreeScanner::genericFileType(mimeType, fn);
         auto toRemove = new FileNode(fn, type);
         toRemove->setIsGenerated(false);
@@ -568,8 +568,8 @@ bool CMakeProject::eraseFiles(const QStringList &filePaths)
 
 bool CMakeProject::renameFile(const QString &filePath, const QString &newFilePath)
 {
-    auto fn = FileName::fromString(filePath);
-    auto newfn = FileName::fromString(newFilePath);
+    auto fn = FilePath::fromString(filePath);
+    auto newfn = FilePath::fromString(newFilePath);
     const auto mimeType = Utils::mimeTypeForFile(filePath);
     auto type = TreeScanner::genericFileType(mimeType, fn);
     auto node = new FileNode(fn, type);
