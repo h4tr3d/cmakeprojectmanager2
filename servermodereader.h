@@ -50,19 +50,20 @@ public:
 
     bool isCompatible(const BuildDirParameters &p) final;
     void resetData() final;
-    void parse(bool forceConfiguration) final;
+    void parse(bool forceCMakeRun, bool forceConfiguration) final;
     void stop() final;
 
-    bool isReady() const final;
     bool isParsing() const final;
 
-    QList<CMakeBuildTarget> takeBuildTargets() final;
-    CMakeConfig takeParsedConfiguration() final;
+    QList<CMakeBuildTarget> takeBuildTargets(QString &errorMessage) final;
+    CMakeConfig takeParsedConfiguration(QString &errorMessage) final;
     void generateProjectTree(CMakeProjectNode *root,
-                             const QList<const ProjectExplorer::FileNode *> &allFiles) override;
-    CppTools::RawProjectParts createRawProjectParts() const final;
+                             const QList<const ProjectExplorer::FileNode *> &allFiles,
+                             QString &errorMessage) override;
+    CppTools::RawProjectParts createRawProjectParts(QString &errorMessage) const final;
 
 protected:
+    void createNewServer();
     void handleReply(const QVariantMap &data, const QString &inReplyTo);
     void handleError(const QString &message);
     void handleProgress(int min, int cur, int max, const QString &inReplyTo);
@@ -145,8 +146,6 @@ protected:
 
     void fixTarget(Target *target) const;
 
-    QHash<Utils::FilePath, ProjectExplorer::ProjectNode *>
-    addCMakeLists(CMakeProjectNode *root, std::vector<std::unique_ptr<ProjectExplorer::FileNode> > &&cmakeLists);
     void addProjects(const QHash<Utils::FilePath, ProjectExplorer::ProjectNode *> &cmakeListsNodes,
                      const QList<Project *> &projects,
                      QList<ProjectExplorer::FileNode *> &knownHeaderNodes);
@@ -157,10 +156,6 @@ protected:
                        const Utils::FilePath &sourceDirectory,
                        const Utils::FilePath &buildDirectory, const QList<FileGroup *> &fileGroups,
                        QList<ProjectExplorer::FileNode *> &knowHeaderNodes);
-
-    void addHeaderNodes(ProjectExplorer::ProjectNode *root,
-                        const QList<ProjectExplorer::FileNode *> knownHeaders,
-                        const QList<const ProjectExplorer::FileNode *> &allFiles);
 
     std::unique_ptr<ServerMode> m_cmakeServer;
     std::unique_ptr<QFutureInterface<void>> m_future;

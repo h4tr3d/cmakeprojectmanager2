@@ -53,21 +53,21 @@ class BuildDirReader : public QObject
 
 public:
     static std::unique_ptr<BuildDirReader> createReader(const BuildDirParameters &p);
-    virtual void setParameters(const BuildDirParameters &p);
+    virtual void setParameters(const BuildDirParameters &p) = 0;
 
     virtual bool isCompatible(const BuildDirParameters &p) = 0;
     virtual void resetData() = 0;
-    virtual void parse(bool forceConfiguration) = 0;
+    virtual void parse(bool forceCMakeRun, bool forceConfiguration) = 0;
     virtual void stop() = 0;
 
-    virtual bool isReady() const { return true; }
     virtual bool isParsing() const = 0;
 
-    virtual QList<CMakeBuildTarget> takeBuildTargets() = 0;
-    virtual CMakeConfig takeParsedConfiguration() = 0;
+    virtual QList<CMakeBuildTarget> takeBuildTargets(QString &errorMessage) = 0;
+    virtual CMakeConfig takeParsedConfiguration(QString &errorMessage) = 0;
     virtual void generateProjectTree(CMakeProjectNode *root,
-                                     const QList<const ProjectExplorer::FileNode *> &allFiles) = 0;
-    virtual CppTools::RawProjectParts createRawProjectParts() const = 0;
+                                     const QList<const ProjectExplorer::FileNode *> &allFiles,
+                                     QString &errorMessage) = 0;
+    virtual CppTools::RawProjectParts createRawProjectParts(QString &errorMessage) const = 0;
 
 signals:
     void isReadyNow() const;

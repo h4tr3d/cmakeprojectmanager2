@@ -28,6 +28,7 @@
 #include <projectexplorer/toolchain.h>
 
 #include "builddirreader.h"
+#include "cmakeprocess.h"
 
 #include <QRegularExpression>
 
@@ -46,38 +47,35 @@ public:
     TeaLeafReader();
     ~TeaLeafReader() final;
 
+    void setParameters(const BuildDirParameters &p) final;
+
     bool isCompatible(const BuildDirParameters &p) final;
     void resetData() final;
-    void parse(bool forceConfiguration) final;
+    void parse(bool forceCMakeRun, bool forceConfiguration) final;
     void stop() final;
 
     bool isParsing() const final;
 
-    QList<CMakeBuildTarget> takeBuildTargets() final;
-    CMakeConfig takeParsedConfiguration() final;
+    QList<CMakeBuildTarget> takeBuildTargets(QString &errorMessage) final;
+    CMakeConfig takeParsedConfiguration(QString &errorMessage) final;
     void generateProjectTree(CMakeProjectNode *root,
-                             const QList<const ProjectExplorer::FileNode *> &allFiles) final;
-    CppTools::RawProjectParts createRawProjectParts() const final;
+                             const QList<const ProjectExplorer::FileNode *> &allFiles,
+                             QString &errorMessage) final;
+    CppTools::RawProjectParts createRawProjectParts(QString &errorMessage) const final;
 
 private:
-    void cleanUpProcess();
     void extractData();
 
     void startCMake(const QStringList &configurationArguments);
 
     void cmakeFinished(int code, QProcess::ExitStatus status);
-    void processCMakeOutput();
-    void processCMakeError();
 
     QStringList getFlagsFor(const CMakeBuildTarget &buildTarget, QHash<QString, QStringList> &cache, Core::Id lang) const;
     bool extractFlagsFromMake(const CMakeBuildTarget &buildTarget, QHash<QString, QStringList> &cache, Core::Id lang) const;
     bool extractFlagsFromNinja(const CMakeBuildTarget &buildTarget, QHash<QString, QStringList> &cache, Core::Id lang) const;
 
-    Utils::QtcProcess *m_cmakeProcess = nullptr;
-
-    // For error reporting:
-    ProjectExplorer::IOutputParser *m_parser = nullptr;
-    QFutureInterface<void> *m_future = nullptr;
+    // Process data:
+    std::unique_ptr<CMakeProcess> m_cmakeProcess;
 
     QSet<Utils::FilePath> m_cmakeFiles;
     QString m_projectName;

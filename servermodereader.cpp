@@ -30,9 +30,9 @@
 #include "cmakeprojectmanager.h"
 #include "cmakeprojectnodes.h"
 #include "servermode.h"
+#include "projecttreehelper.h"
 
 #include <coreplugin/editormanager/editormanager.h>
-#include <coreplugin/fileiconprovider.h>
 #include <coreplugin/messagemanager.h>
 #include <coreplugin/progressmanager/progressmanager.h>
 #include <projectexplorer/projectexplorerconstants.h>
@@ -103,41 +103,9 @@ void ServerModeReader::setParameters(const BuildDirParameters &p)
     CMakeTool *cmake = p.cmakeTool();
     QTC_ASSERT(cmake, return);
 
-    BuildDirReader::setParameters(p);
-    if (!m_cmakeServer) {
-        m_cmakeServer.reset(new ServerMode(p.environment,
-                                           p.sourceDirectory, p.workDirectory,
-                                           cmake->cmakeExecutable(),
-                                           p.generator, p.extraGenerator, p.platform, p.toolset,
-                                           true, 1));
-        connect(m_cmakeServer.get(), &ServerMode::errorOccured,
-                this, &ServerModeReader::errorOccured);
-        connect(m_cmakeServer.get(), &ServerMode::cmakeReply,
-                this, &ServerModeReader::handleReply);
-        connect(m_cmakeServer.get(), &ServerMode::cmakeError,
-                this, &ServerModeReader::handleError);
-        connect(m_cmakeServer.get(), &ServerMode::cmakeProgress,
-                this, &ServerModeReader::handleProgress);
-        connect(m_cmakeServer.get(), &ServerMode::cmakeSignal,
-                this, &ServerModeReader::handleSignal);
-        connect(m_cmakeServer.get(), &ServerMode::cmakeMessage, [this](const QString &m) {
-            const QStringList lines = m.split('\n');
-            for (const QString &l : lines) {
-                m_parser.stdError(l);
-                Core::MessageManager::write(l);
-            }
-        });
-        connect(m_cmakeServer.get(), &ServerMode::message,
-                this, [](const QString &m) { Core::MessageManager::write(m); });
-        connect(m_cmakeServer.get(), &ServerMode::connected,
-                this, &ServerModeReader::isReadyNow, Qt::QueuedConnection); // Delay
-        connect(m_cmakeServer.get(), &ServerMode::disconnected,
-                this, [this]() {
-            stop();
-            Core::MessageManager::write(tr("Parsing of CMake project failed: Connection to CMake server lost."));
-            m_cmakeServer.reset();
-        }, Qt::QueuedConnection); // Delay
-    }
+    m_parameters = p;
+
+    createNewServer();
 }
 
 bool ServerModeReader::isCompatible(const BuildDirParameters &p)
@@ -173,13 +141,16 @@ void ServerModeReader::resetData()
     m_fileGroups.clear();
 }
 
-void ServerModeReader::parse(bool forceConfiguration)
+void ServerModeReader::parse(bool forceCMakeRun, bool forceConfiguration)
 {
     emit configurationStarted();
 
     QTC_ASSERT(m_cmakeServer, return);
     QVariantMap extra;
-    if (forceConfiguration || !QDir(m_parameters.buildDirectory.toString()).exists("CMakeCache.txt")) {
+    if (forceCMakeRun)
+        createNewServer();
+
+    if (forceConfiguration) {
         QStringList cacheArguments = transform(m_parameters.configuration,
                                                [this](const CMakeConfigItem &i) {
             return i.toArgument(m_parameters.expander);
@@ -215,18 +186,14 @@ void ServerModeReader::stop()
     m_parser.flush();
 }
 
-bool ServerModeReader::isReady() const
-{
-    return m_cmakeServer->isConnected();
-}
-
 bool ServerModeReader::isParsing() const
 {
     return static_cast<bool>(m_future);
 }
 
-QList<CMakeBuildTarget> ServerModeReader::takeBuildTargets()
+QList<CMakeBuildTarget> ServerModeReader::takeBuildTargets(QString &errorMessage)
 {
+    Q_UNUSED(errorMessage)
     const QList<CMakeBuildTarget> result = transform(m_targets, [](const Target *t) -> CMakeBuildTarget {
         CMakeBuildTarget ct;
         ct.title = t->name;
@@ -256,71 +223,19 @@ QList<CMakeBuildTarget> ServerModeReader::takeBuildTargets()
     return result;
 }
 
-CMakeConfig ServerModeReader::takeParsedConfiguration()
+CMakeConfig ServerModeReader::takeParsedConfiguration(QString &errorMessage)
 {
+    Q_UNUSED(errorMessage)
     CMakeConfig config = m_cmakeConfiguration;
     m_cmakeConfiguration.clear();
     return config;
 }
 
-static void addCMakeVFolder(FolderNode *base, const Utils::FilePath &basePath, int priority,
-                            const QString &displayName,
-                            std::vector<std::unique_ptr<FileNode>> &&files)
-{
-    if (files.size() == 0)
-        return;
-    FolderNode *folder = base;
-    if (!displayName.isEmpty()) {
-        auto newFolder = std::make_unique<VirtualFolderNode>(basePath);
-        newFolder->setPriority(priority);
-        newFolder->setDisplayName(displayName);
-        folder = newFolder.get();
-        base->addNode(std::move(newFolder));
-    }
-    folder->addNestedNodes(std::move(files));
-    for (FolderNode *fn : folder->folderNodes())
-        fn->compress();
-}
-
-static std::vector<std::unique_ptr<FileNode>> &&
-removeKnownNodes(const QSet<Utils::FilePath> &knownFiles,
-                 std::vector<std::unique_ptr<FileNode>> &&files)
-{
-    Utils::erase(files, [&knownFiles](const std::unique_ptr<FileNode> &n) {
-        return knownFiles.contains(n->filePath());
-    });
-    return std::move(files);
-}
-
-static void addCMakeInputs(FolderNode *root,
-                           const Utils::FilePath &sourceDir,
-                           const Utils::FilePath &buildDir,
-                           std::vector<std::unique_ptr<FileNode>> &&sourceInputs,
-                           std::vector<std::unique_ptr<FileNode>> &&buildInputs,
-                           std::vector<std::unique_ptr<FileNode>> &&rootInputs)
-{
-    std::unique_ptr<ProjectNode> cmakeVFolder = std::make_unique<CMakeInputsNode>(root->filePath());
-
-    QSet<Utils::FilePath> knownFiles;
-    root->forEachGenericNode([&knownFiles](const Node *n) {
-        if (n->listInProject())
-            knownFiles.insert(n->filePath());
-    });
-
-    addCMakeVFolder(cmakeVFolder.get(), sourceDir, 1000, QString(), removeKnownNodes(knownFiles, std::move(sourceInputs)));
-    addCMakeVFolder(cmakeVFolder.get(), buildDir, 100,
-                    QCoreApplication::translate("CMakeProjectManager::Internal::ServerModeReader", "<Build Directory>"),
-                    removeKnownNodes(knownFiles, std::move(buildInputs)));
-    addCMakeVFolder(cmakeVFolder.get(), Utils::FilePath(), 10,
-                    QCoreApplication::translate("CMakeProjectManager::Internal::ServerModeReader", "<Other Locations>"),
-                    removeKnownNodes(knownFiles, std::move(rootInputs)));
-
-    root->addNode(std::move(cmakeVFolder));
-}
-
 void ServerModeReader::generateProjectTree(CMakeProjectNode *root,
-                                           const QList<const FileNode *> &allFiles)
+                                           const QList<const FileNode *> &allFiles,
+                                           QString &errorMessage)
 {
+    Q_UNUSED(errorMessage)
     // Split up cmake inputs into useful chunks:
     std::vector<std::unique_ptr<FileNode>> cmakeFilesSource;
     std::vector<std::unique_ptr<FileNode>> cmakeFilesBuild;
@@ -359,8 +274,9 @@ void ServerModeReader::generateProjectTree(CMakeProjectNode *root,
                        std::move(cmakeFilesOther));
 }
 
-CppTools::RawProjectParts ServerModeReader::createRawProjectParts() const
+CppTools::RawProjectParts ServerModeReader::createRawProjectParts(QString &errorMessage) const
 {
+    Q_UNUSED(errorMessage)
     CppTools::RawProjectParts rpps;
 
     int counter = 0;
@@ -426,6 +342,49 @@ CppTools::RawProjectParts ServerModeReader::createRawProjectParts() const
     }
 
     return rpps;
+}
+
+void ServerModeReader::createNewServer()
+{
+    QTC_ASSERT(m_parameters.cmakeTool(), return);
+    m_cmakeServer
+            = std::make_unique<ServerMode>(
+                m_parameters.environment,
+                m_parameters.sourceDirectory, m_parameters.workDirectory,
+                m_parameters.cmakeTool()->cmakeExecutable(),
+                m_parameters.generator,
+                m_parameters.extraGenerator,
+                m_parameters.platform, m_parameters.toolset,
+                true, 1);
+
+    connect(m_cmakeServer.get(), &ServerMode::errorOccured,
+            this, &ServerModeReader::errorOccured);
+    connect(m_cmakeServer.get(), &ServerMode::cmakeReply,
+            this, &ServerModeReader::handleReply);
+    connect(m_cmakeServer.get(), &ServerMode::cmakeError,
+            this, &ServerModeReader::handleError);
+    connect(m_cmakeServer.get(), &ServerMode::cmakeProgress,
+            this, &ServerModeReader::handleProgress);
+    connect(m_cmakeServer.get(), &ServerMode::cmakeSignal,
+            this, &ServerModeReader::handleSignal);
+    connect(m_cmakeServer.get(), &ServerMode::cmakeMessage, [this](const QString &m) {
+        const QStringList lines = m.split('\n');
+        for (const QString &l : lines) {
+            m_parser.stdError(l);
+            Core::MessageManager::write(l);
+        }
+    });
+    connect(m_cmakeServer.get(), &ServerMode::message,
+            this, [](const QString &m) { Core::MessageManager::write(m); });
+    connect(m_cmakeServer.get(), &ServerMode::connected,
+            this, &ServerModeReader::isReadyNow, Qt::QueuedConnection); // Delay
+    connect(m_cmakeServer.get(), &ServerMode::disconnected,
+            this, [this]() {
+        stop();
+        Core::MessageManager::write(tr("Parsing of CMake project failed: Connection to CMake server lost."));
+        m_cmakeServer.reset();
+    }, Qt::QueuedConnection); // Delay
+
 }
 
 void ServerModeReader::handleReply(const QVariantMap &data, const QString &inReplyTo)
@@ -495,7 +454,7 @@ void ServerModeReader::handleError(const QString &message)
 
 void ServerModeReader::handleProgress(int min, int cur, int max, const QString &inReplyTo)
 {
-    Q_UNUSED(inReplyTo);
+    Q_UNUSED(inReplyTo)
 
     if (!m_future)
         return;
@@ -505,7 +464,7 @@ void ServerModeReader::handleProgress(int min, int cur, int max, const QString &
 
 void ServerModeReader::handleSignal(const QString &signal, const QVariantMap &data)
 {
-    Q_UNUSED(data);
+    Q_UNUSED(data)
     // CMake on Windows sends false dirty signals on each edit (QTCREATORBUG-17944)
     if (!HostOsInfo::isWindowsHost() && signal == "dirty")
         emit dirty();
@@ -543,7 +502,7 @@ void ServerModeReader::extractCodeModelData(const QVariantMap &data)
 void ServerModeReader::extractConfigurationData(const QVariantMap &data)
 {
     const QString name = data.value(NAME_KEY).toString();
-    Q_UNUSED(name);
+    Q_UNUSED(name)
     QSet<QString> knownTargets; // To filter duplicate target names:-/
     const QVariantList projects = data.value("projects").toList();
     for (const QVariant &p : projects) {
@@ -803,49 +762,6 @@ void ServerModeReader::fixTarget(ServerModeReader::Target *target) const
     }
 }
 
-QHash<Utils::FilePath, ProjectNode *>
-ServerModeReader::addCMakeLists(CMakeProjectNode *root,
-                                std::vector<std::unique_ptr<FileNode>> &&cmakeLists)
-{
-    QHash<Utils::FilePath, ProjectNode *> cmakeListsNodes;
-    cmakeListsNodes.insert(root->filePath(), root);
-
-    const QSet<Utils::FilePath> cmakeDirs
-            = Utils::transform<QSet>(cmakeLists, [](const std::unique_ptr<FileNode> &n) {
-        return n->filePath().parentDir();
-    });
-    root->addNestedNodes(std::move(cmakeLists), Utils::FilePath(),
-                         [&cmakeDirs, &cmakeListsNodes](const Utils::FilePath &fp)
-                         -> std::unique_ptr<ProjectExplorer::FolderNode> {
-        if (cmakeDirs.contains(fp)) {
-            auto fn = std::make_unique<CMakeListsNode>(fp);
-            cmakeListsNodes.insert(fp, fn.get());
-            return fn;
-        }
-
-        return std::make_unique<FolderNode>(fp);
-    });
-    root->compress();
-    return cmakeListsNodes;
-}
-
-static void createProjectNode(const QHash<Utils::FilePath, ProjectNode *> &cmakeListsNodes,
-                              const Utils::FilePath &dir, const QString &displayName)
-{
-    ProjectNode *cmln = cmakeListsNodes.value(dir);
-    QTC_ASSERT(cmln, qDebug() << dir.toUserOutput(); return);
-
-    const Utils::FilePath projectName = dir.pathAppended(".project::" + displayName);
-
-    ProjectNode *pn = cmln->projectNode(projectName);
-    if (!pn) {
-        auto newNode = std::make_unique<CMakeProjectNode>(projectName);
-        pn = newNode.get();
-        cmln->addNode(std::move(newNode));
-    }
-    pn->setDisplayName(displayName);
-}
-
 void ServerModeReader::addProjects(const QHash<Utils::FilePath, ProjectNode *> &cmakeListsNodes,
                                    const QList<Project *> &projects,
                                    QList<FileNode *> &knownHeaderNodes)
@@ -854,26 +770,6 @@ void ServerModeReader::addProjects(const QHash<Utils::FilePath, ProjectNode *> &
         createProjectNode(cmakeListsNodes, p->sourceDirectory, p->name);
         addTargets(cmakeListsNodes, p->targets, knownHeaderNodes);
     }
-}
-
-static CMakeTargetNode *createTargetNode(const QHash<Utils::FilePath, ProjectNode *> &cmakeListsNodes,
-                                         const Utils::FilePath &dir, const QString &displayName)
-{
-    ProjectNode *cmln = cmakeListsNodes.value(dir);
-    QTC_ASSERT(cmln, return nullptr);
-
-    QString targetId = CMakeTargetNode::generateId(dir, displayName);
-
-    CMakeTargetNode *tn = static_cast<CMakeTargetNode *>(cmln->findNode([&targetId](const Node *n) {
-        return n->buildKey() == targetId;
-    }));
-    if (!tn) {
-        auto newNode = std::make_unique<CMakeTargetNode>(dir, displayName);
-        tn = newNode.get();
-        cmln->addNode(std::move(newNode));
-    }
-    tn->setDisplayName(displayName);
-    return tn;
 }
 
 void ServerModeReader::addTargets(const QHash<Utils::FilePath, ProjectExplorer::ProjectNode *> &cmakeListsNodes,
@@ -966,39 +862,6 @@ void ServerModeReader::addFileGroups(ProjectNode *targetRoot,
     addCMakeVFolder(targetRoot, sourceDirectory, 1000,  QString(), std::move(sourceFileNodes));
     addCMakeVFolder(targetRoot, buildDirectory, 100, tr("<Build Directory>"), std::move(buildFileNodes));
     addCMakeVFolder(targetRoot, Utils::FilePath(), 10, tr("<Other Locations>"), std::move(otherFileNodes));
-}
-
-void ServerModeReader::addHeaderNodes(ProjectNode *root, const QList<FileNode *> knownHeaders,
-                                      const QList<const FileNode *> &allFiles)
-{
-    if (root->isEmpty())
-        return;
-
-    static QIcon headerNodeIcon
-            = Core::FileIconProvider::directoryIcon(ProjectExplorer::Constants::FILEOVERLAY_H);
-    auto headerNode = std::make_unique<VirtualFolderNode>(root->filePath());
-    headerNode->setPriority(Node::DefaultPriority - 5);
-    headerNode->setDisplayName(tr("<Headers>"));
-    headerNode->setIcon(headerNodeIcon);
-
-    // knownHeaders are already listed in their targets:
-    QSet<Utils::FilePath> seenHeaders = Utils::transform<QSet>(knownHeaders, &FileNode::filePath);
-
-    // Add scanned headers:
-    for (const FileNode *fn : allFiles) {
-        if (fn->fileType() != FileType::Header || !fn->filePath().isChildOf(root->filePath()))
-            continue;
-        const int count = seenHeaders.count();
-        seenHeaders.insert(fn->filePath());
-        if (seenHeaders.count() != count) {
-            std::unique_ptr<FileNode> node(fn->clone());
-            node->setEnabled(false);
-            headerNode->addNestedNode(std::move(node));
-        }
-    }
-
-    if (!headerNode->isEmpty())
-        root->addNode(std::move(headerNode));
 }
 
 } // namespace Internal

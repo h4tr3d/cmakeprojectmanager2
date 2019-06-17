@@ -23,32 +23,55 @@
 **
 ****************************************************************************/
 
-#include "builddirreader.h"
+#pragma once
 
-#include "servermodereader.h"
-#include "tealeafreader.h"
-#include "simpleservermodereader.h"
+#include "builddirparameters.h"
 
-#include <utils/qtcassert.h>
+#include <projectexplorer/ioutputparser.h>
 
-using namespace ProjectExplorer;
+#include <utils/qtcprocess.h>
+
+#include <QFutureInterface>
+
+#include <memory>
 
 namespace CMakeProjectManager {
 namespace Internal {
 
-// --------------------------------------------------------------------
-// BuildDirReader:
-// --------------------------------------------------------------------
+class CMakeProcess : public QObject {
+    Q_OBJECT
 
-std::unique_ptr<BuildDirReader> BuildDirReader::createReader(const BuildDirParameters &p)
-{
-    CMakeTool *cmake = p.cmakeTool();
-    QTC_ASSERT(p.isValid() && cmake, return {});
-    if (cmake->hasServerMode())
-        //return std::make_unique<ServerModeReader>();
-        return std::make_unique<SimpleServerModeReader>();
-    return std::make_unique<TeaLeafReader>();
-}
+public:
+    CMakeProcess();
+    CMakeProcess(const CMakeProcess&) = delete;
+    ~CMakeProcess();
+
+    static QStringList toArguments(const CMakeConfig &config, const Utils::MacroExpander *expander);
+
+    void run(const BuildDirParameters &parameters, const QStringList &arguments);
+
+    QProcess::ProcessState state() const;
+
+    // Update progress information:
+    void reportCanceled();
+    void reportFinished(); // None of the progress related functions will work after this!
+    void setProgressValue(int p);
+
+    // Process stdout/stderr:
+    void processStandardOutput();
+    void processStandardError();
+
+signals:
+    void started();
+    void finished(int exitCode, QProcess::ExitStatus exitStatus);
+
+private:
+    void handleProcessFinished(int code, QProcess::ExitStatus status);
+
+    std::unique_ptr<Utils::QtcProcess> m_process;
+    std::unique_ptr<ProjectExplorer::IOutputParser> m_parser;
+    std::unique_ptr<QFutureInterface<void>> m_future;
+};
 
 } // namespace Internal
 } // namespace CMakeProjectManager

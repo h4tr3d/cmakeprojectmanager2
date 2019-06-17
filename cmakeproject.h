@@ -85,6 +85,9 @@ public:
     bool eraseFiles(const QStringList &filePaths);
     bool renameFile(const QString &filePath, const QString &newFilePath);
 
+    void checkAndReportError(QString &errorMessage) const;
+    void reportError(const QString &errorMessage) const;
+
 protected:
     RestoreResult fromMap(const QVariantMap &map, QString *errorMessage) final;
     bool setupTarget(ProjectExplorer::Target *t) final;

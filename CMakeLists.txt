@@ -20,6 +20,7 @@ add_qtc_plugin(CMakeProjectManager
     cmakekitinformation.cpp cmakekitinformation.h
     cmakelocatorfilter.cpp cmakelocatorfilter.h
     cmakeparser.cpp cmakeparser.h
+    cmakeprocess.cpp cmakeprocess.h
     cmakeproject.cpp cmakeproject.h
     cmakeproject.qrc
     cmakeprojectconstants.h
@@ -36,6 +37,7 @@ add_qtc_plugin(CMakeProjectManager
     cmaketoolsettingsaccessor.cpp cmaketoolsettingsaccessor.h
     configmodel.cpp configmodel.h
     configmodelitemdelegate.cpp configmodelitemdelegate.h
+    projecttreehelper.cpp projecttreehelper.h
     servermode.cpp servermode.h
     servermodereader.cpp servermodereader.h
     tealeafreader.cpp tealeafreader.h
