@@ -15,8 +15,12 @@ using namespace Utils;
 namespace CMakeProjectManager {
 namespace Internal {
 
-void SimpleServerModeReader::generateProjectTree(CMakeProjectNode *root, const QList<const ProjectExplorer::FileNode *> &allFiles)
+void SimpleServerModeReader::generateProjectTree(CMakeProjectNode *root, 
+                                                 const QList<const ProjectExplorer::FileNode *> &allFiles, 
+                                                 QString &errorMessage)
 {
+    Q_UNUSED(errorMessage)
+
     const Project *topLevel = Utils::findOrDefault(m_projects, [this](const Project *p) {
         return m_parameters.sourceDirectory == p->sourceDirectory;
     });

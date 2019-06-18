@@ -16,7 +16,8 @@ class SimpleServerModeReader : public ServerModeReader
 public:
 
     void generateProjectTree(CMakeProjectNode *root,
-                             const QList<const ProjectExplorer::FileNode *> &allFiles) final;
+                             const QList<const ProjectExplorer::FileNode *> &allFiles,
+                             QString &errorMessage) final;
 
 protected:
     QList<std::tuple<Utils::FileName, ProjectExplorer::FileType, bool>> m_filesCache;
