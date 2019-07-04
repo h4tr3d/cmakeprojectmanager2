@@ -135,9 +135,7 @@ void TeaLeafReader::setParameters(const BuildDirParameters &p)
 
 bool TeaLeafReader::isCompatible(const BuildDirParameters &p)
 {
-    if (!p.cmakeTool())
-        return false;
-    return !p.cmakeTool()->hasServerMode();
+    return p.cmakeTool() && p.cmakeTool()->readerType() == CMakeTool::TeaLeaf;
 }
 
 void TeaLeafReader::resetData()
@@ -236,14 +234,14 @@ CMakeConfig TeaLeafReader::takeParsedConfiguration(QString &errorMessage)
     return result;
 }
 
-void TeaLeafReader::generateProjectTree(CMakeProjectNode *root,
-                                        const QList<const FileNode *> &allFiles,
-                                        QString &errorMessage)
+std::unique_ptr<CMakeProjectNode> TeaLeafReader::generateProjectTree(
+    const QList<const FileNode *> &allFiles, QString &errorMessage)
 {
     Q_UNUSED(errorMessage)
     if (m_files.size() == 0)
-        return;
+        return {};
 
+    auto root = std::make_unique<CMakeProjectNode>(m_parameters.sourceDirectory);
     root->setDisplayName(m_projectName);
 
     // Delete no longer necessary file watcher based on m_cmakeFiles:
@@ -321,6 +319,7 @@ void TeaLeafReader::generateProjectTree(CMakeProjectNode *root,
     root->addNestedNodes(std::move(m_files), m_parameters.sourceDirectory);
     root->addNestedNodes(std::move(addedNodes), m_parameters.sourceDirectory);
 #endif
+    return root;
 }
 
 static void processCMakeIncludes(const CMakeBuildTarget &cbt, const ToolChain *tc,
@@ -338,7 +337,7 @@ static void processCMakeIncludes(const CMakeBuildTarget &cbt, const ToolChain *t
     }
 }
 
-CppTools::RawProjectParts TeaLeafReader::createRawProjectParts(QString &errorMessage) const
+CppTools::RawProjectParts TeaLeafReader::createRawProjectParts(QString &errorMessage)
 {
     Q_UNUSED(errorMessage)
     const ToolChain *tcCxx = ToolChainManager::findToolChain(m_parameters.cxxToolChainId);
@@ -368,7 +367,7 @@ CppTools::RawProjectParts TeaLeafReader::createRawProjectParts(QString &errorMes
         includePaths += m_parameters.workDirectory.toString();
         CppTools::RawProjectPart rpp;
         rpp.setProjectFileLocation(cbt.sourceDirectory.toString() + "/CMakeLists.txt");
-        rpp.setBuildSystemTarget(CMakeTargetNode::generateId(cbt.sourceDirectory, cbt.title));
+        rpp.setBuildSystemTarget(cbt.title);
         rpp.setIncludePaths(includePaths);
 
         CppTools::RawProjectPartFlags cProjectFlags;

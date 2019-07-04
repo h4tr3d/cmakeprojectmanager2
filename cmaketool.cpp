@@ -48,7 +48,7 @@ const char CMAKE_INFORMATION_DISPLAYNAME[] = "DisplayName";
 const char CMAKE_INFORMATION_AUTORUN[] = "AutoRun";
 const char CMAKE_INFORMATION_AUTO_CREATE_BUILD_DIRECTORY[] = "AutoCreateBuildDirectory";
 const char CMAKE_INFORMATION_AUTODETECTED[] = "AutoDetected";
-
+const char CMAKE_INFORMATION_READERTYPE[] = "ReaderType";
 
 bool CMakeTool::Generator::matches(const QString &n, const QString &ex) const
 {
@@ -56,6 +56,40 @@ bool CMakeTool::Generator::matches(const QString &n, const QString &ex) const
 }
 
 namespace Internal {
+
+const char READER_TYPE_TEALEAF[] = "tealeaf";
+const char READER_TYPE_SERVERMODE[] = "servermode";
+const char READER_TYPE_FILEAPI[] = "fileapi";
+
+static bool ignoreFileApi()
+{
+    static bool s_ignoreFileApi = qEnvironmentVariableIsSet("QTC_CMAKE_IGNORE_FILEAPI");
+    return s_ignoreFileApi;
+}
+
+static Utils::optional<CMakeTool::ReaderType> readerTypeFromString(const QString &input)
+{
+    if (input == READER_TYPE_TEALEAF)
+        return CMakeTool::TeaLeaf;
+    if (input == READER_TYPE_SERVERMODE)
+        return CMakeTool::ServerMode;
+    if (input == READER_TYPE_FILEAPI)
+        return ignoreFileApi() ? CMakeTool::ServerMode : CMakeTool::FileApi;
+    return {};
+}
+
+static QString readerTypeToString(const CMakeTool::ReaderType &type)
+{
+    switch (type) {
+    case CMakeTool::TeaLeaf:
+        return QString(READER_TYPE_TEALEAF);
+    case CMakeTool::ServerMode:
+        return QString(READER_TYPE_SERVERMODE);
+    case CMakeTool::FileApi:
+        return QString(READER_TYPE_FILEAPI);
+    }
+    return QString();
+}
 
 // --------------------------------------------------------------------
 // CMakeIntrospectionData:
@@ -104,6 +138,8 @@ CMakeTool::CMakeTool(const QVariantMap &map, bool fromSdk) :
     m_displayName = map.value(CMAKE_INFORMATION_DISPLAYNAME).toString();
     m_isAutoRun = map.value(CMAKE_INFORMATION_AUTORUN, true).toBool();
     m_autoCreateBuildDirectory = map.value(CMAKE_INFORMATION_AUTO_CREATE_BUILD_DIRECTORY, false).toBool();
+    m_readerType = Internal::readerTypeFromString(
+        map.value(CMAKE_INFORMATION_READERTYPE).toString());
 
     //loading a CMakeTool from SDK is always autodetection
     if (!fromSdk)
@@ -190,6 +226,9 @@ QVariantMap CMakeTool::toMap() const
     data.insert(CMAKE_INFORMATION_COMMAND, m_executable.toString());
     data.insert(CMAKE_INFORMATION_AUTORUN, m_isAutoRun);
     data.insert(CMAKE_INFORMATION_AUTO_CREATE_BUILD_DIRECTORY, m_autoCreateBuildDirectory);
+    if (m_readerType.has_value())
+        data.insert(CMAKE_INFORMATION_READERTYPE,
+                    Internal::readerTypeToString(m_readerType.value()));
     data.insert(CMAKE_INFORMATION_AUTODETECTED, m_isAutoDetected);
     return data;
 }
@@ -301,11 +340,27 @@ CMakeTool::PathMapper CMakeTool::pathMapper() const
     return [](const Utils::FilePath &fn) { return fn; };
 }
 
+CMakeTool::ReaderType CMakeTool::readerType() const
+{
+    if (!m_readerType.has_value()) {
+        // Find best possible reader type:
+        if (hasFileApi()) {
+            if (hasServerMode() && Internal::ignoreFileApi())
+                return ServerMode; // We were asked to fall back to server mode
+            return FileApi;
+        }
+        if (hasServerMode())
+            return ServerMode;
+        return TeaLeaf;
+    }
+    return m_readerType.value();
+}
+
 void CMakeTool::readInformation(CMakeTool::QueryType type) const
 {
     if ((type == QueryType::GENERATORS && !m_introspection->m_generators.isEmpty())
-         || (type == QueryType::SERVER_MODE && m_introspection->m_queriedServerMode)
-         || (type == QueryType::VERSION && !m_introspection->m_version.fullVersion.isEmpty()))
+        || (type == QueryType::SERVER_MODE && m_introspection->m_queriedServerMode)
+        || (type == QueryType::VERSION && !m_introspection->m_version.fullVersion.isEmpty()))
         return;
 
     if (!m_introspection->m_triedCapabilities) {
@@ -323,7 +378,7 @@ void CMakeTool::readInformation(CMakeTool::QueryType type) const
     } else if (type == QueryType::VERSION) {
         fetchVersionFromVersionOutput();
     } else {
-        QTC_ASSERT(false, return);
+        QTC_ASSERT(false, return );
     }
 }
 
@@ -343,10 +398,10 @@ static QStringList parseDefinition(const QString &definition)
                 ignoreWord = true;
         }
 
-        if (c == ' ' || c == '[' || c == '<' || c == '('
-                || c == ']' || c == '>' || c == ')') {
+        if (c == ' ' || c == '[' || c == '<' || c == '(' || c == ']' || c == '>' || c == ')') {
             if (!ignoreWord && !word.isEmpty()) {
-                if (result.isEmpty() || Utils::allOf(word, [](const QChar &c) { return c.isUpper() || c == '_'; }))
+                if (result.isEmpty()
+                    || Utils::allOf(word, [](const QChar &c) { return c.isUpper() || c == '_'; }))
                     result.append(word);
             }
             word.clear();
@@ -403,11 +458,12 @@ QStringList CMakeTool::parseVariableOutput(const QString &output)
     QStringList result;
     foreach (const QString &v, variableList) {
         if (v.startsWith("CMAKE_COMPILER_IS_GNU<LANG>")) { // This key takes a compiler name :-/
-            result << "CMAKE_COMPILER_IS_GNUCC" << "CMAKE_COMPILER_IS_GNUCXX";
+            result << "CMAKE_COMPILER_IS_GNUCC"
+                   << "CMAKE_COMPILER_IS_GNUCXX";
         } else if (v.contains("<CONFIG>")) {
             const QString tmp = QString(v).replace("<CONFIG>", "%1");
-            result << tmp.arg("DEBUG") << tmp.arg("RELEASE")
-                   << tmp.arg("MINSIZEREL") << tmp.arg("RELWITHDEBINFO");
+            result << tmp.arg("DEBUG") << tmp.arg("RELEASE") << tmp.arg("MINSIZEREL")
+                   << tmp.arg("RELWITHDEBINFO");
         } else if (v.contains("<LANG>")) {
             const QString tmp = QString(v).replace("<LANG>", "%1");
             result << tmp.arg("C") << tmp.arg("CXX");
@@ -475,7 +531,7 @@ void CMakeTool::parseGeneratorsFromHelp(const QStringList &lines) const
 
 void CMakeTool::fetchVersionFromVersionOutput() const
 {
-    Utils::SynchronousProcessResponse response = run({"--version" });
+    Utils::SynchronousProcessResponse response = run({"--version"});
     if (response.result != Utils::SynchronousProcessResponse::Finished)
         return;
 
@@ -500,7 +556,7 @@ void CMakeTool::parseVersionFormVersionOutput(const QStringList &lines) const
 
 void CMakeTool::fetchFromCapabilities() const
 {
-    Utils::SynchronousProcessResponse response = run({"-E", "capabilities" }, true);
+    Utils::SynchronousProcessResponse response = run({"-E", "capabilities"}, true);
     if (response.result != Utils::SynchronousProcessResponse::Finished)
         return;
 
@@ -510,7 +566,7 @@ void CMakeTool::fetchFromCapabilities() const
 static int getVersion(const QVariantMap &obj, const QString value)
 {
     bool ok;
-    int result  = obj.value(value).toInt(&ok);
+    int result = obj.value(value).toInt(&ok);
     if (!ok)
         return -1;
     return result;
@@ -536,7 +592,7 @@ void CMakeTool::parseFromCapabilities(const QString &input) const
     {
         const QVariantMap fileApis = data.value("fileApi").toMap();
         const QVariantList requests = fileApis.value("requests").toList();
-        for (const QVariant &r: requests) {
+        for (const QVariant &r : requests) {
             const QVariantMap object = r.toMap();
             const QString kind = object.value("kind").toString();
             const QVariantMap versionObject = object.value("version").toMap();

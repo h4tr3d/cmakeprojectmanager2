@@ -36,6 +36,16 @@ using namespace ProjectExplorer;
 namespace CMakeProjectManager {
 namespace Internal {
 
+std::unique_ptr<FolderNode> createCMakeVFolder(const Utils::FilePath &basePath,
+                                               int priority,
+                                               const QString &displayName)
+{
+    auto newFolder = std::make_unique<VirtualFolderNode>(basePath);
+    newFolder->setPriority(priority);
+    newFolder->setDisplayName(displayName);
+    return std::move(newFolder);
+}
+
 void addCMakeVFolder(FolderNode *base,
                      const Utils::FilePath &basePath,
                      int priority,
@@ -46,9 +56,7 @@ void addCMakeVFolder(FolderNode *base,
         return;
     FolderNode *folder = base;
     if (!displayName.isEmpty()) {
-        auto newFolder = std::make_unique<VirtualFolderNode>(basePath);
-        newFolder->setPriority(priority);
-        newFolder->setDisplayName(displayName);
+        auto newFolder = createCMakeVFolder(basePath, priority, displayName);
         folder = newFolder.get();
         base->addNode(std::move(newFolder));
     }
@@ -152,7 +160,7 @@ CMakeTargetNode *createTargetNode(const QHash<Utils::FilePath, ProjectNode *> &c
     ProjectNode *cmln = cmakeListsNodes.value(dir);
     QTC_ASSERT(cmln, return nullptr);
 
-    QString targetId = CMakeTargetNode::generateId(dir, displayName);
+    QString targetId = displayName;
 
     CMakeTargetNode *tn = static_cast<CMakeTargetNode *>(
         cmln->findNode([&targetId](const Node *n) { return n->buildKey() == targetId; }));
@@ -166,7 +174,7 @@ CMakeTargetNode *createTargetNode(const QHash<Utils::FilePath, ProjectNode *> &c
 }
 
 void addHeaderNodes(ProjectNode *root,
-                    const QList<FileNode *> knownHeaders,
+                    QSet<Utils::FilePath> &seenHeaders,
                     const QList<const FileNode *> &allFiles)
 {
     if (root->isEmpty())
@@ -179,9 +187,6 @@ void addHeaderNodes(ProjectNode *root,
     headerNode->setDisplayName(
         QCoreApplication::translate("CMakeProjectManager::Internal::ServerModeReader", "<Headers>"));
     headerNode->setIcon(headerNodeIcon);
-
-    // knownHeaders are already listed in their targets:
-    QSet<Utils::FilePath> seenHeaders = Utils::transform<QSet>(knownHeaders, &FileNode::filePath);
 
     // Add scanned headers:
     for (const FileNode *fn : allFiles) {
