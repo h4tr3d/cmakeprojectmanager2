@@ -15,11 +15,11 @@ using namespace Utils;
 namespace CMakeProjectManager {
 namespace Internal {
 
-void SimpleServerModeReader::generateProjectTree(CMakeProjectNode *root, 
-                                                 const QList<const ProjectExplorer::FileNode *> &allFiles, 
-                                                 QString &errorMessage)
-{
+std::unique_ptr<CMakeProjectNode> SimpleServerModeReader::generateProjectTree(const QList<const FileNode *> &allFiles,
+                                           QString &errorMessage)
+{    
     Q_UNUSED(errorMessage)
+    auto root = std::make_unique<CMakeProjectNode>(m_parameters.sourceDirectory);
 
     const Project *topLevel = Utils::findOrDefault(m_projects, [this](const Project *p) {
         return m_parameters.sourceDirectory == p->sourceDirectory;
@@ -85,6 +85,8 @@ void SimpleServerModeReader::generateProjectTree(CMakeProjectNode *root,
 
     root->addNestedNodes(std::move(files), m_parameters.sourceDirectory);
     root->addNestedNodes(std::move(addedNodes), m_parameters.sourceDirectory);
+
+    return root;
 }
 
 } // namespace Internal
