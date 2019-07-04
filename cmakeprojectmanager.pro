@@ -52,7 +52,8 @@ HEADERS = builddirmanager.h \
     servermodereader.h \
     tealeafreader.h \
     compat.h \
-    simpleservermodereader.h
+    simpleservermodereader.h \
+    simplefileapireader.h
 
 SOURCES = builddirmanager.cpp \
     builddirparameters.cpp \
@@ -92,7 +93,8 @@ SOURCES = builddirmanager.cpp \
     servermodereader.cpp \
     tealeafreader.cpp \
     compat.cpp \
-    simpleservermodereader.cpp
+    simpleservermodereader.cpp \
+    simplefileapireader.cpp
 
 RESOURCES += cmakeproject.qrc
 

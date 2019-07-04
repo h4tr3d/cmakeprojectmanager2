@@ -51,7 +51,7 @@ class FileApiReader : public BuildDirReader
 
 public:
     FileApiReader();
-    ~FileApiReader() final;
+    ~FileApiReader() override;
 
     void setParameters(const BuildDirParameters &p) final;
 
@@ -65,10 +65,10 @@ public:
     QList<CMakeBuildTarget> takeBuildTargets(QString &errorMessage) final;
     CMakeConfig takeParsedConfiguration(QString &errorMessage) final;
     std::unique_ptr<CMakeProjectNode> generateProjectTree(
-        const QList<const ProjectExplorer::FileNode *> &allFiles, QString &errorMessage) final;
+        const QList<const ProjectExplorer::FileNode *> &allFiles, QString &errorMessage) override;
     CppTools::RawProjectParts createRawProjectParts(QString &errorMessage) final;
 
-private:
+protected:
     void startState();
     void endState(const QFileInfo &replyFi);
     void startCMakeState(const QStringList &configurationArguments);

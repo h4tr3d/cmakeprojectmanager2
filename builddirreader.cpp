@@ -29,6 +29,7 @@
 #include "servermodereader.h"
 #include "tealeafreader.h"
 #include "simpleservermodereader.h"
+#include "simplefileapireader.h"
 
 #include <utils/qtcassert.h>
 
@@ -48,7 +49,7 @@ std::unique_ptr<BuildDirReader> BuildDirReader::createReader(const BuildDirParam
 
     switch (cmake->readerType()) {
     case CMakeTool::FileApi:
-        return std::make_unique<FileApiReader>();
+        return std::make_unique<SimpleFileApiReader>();
     case CMakeTool::ServerMode:
         return std::make_unique<SimpleServerModeReader>();
     default:
