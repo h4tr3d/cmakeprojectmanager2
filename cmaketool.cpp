@@ -63,8 +63,12 @@ const char READER_TYPE_FILEAPI[] = "fileapi";
 
 static bool ignoreFileApi()
 {
+#if 0
     static bool s_ignoreFileApi = qEnvironmentVariableIsSet("QTC_CMAKE_IGNORE_FILEAPI");
     return s_ignoreFileApi;
+#else
+    return true;
+#endif
 }
 
 static Utils::optional<CMakeTool::ReaderType> readerTypeFromString(const QString &input)
