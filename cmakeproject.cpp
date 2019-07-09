@@ -359,6 +359,7 @@ void CMakeProject::updateProjectData(CMakeBuildConfiguration *bc)
         TraceTimer projectTreeTimer("    project tree");
         auto newRoot = generateProjectTree(m_allFiles);
         if (newRoot) {
+            newRoot->setTopLevelProject(this);
             setRootProjectNode(std::move(newRoot));
             if (rootProjectNode())
                 setDisplayName(rootProjectNode()->displayName());

@@ -53,12 +53,13 @@ public:
 class CMakeProjectNode : public ProjectExplorer::ProjectNode
 {
 public:
-    explicit CMakeProjectNode(const Utils::FilePath &directory, CMakeProject *project = nullptr);
+    explicit CMakeProjectNode(const Utils::FilePath &directory);
 
     QString tooltip() const final;
 
     CMakeProject* project() { return m_project; }
 
+    void setTopLevelProject(CMakeProject *project);
     bool supportsAction(ProjectExplorer::ProjectAction action, const Node *node) const final;
     bool addFiles(const QStringList &filePaths, QStringList *notAdded) final;
     bool deleteFiles(const QStringList &filePaths) final;

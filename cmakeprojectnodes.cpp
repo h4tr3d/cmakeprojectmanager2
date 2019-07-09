@@ -150,9 +150,8 @@ Utils::optional<Utils::FilePath> CMakeListsNode::visibleAfterAddFileAction() con
     return filePath().pathAppended("CMakeLists.txt");
 }
 
-CMakeProjectNode::CMakeProjectNode(const Utils::FilePath &directory, CMakeProject *project) :
-    ProjectExplorer::ProjectNode(directory),
-    m_project(project)
+CMakeProjectNode::CMakeProjectNode(const Utils::FilePath &directory) :
+    ProjectExplorer::ProjectNode(directory)
 {
     setPriority(Node::DefaultProjectPriority + 1000);
     setIcon(QIcon(":/projectexplorer/images/projectexplorer.png")); // TODO: Use proper icon!
@@ -162,6 +161,11 @@ CMakeProjectNode::CMakeProjectNode(const Utils::FilePath &directory, CMakeProjec
 QString CMakeProjectNode::tooltip() const
 {
     return QString();
+}
+
+void CMakeProjectNode::setTopLevelProject(CMakeProject* project)
+{
+    m_project = project;
 }
 
 bool CMakeProjectNode::supportsAction(ProjectExplorer::ProjectAction action, const Node *node) const
