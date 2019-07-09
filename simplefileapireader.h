@@ -20,8 +20,8 @@ protected:
     void endState(const QFileInfo &replyFi) final;
 
 private:
-    //QList<std::tuple<Utils::FileName, ProjectExplorer::FileType, bool>> m_filesCache;
-    //QString m_topLevelNameCache;
+    QList<std::tuple<Utils::FileName, ProjectExplorer::FileType, bool>> m_filesCache;
+    QString m_topLevelNameCache;
 };
 
 } // namespace Internal

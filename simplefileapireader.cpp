@@ -88,9 +88,42 @@ std::unique_ptr<CMakeProjectNode> SimpleFileApiReader::generateProjectTree(
 
     QSet<Utils::FilePath> alreadyListed;
 
-    // Files already added:
-    m_rootProjectNode->forEachGenericNode(
-        [&alreadyListed](const Node *n) { alreadyListed.insert(n->filePath()); });
+    // Cache is needed to reload tree without CMake run
+    if (m_rootProjectNode) {
+        m_topLevelNameCache = m_rootProjectNode->displayName();
+        m_filesCache.clear();
+
+        // Files already added:
+        m_rootProjectNode->forEachGenericNode([&alreadyListed,this] (const Node *node) { 
+            alreadyListed.insert(node->filePath());
+            auto fn = dynamic_cast<const FileNode*>(node);
+            m_filesCache.push_back(std::make_tuple(node->filePath(), fn ? fn->fileType() : Node::fileTypeForFileName(node->filePath()), node->isGenerated()));
+        });
+    } else {
+        // Restore from cache
+        m_rootProjectNode = std::make_unique<CMakeProjectNode>(m_parameters.sourceDirectory);
+        m_rootProjectNode->setDisplayName(m_topLevelNameCache);
+
+        std::vector<std::unique_ptr<FileNode>> files;
+
+        files.reserve(m_filesCache.count());
+        for (auto it = m_filesCache.begin(); it != m_filesCache.end();) {
+            //qDebug() << "try:" << std::get<0>(*it) << std::get<0>(*it).exists();
+            if (!std::get<0>(*it).exists()) {
+                it = m_filesCache.erase(it);
+                continue;
+            }
+
+            alreadyListed.insert(std::get<0>(*it));
+
+            auto node = std::make_unique<FileNode>(std::get<0>(*it), std::get<1>(*it));
+            node->setIsGenerated(std::get<2>(*it));
+            files.emplace_back(std::move(node));
+            ++it;
+        }
+
+        m_rootProjectNode->addNestedNodes(std::move(files), m_parameters.sourceDirectory);
+    }
 
     QList<const FileNode *> added = 
         Utils::filtered(allFiles, [&alreadyListed](const FileNode *fn) -> bool {

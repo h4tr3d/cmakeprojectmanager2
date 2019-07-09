@@ -574,10 +574,6 @@ std::pair<std::unique_ptr<CMakeProjectNode>, QSet<FilePath>> generateRootProject
         }
     }
 
-    for (const auto & fn : files) {
-        qDebug() << fn->filePath();
-    }
-
     result.first->addNestedNodes(std::move(files), sourceDirectory);
 
     return result;
