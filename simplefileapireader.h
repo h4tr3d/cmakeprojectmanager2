@@ -16,8 +16,12 @@ public:
     std::unique_ptr<CMakeProjectNode> generateProjectTree(
         const QList<const ProjectExplorer::FileNode *> &allFiles, QString &errorMessage) final;
 
+protected:
+    void endState(const QFileInfo &replyFi) final;
+
 private:
-    
+    //QList<std::tuple<Utils::FileName, ProjectExplorer::FileType, bool>> m_filesCache;
+    //QString m_topLevelNameCache;
 };
 
 } // namespace Internal

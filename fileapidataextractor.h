@@ -52,7 +52,8 @@ public:
 
 FileApiQtcData extractData(FileApiData &data,
                            const Utils::FilePath &sourceDirectory,
-                           const Utils::FilePath &buildDirectory);
+                           const Utils::FilePath &buildDirectory,
+                           bool plain = false);
 
 } // namespace Internal
 } // namespace CMakeProjectManager

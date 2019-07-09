@@ -70,7 +70,7 @@ public:
 
 protected:
     void startState();
-    void endState(const QFileInfo &replyFi);
+    virtual void endState(const QFileInfo &replyFi);
     void startCMakeState(const QStringList &configurationArguments);
     void cmakeFinishedState(int code, QProcess::ExitStatus status);
 
