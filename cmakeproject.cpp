@@ -162,7 +162,7 @@ CMakeProject::CMakeProject(const FilePath &fileName) : Project(Constants::CMAKEM
         // reparse and check the configuration, independent of whether the reader has changed
         m_buildDirManager.setParametersAndRequestParse(
                     BuildDirParameters(bc),
-                    BuildDirManager::REPARSE_CHECK_CONFIGURATION,
+                    BuildDirManager::REPARSE_FORCE_CONFIGURATION,
                     BuildDirManager::REPARSE_CHECK_CONFIGURATION);
     });
 
@@ -178,7 +178,7 @@ CMakeProject::CMakeProject(const FilePath &fileName) : Project(Constants::CMAKEM
         // * run cmake without configuration arguments if the reader stays
         m_buildDirManager.setParametersAndRequestParse(
                     BuildDirParameters(bc),
-                    BuildDirManager::REPARSE_CHECK_CONFIGURATION,
+                    BuildDirManager::REPARSE_FORCE_CONFIGURATION,
                     BuildDirManager::REPARSE_CHECK_CONFIGURATION);
     });
 
@@ -194,7 +194,7 @@ CMakeProject::CMakeProject(const FilePath &fileName) : Project(Constants::CMAKEM
         // * run cmake without configuration arguments if the reader stays
         m_buildDirManager.setParametersAndRequestParse(
                     BuildDirParameters(bc),
-                    BuildDirManager::REPARSE_CHECK_CONFIGURATION,
+                    BuildDirManager::REPARSE_FORCE_CONFIGURATION,
                     BuildDirManager::REPARSE_CHECK_CONFIGURATION);
     });
 
@@ -498,7 +498,7 @@ void CMakeProject::runCMake()
 
     BuildDirParameters parameters(bc);
     m_buildDirManager.setParametersAndRequestParse(parameters,
-                                                   BuildDirManager::REPARSE_CHECK_CONFIGURATION,
+                                                   BuildDirManager::REPARSE_FORCE_CONFIGURATION,
                                                    BuildDirManager::REPARSE_CHECK_CONFIGURATION);
 }
 
@@ -511,7 +511,7 @@ void CMakeProject::runCMakeAndScanProjectTree()
 
     BuildDirParameters parameters(bc);
     m_buildDirManager.setParametersAndRequestParse(parameters,
-                                                   BuildDirManager::REPARSE_CHECK_CONFIGURATION | BuildDirManager::REPARSE_SCAN,
+                                                   BuildDirManager::REPARSE_FORCE_CONFIGURATION | BuildDirManager::REPARSE_SCAN,
                                                    BuildDirManager::REPARSE_CHECK_CONFIGURATION | BuildDirManager::REPARSE_SCAN);
 }
 
