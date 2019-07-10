@@ -223,7 +223,7 @@ CMakeProject::CMakeProject(const FilePath &fileName) : Project(Constants::CMAKEM
             //   the reader.
             m_buildDirManager.setParametersAndRequestParse(
                         BuildDirParameters(senderBc),
-                        BuildDirManager::REPARSE_FAIL,
+                        BuildDirManager::REPARSE_FORCE_CONFIGURATION,
                         BuildDirManager::REPARSE_CHECK_CONFIGURATION);
         }
     });
@@ -236,7 +236,7 @@ CMakeProject::CMakeProject(const FilePath &fileName) : Project(Constants::CMAKEM
             // * run cmake with configuration arguments if the reader stays
             m_buildDirManager.setParametersAndRequestParse(
                         BuildDirParameters(senderBc),
-                        BuildDirManager::REPARSE_FAIL,
+                        BuildDirManager::REPARSE_FORCE_CONFIGURATION,
                         BuildDirManager::REPARSE_FORCE_CONFIGURATION);
         }
     });
