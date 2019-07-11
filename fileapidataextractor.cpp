@@ -166,14 +166,20 @@ PreprocessedData preprocess(FileApiData &data,
 }
 
 QList<CMakeBuildTarget> generateBuildTargets(const PreprocessedData &input,
-                                             const FilePath &sourceDirectory)
+                                             const FilePath &sourceDirectory,
+                                             const FilePath &buildDirectory)
 {
     QDir sourceDir(sourceDirectory.toString());
+    QDir buildDir(buildDirectory.toString());
     const QList<CMakeBuildTarget> result = transform<
-        QList>(input.targetDetails, [&sourceDir](const TargetDetails &t) -> CMakeBuildTarget {
+        QList>(input.targetDetails, [&sourceDir,&buildDir](const TargetDetails &t) -> CMakeBuildTarget {
+
+        QDir targetBuildDir = buildDir.absoluteFilePath(t.buildDir.toString());
+
         CMakeBuildTarget ct;
         ct.title = t.name;
-        ct.executable = t.artifacts.isEmpty() ? FilePath() : t.artifacts.at(0);
+        ct.executable = t.nameOnDisk.isEmpty() ? FilePath() : FilePath::fromString(
+            QDir::cleanPath(targetBuildDir.absoluteFilePath(t.nameOnDisk)));
         TargetType type = UtilityType;
         if (t.type == "EXECUTABLE")
             type = ExecutableType;
@@ -186,11 +192,12 @@ QList<CMakeBuildTarget> generateBuildTargets(const PreprocessedData &input,
         else
             type = UtilityType;
         ct.targetType = type;
-        if (t.artifacts.isEmpty()) {
-            ct.workingDirectory = t.buildDir;
+        if (t.nameOnDisk.isEmpty()) {
+            ct.workingDirectory = FilePath::fromString(QDir::cleanPath(
+                targetBuildDir.absolutePath()));
         } else {
             ct.workingDirectory = FilePath::fromString(QDir::cleanPath(
-                QDir(t.buildDir.toString()).absoluteFilePath(t.artifacts.at(0).toString() + "/..")));
+                targetBuildDir.absoluteFilePath(t.nameOnDisk + "/..")));
         }
         ct.sourceDirectory = FilePath::fromString(
             QDir::cleanPath(sourceDir.absoluteFilePath(t.sourceDir.toString())));
@@ -604,7 +611,7 @@ FileApiQtcData extractData(FileApiData &input,
         return {};
     }
 
-    result.buildTargets = generateBuildTargets(data, sourceDirectory);
+    result.buildTargets = generateBuildTargets(data, sourceDirectory, buildDirectory);
     result.cmakeFiles = std::move(data.cmakeFiles);
     result.projectParts = generateRawProjectParts(data, sourceDirectory);
 
