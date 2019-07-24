@@ -278,7 +278,7 @@ std::unique_ptr<CMakeProjectNode> TeaLeafReader::generateProjectTree(
         });
         allIncludePathSet.unite(Utils::toSet(targetIncludePaths));
     }
-    const QList<FilePath> allIncludePaths = allIncludePathSet.toList();
+    const QList<FilePath> allIncludePaths = Utils::toList(allIncludePathSet);
 
     const QList<const FileNode *> missingHeaders
             = Utils::filtered(allFiles, [&allIncludePaths](const FileNode *fn) -> bool {
@@ -329,8 +329,10 @@ static void processCMakeIncludes(const CMakeBuildTarget &cbt, const ToolChain *t
     if (!tc)
         return;
 
-    foreach (const HeaderPath &hp, tc->builtInHeaderPaths(flags, sysroot))
+    foreach (const HeaderPath &hp, tc->builtInHeaderPaths(flags, sysroot,
+                                                          Environment::systemEnvironment())) {
         tcIncludes.insert(FilePath::fromString(hp.path));
+    }
     foreach (const FilePath &i, cbt.includeFiles) {
         if (!tcIncludes.contains(i))
             includePaths.append(i.toString());

@@ -379,8 +379,6 @@ void CMakeProject::updateProjectData(CMakeBuildConfiguration *bc)
         Target *t = bc->target();
         t->setApplicationTargets(bc->appTargets());
         t->setDeploymentData(bc->deploymentData());
-
-        t->updateDefaultRunConfigurations();
     }
 
     {
@@ -409,7 +407,7 @@ void CMakeProject::updateProjectData(CMakeBuildConfiguration *bc)
                 rpp.setFlagsForC({kitInfo.cToolChain, rpp.flagsForC.commandLineFlags});
         }
 
-        m_cppCodeModelUpdater->update({this, kitInfo, rpps});
+        m_cppCodeModelUpdater->update({this, kitInfo, activeBuildEnvironment(), rpps});
     }
     {
         TraceTimer qmlCodemodelTimer("    qml codemodel");
@@ -498,8 +496,10 @@ void CMakeProject::runCMake()
 
     BuildDirParameters parameters(bc);
     m_buildDirManager.setParametersAndRequestParse(parameters,
-                                                   BuildDirManager::REPARSE_FORCE_CONFIGURATION,
-                                                   BuildDirManager::REPARSE_CHECK_CONFIGURATION);
+                                                   BuildDirManager::REPARSE_CHECK_CONFIGURATION
+                                                       | BuildDirManager::REPARSE_FORCE_CMAKE_RUN,
+                                                   BuildDirManager::REPARSE_CHECK_CONFIGURATION
+                                                       | BuildDirManager::REPARSE_FORCE_CMAKE_RUN);
 }
 
 void CMakeProject::runCMakeAndScanProjectTree()
