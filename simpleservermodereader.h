@@ -19,7 +19,7 @@ public:
         const QList<const ProjectExplorer::FileNode *> &allFiles, QString &errorMessage) final;
 
 protected:
-    QList<std::tuple<Utils::FileName, ProjectExplorer::FileType, bool>> m_filesCache;
+    QList<std::tuple<Utils::FilePath, ProjectExplorer::FileType, bool>> m_filesCache;
     QString m_topLevelNameCache;
 };
 

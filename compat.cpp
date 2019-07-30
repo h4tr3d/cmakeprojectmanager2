@@ -12,7 +12,7 @@ namespace CMakeProjectManager {
 namespace Compat {
 namespace ProjectExplorer {
 
-FileNode *recursiveFileNode(ProjectNode *projectNode, const Utils::FilePath &file, const Utils::FileName &overrideBaseDir)
+FileNode *recursiveFileNode(ProjectNode *projectNode, const Utils::FilePath &file, const Utils::FilePath &overrideBaseDir)
 {
     auto dir = file.parentDir();
 

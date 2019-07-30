@@ -13,8 +13,8 @@ namespace Compat {
 namespace ProjectExplorer {
 
 ::ProjectExplorer::FileNode *recursiveFileNode(::ProjectExplorer::ProjectNode *projectNode,
-                                               const Utils::FileName &file,
-                                               const Utils::FileName &overrideBaseDir = Utils::FileName());
+                                               const Utils::FilePath &file,
+                                               const Utils::FilePath &overrideBaseDir = Utils::FilePath());
 
 } // ::ProjectExplorer
 } // ::Compat

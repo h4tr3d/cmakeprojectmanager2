@@ -20,7 +20,7 @@ protected:
     void endState(const QFileInfo &replyFi) final;
 
 private:
-    QList<std::tuple<Utils::FileName, ProjectExplorer::FileType, bool>> m_filesCache;
+    QList<std::tuple<Utils::FilePath, ProjectExplorer::FileType, bool>> m_filesCache;
     QString m_topLevelNameCache;
 };
 

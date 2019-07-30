@@ -36,7 +36,7 @@ std::unique_ptr<CMakeProjectNode> SimpleServerModeReader::generateProjectTree(co
     for (auto project : m_projects) {
         for (auto target : project->targets) {
             for (auto group : target->fileGroups) {
-                const QList<FilePath> newSources = Utils::filtered(group->sources, [&alreadyListed](const Utils::FileName &fn) {
+                const QList<FilePath> newSources = Utils::filtered(group->sources, [&alreadyListed](const Utils::FilePath &fn) {
                     const int count = alreadyListed.count();
                     alreadyListed.insert(fn);
                     return count != alreadyListed.count();
