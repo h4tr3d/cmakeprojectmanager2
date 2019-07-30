@@ -165,44 +165,99 @@ PreprocessedData preprocess(FileApiData &data,
     return result;
 }
 
+QVector<FolderNode::LocationInfo> extractBacktraceInformation(const BacktraceInfo &backtraces,
+                                                              const QDir &sourceDir,
+                                                              int backtraceIndex,
+                                                              unsigned int locationInfoPriority)
+{
+    QVector<FolderNode::LocationInfo> info;
+    // Set up a default target path:
+    while (backtraceIndex != -1) {
+        const size_t bi = static_cast<size_t>(backtraceIndex);
+        QTC_ASSERT(bi < backtraces.nodes.size(), break);
+        const BacktraceNode &btNode = backtraces.nodes[bi];
+        backtraceIndex = btNode.parent; // advance to next node
+
+        const size_t fileIndex = static_cast<size_t>(btNode.file);
+        QTC_ASSERT(fileIndex < backtraces.files.size(), break);
+        const FilePath path = FilePath::fromString(
+            sourceDir.absoluteFilePath(backtraces.files[fileIndex]));
+
+        if (btNode.command < 0) {
+            // No command, skip: The file itself is already covered:-)
+            continue;
+        }
+
+        const size_t commandIndex = static_cast<size_t>(btNode.command);
+        QTC_ASSERT(commandIndex < backtraces.commands.size(), break);
+
+        const QString command = backtraces.commands[commandIndex];
+
+        info.append(FolderNode::LocationInfo(command, path, btNode.line, locationInfoPriority));
+    }
+    return info;
+}
+
 QList<CMakeBuildTarget> generateBuildTargets(const PreprocessedData &input,
                                              const FilePath &sourceDirectory,
                                              const FilePath &buildDirectory)
 {
     QDir sourceDir(sourceDirectory.toString());
     QDir buildDir(buildDirectory.toString());
-    const QList<CMakeBuildTarget> result = transform<
-        QList>(input.targetDetails, [&sourceDir,&buildDir](const TargetDetails &t) -> CMakeBuildTarget {
 
-        QDir targetBuildDir = buildDir.absoluteFilePath(t.buildDir.toString());
+    const QList<CMakeBuildTarget> result = transform<QList>(
+        input.targetDetails, [&sourceDir, &buildDir](const TargetDetails &t) -> CMakeBuildTarget {
+            CMakeBuildTarget ct;
+            ct.title = t.name;
+            ct.executable = t.artifacts.isEmpty()
+                                ? FilePath()
+                                : FilePath::fromString(QDir::cleanPath(
+                                    buildDir.absoluteFilePath(t.artifacts.at(0).toString())));
+            TargetType type = UtilityType;
+            if (t.type == "EXECUTABLE")
+                type = ExecutableType;
+            else if (t.type == "STATIC_LIBRARY")
+                type = StaticLibraryType;
+            else if (t.type == "OBJECT_LIBRARY")
+                type = ObjectLibraryType;
+            else if (t.type == "MODULE_LIBRARY" || t.type == "SHARED_LIBRARY")
+                type = DynamicLibraryType;
+            else
+                type = UtilityType;
+            ct.targetType = type;
+            ct.workingDirectory = ct.executable.isEmpty() ? FilePath::fromString(
+                                      buildDir.absoluteFilePath(t.buildDir.toString()))
+                                                          : ct.executable.parentDir();
+            ct.sourceDirectory = FilePath::fromString(
+                QDir::cleanPath(sourceDir.absoluteFilePath(t.sourceDir.toString())));
 
-        CMakeBuildTarget ct;
-        ct.title = t.name;
-        ct.executable = t.nameOnDisk.isEmpty() ? FilePath() : FilePath::fromString(
-            QDir::cleanPath(targetBuildDir.absoluteFilePath(t.nameOnDisk)));
-        TargetType type = UtilityType;
-        if (t.type == "EXECUTABLE")
-            type = ExecutableType;
-        else if (t.type == "STATIC_LIBRARY")
-            type = StaticLibraryType;
-        else if (t.type == "OBJECT_LIBRARY")
-            type = ObjectLibraryType;
-        else if (t.type == "MODULE_LIBRARY" || t.type == "SHARED_LIBRARY")
-            type = DynamicLibraryType;
-        else
-            type = UtilityType;
-        ct.targetType = type;
-        if (t.nameOnDisk.isEmpty()) {
-            ct.workingDirectory = FilePath::fromString(QDir::cleanPath(
-                targetBuildDir.absolutePath()));
-        } else {
-            ct.workingDirectory = FilePath::fromString(QDir::cleanPath(
-                targetBuildDir.absoluteFilePath(t.nameOnDisk + "/..")));
-        }
-        ct.sourceDirectory = FilePath::fromString(
-            QDir::cleanPath(sourceDir.absoluteFilePath(t.sourceDir.toString())));
-        return ct;
-    });
+            ct.backtrace = extractBacktraceInformation(t.backtraceGraph, sourceDir, t.backtrace, 0);
+
+            for (const DependencyInfo &d : t.dependencies) {
+                ct.dependencyDefinitions.append(
+                    extractBacktraceInformation(t.backtraceGraph, sourceDir, d.backtrace, 100));
+            }
+            for (const SourceInfo &si : t.sources) {
+                ct.sourceDefinitions.append(
+                    extractBacktraceInformation(t.backtraceGraph, sourceDir, si.backtrace, 200));
+            }
+            for (const CompileInfo &ci : t.compileGroups) {
+                for (const IncludeInfo &ii : ci.includes) {
+                    ct.includeDefinitions.append(
+                        extractBacktraceInformation(t.backtraceGraph, sourceDir, ii.backtrace, 300));
+                }
+                for (const DefineInfo &di : ci.defines) {
+                    ct.defineDefinitions.append(
+                        extractBacktraceInformation(t.backtraceGraph, sourceDir, di.backtrace, 400));
+                }
+            }
+            for (const InstallDestination &id : t.installDestination) {
+                ct.includeDefinitions.append(
+                    extractBacktraceInformation(t.backtraceGraph, sourceDir, id.backtrace, 500));
+            }
+
+            return ct;
+        });
     return result;
 }
 
@@ -299,64 +354,6 @@ void addProjects(const QHash<Utils::FilePath, ProjectNode *> &cmakeListsNodes,
         FilePath dir = directorySourceDir(config, sourceDir, p.directories[0]);
         createProjectNode(cmakeListsNodes, dir, p.name);
     }
-}
-
-void addBacktraceInformation(FolderNode *node,
-                             const BacktraceInfo &backtraces,
-                             const QDir &sourceDir,
-                             int backtraceIndex)
-{
-    QList<FolderNode::LocationInfo> info;
-    // Set up a default target path:
-    FilePath targetPath = node->filePath().pathAppended("CMakeLists.txt");
-    while (backtraceIndex != -1) {
-        const size_t bi = static_cast<size_t>(backtraceIndex);
-        QTC_ASSERT(bi < backtraces.nodes.size(), break);
-        const BacktraceNode &btNode = backtraces.nodes[bi];
-        backtraceIndex = btNode.parent; // advance to next node
-
-        const size_t fileIndex = static_cast<size_t>(btNode.file);
-        QTC_ASSERT(fileIndex < backtraces.files.size(), break);
-        const FilePath path = FilePath::fromString(
-            sourceDir.absoluteFilePath(backtraces.files[fileIndex]));
-
-        if (btNode.command < 0) {
-            // No command, skip: The file itself is already covered:-)
-            continue;
-        }
-
-        const size_t commandIndex = static_cast<size_t>(btNode.command);
-        QTC_ASSERT(commandIndex < backtraces.commands.size(), break);
-
-        const QString command = backtraces.commands[commandIndex];
-
-        QString dn;
-        if (path == targetPath) {
-            if (btNode.line > 0) {
-                dn = QCoreApplication::translate("CMakeProjectManager::Internal::FileApiReader",
-                                                 "%1 in line %2")
-                         .arg(command)
-                         .arg(btNode.line);
-            } else {
-                dn = command;
-            }
-        } else {
-            if (btNode.line > 0) {
-                dn = QCoreApplication::translate("CMakeProjectManager::Internal::FileApiReader",
-                                                 "%1 in %2:%3")
-                         .arg(command)
-                         .arg(path.toUserOutput())
-                         .arg(btNode.line);
-            } else {
-                dn = QCoreApplication::translate("CMakeProjectManager::Internal::FileApiReader",
-                                                 "%1 in %2")
-                         .arg(command)
-                         .arg(path.toUserOutput());
-            }
-        }
-        info.append(FolderNode::LocationInfo(dn, path, btNode.line));
-    }
-    node->setLocationInfo(info);
 }
 
 QVector<FolderNode *> addSourceGroups(ProjectNode *targetRoot,
@@ -471,8 +468,6 @@ void addTargets(const QHash<Utils::FilePath, ProjectExplorer::ProjectNode *> &cm
         tNode->setTargetInformation(td.artifacts, td.type);
         tNode->setBuildDirectory(directoryBuildDir(config, buildDir, t.directory));
 
-        addBacktraceInformation(tNode, td.backtraceGraph, sourceDir, td.backtrace);
-
         addCompileGroups(tNode, topSourceDir, dir, tNode->buildDirectory(), td, knownHeaderNodes);
     }
 }
@@ -526,64 +521,42 @@ std::pair<std::unique_ptr<CMakeProjectNode>, QSet<FilePath>> generateRootProject
     return result;
 }
 
-std::pair<std::unique_ptr<CMakeProjectNode>, QSet<FilePath>> generateRootProjectNodePlain(
-    PreprocessedData &data, const FilePath &sourceDirectory, const FilePath &buildDirectory)
+void setupLocationInfoForTargets(CMakeProjectNode *rootNode, const QList<CMakeBuildTarget> &targets)
 {
-    std::pair<std::unique_ptr<CMakeProjectNode>, QSet<FilePath>> result;
-    result.first = std::make_unique<CMakeProjectNode>(sourceDirectory);
+    for (const CMakeBuildTarget &t : targets) {
+        FolderNode *folderNode = static_cast<FolderNode *>(
+            rootNode->findNode(Utils::equal(&Node::buildKey, t.title)));
+        if (folderNode) {
+            QSet<std::pair<FilePath, int>> locations;
+            auto dedup = [&locations](const Backtrace &bt) {
+                QVector<FolderNode::LocationInfo> result;
+                for (const FolderNode::LocationInfo &i : bt) {
+                    int count = locations.count();
+                    locations.insert(std::make_pair(i.path, i.line));
+                    if (count != locations.count()) {
+                        result.append(i);
+                    }
+                }
+                return result;
+            };
 
-    const QDir sourceDir(sourceDirectory.toString());
-    const QDir buildDir(buildDirectory.toString());
+            QVector<FolderNode::LocationInfo> result = dedup(t.backtrace);
+            auto dedupMulti = [&dedup](const Backtraces &bts) {
+                QVector<FolderNode::LocationInfo> result;
+                for (const Backtrace &bt : bts) {
+                    result.append(dedup(bt));
+                }
+                return result;
+            };
+            result += dedupMulti(t.dependencyDefinitions);
+            result += dedupMulti(t.includeDefinitions);
+            result += dedupMulti(t.defineDefinitions);
+            result += dedupMulti(t.sourceDefinitions);
+            result += dedupMulti(t.installDefinitions);
 
-    const FileApiDetails::Project topLevelProject
-        = findOrDefault(data.codemodel.projects, equal(&FileApiDetails::Project::parent, -1));
-    if (!topLevelProject.name.isEmpty())
-        result.first->setDisplayName(topLevelProject.name);
-
-    std::vector<std::unique_ptr<ProjectExplorer::FileNode>> files;
-    files.reserve(data.cmakeListNodes.size() + data.cmakeNodesSource.size() + data.cmakeNodesBuild.size() + data.cmakeNodesOther.size());
-
-    auto process = [&files](std::vector<std::unique_ptr<ProjectExplorer::FileNode>>& nodes) {
-        for (auto& node : nodes)
-            files.push_back(std::move(node));
-    };
-
-    process(data.cmakeListNodes);
-    process(data.cmakeNodesSource);
-    process(data.cmakeNodesBuild);
-    process(data.cmakeNodesOther);
-
-    data.cmakeListNodes.clear();   // Remove all the nullptr in the vector...
-    data.cmakeNodesSource.clear(); // Remove all the nullptr in the vector...
-    data.cmakeNodesBuild.clear();  // Remove all the nullptr in the vector...
-    data.cmakeNodesOther.clear();  // Remove all the nullptr in the vector...
-
-    // QSet<FilePath> knownHeaders;
-    // result.second = knownHeaders;
-
-    QSet<Utils::FilePath> alreadyListed;
-    for (const TargetDetails &t : data.targetDetails) {
-        files.reserve(files.size() + t.sources.size());
-        
-        for (const auto& si : t.sources) {
-            const FilePath sourcePath = FilePath::fromString(
-                    QDir::cleanPath(sourceDir.absoluteFilePath(si.path)));
-
-            // Filter out already known files:
-            const int count = alreadyListed.count();
-            alreadyListed.insert(sourcePath);
-            if (count == alreadyListed.count())
-                continue;
-
-            auto node = std::make_unique<FileNode>(sourcePath, Node::fileTypeForFileName(sourcePath));
-            node->setIsGenerated(si.isGenerated);
-            files.push_back(std::move(node));
+            folderNode->setLocationInfo(result);
         }
     }
-
-    result.first->addNestedNodes(std::move(files), sourceDirectory);
-
-    return result;
 }
 
 } // namespace
@@ -599,8 +572,7 @@ using namespace FileApiDetails;
 
 FileApiQtcData extractData(FileApiData &input,
                            const FilePath &sourceDirectory,
-                           const FilePath &buildDirectory,
-                           bool plain)
+                           const FilePath &buildDirectory)
 {
     FileApiQtcData result;
 
@@ -615,9 +587,11 @@ FileApiQtcData extractData(FileApiData &input,
     result.cmakeFiles = std::move(data.cmakeFiles);
     result.projectParts = generateRawProjectParts(data, sourceDirectory);
 
-    auto pair = !plain ? generateRootProjectNode(data, sourceDirectory, buildDirectory) : generateRootProjectNodePlain(data, sourceDirectory, buildDirectory);
+    auto pair = generateRootProjectNode(data, sourceDirectory, buildDirectory);
     result.rootProjectNode = std::move(pair.first);
     result.knownHeaders = std::move(pair.second);
+
+    setupLocationInfoForTargets(result.rootProjectNode.get(), result.buildTargets);
 
     return result;
 }

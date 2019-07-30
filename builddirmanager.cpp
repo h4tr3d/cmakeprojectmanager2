@@ -357,13 +357,24 @@ QList<CMakeBuildTarget> BuildDirManager::takeBuildTargets(QString &errorMessage)
     QTC_ASSERT(!m_isHandlingError, return result);
 
     if (m_reader) {
-        result.append(Utils::filtered(m_reader->takeBuildTargets(errorMessage),
-                                      [](const CMakeBuildTarget &bt) {
-            return bt.title != CMakeBuildStep::allTarget()
-                    && bt.title != CMakeBuildStep::cleanTarget()
-                    && bt.title != CMakeBuildStep::installTarget()
-                    && bt.title != CMakeBuildStep::testTarget();
-        }));
+        QList<CMakeBuildTarget> readerTargets
+            = Utils::filtered(m_reader->takeBuildTargets(errorMessage),
+                              [](const CMakeBuildTarget &bt) {
+                                  return bt.title != CMakeBuildStep::allTarget()
+                                         && bt.title != CMakeBuildStep::cleanTarget()
+                                         && bt.title != CMakeBuildStep::installTarget()
+                                         && bt.title != CMakeBuildStep::testTarget();
+                              });
+
+        // Guess at the target definition position when no details are known
+        for (CMakeBuildTarget &t : readerTargets) {
+            if (t.backtrace.isEmpty()) {
+                t.backtrace.append(
+                    FolderNode::LocationInfo(tr("CMakeLists.txt in source directory"),
+                                             t.sourceDirectory.pathAppended("CMakeLists.txt")));
+            }
+        }
+        result.append(readerTargets);
     }
     return result;
 }

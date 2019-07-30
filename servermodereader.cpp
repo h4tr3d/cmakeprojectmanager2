@@ -105,6 +105,7 @@ void ServerModeReader::setParameters(const BuildDirParameters &p)
 
     m_parameters = p;
 
+    m_parser.setSourceDirectory(m_parameters.sourceDirectory.toString());
     createNewServer();
 }
 
@@ -821,7 +822,7 @@ void ServerModeReader::addTargets(
         QTC_ASSERT(tNode, qDebug() << "No target node for" << t->sourceDirectory << t->name; continue);
         tNode->setTargetInformation(t->artifacts, t->type);
         tNode->setBuildDirectory(t->buildDirectory);
-        QList<FolderNode::LocationInfo> info;
+        QVector<FolderNode::LocationInfo> info;
         // Set up a default target path:
         FilePath targetPath = t->sourceDirectory.pathAppended("CMakeLists.txt");
         for (CrossReference *cr : qAsConst(t->crossReferences)) {

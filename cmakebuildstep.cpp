@@ -52,9 +52,10 @@
 #include <utils/qtcprocess.h>
 #include <utils/pathchooser.h>
 
+#include <QCheckBox>
+#include <QDir>
 #include <QFormLayout>
 #include <QGroupBox>
-#include <QCheckBox>
 #include <QLineEdit>
 #include <QListWidget>
 
@@ -91,14 +92,8 @@ CMakeBuildStep::CMakeBuildStep(BuildStepList *bsl) :
     }
 
     // Set a good default build target:
-    if (m_buildTarget.isEmpty()) {
-        if (bsl->id() == ProjectExplorer::Constants::BUILDSTEPS_CLEAN)
-            setBuildTarget(cleanTarget());
-        else if (bsl->id() == ProjectExplorer::Constants::BUILDSTEPS_DEPLOY)
-            setBuildTarget(installTarget());
-        else
-            setBuildTarget(allTarget());
-    }
+    if (m_buildTarget.isEmpty())
+        setBuildTarget(defaultBuildTarget());
 
     connect(target(), &Target::kitChanged, this, &CMakeBuildStep::cmakeCommandChanged);
     connect(project(), &Project::parsingFinished,
@@ -119,10 +114,10 @@ void CMakeBuildStep::handleBuildTargetChanges(bool success)
 {
     if (!success)
         return; // Do not change when parsing failed.
-    if (isCurrentExecutableTarget(m_buildTarget))
-        return; // Do not change just because a different set of build targets is there...
-    if (!static_cast<CMakeProject *>(project())->buildTargetTitles().contains(m_buildTarget))
-        setBuildTarget(allTarget());
+    if (!isCurrentExecutableTarget(m_buildTarget)
+        && !static_cast<CMakeProject *>(project())->buildTargetTitles().contains(m_buildTarget)) {
+        setBuildTarget(defaultBuildTarget());
+    }
     emit buildTargetsChanged();
 }
 
@@ -218,7 +213,9 @@ bool CMakeBuildStep::init()
     pp->setCommandLine(cmakeCommand(rc));
     pp->resolveAll();
 
-    setOutputParser(new CMakeParser);
+    CMakeParser *cmakeParser = new CMakeParser;
+    cmakeParser->setSourceDirectory(projectDirectory.toString());
+    setOutputParser(cmakeParser);
     appendOutputParser(new GnuMakeParser);
     IOutputParser *parser = target()->kit()->createOutputParser();
     if (parser)
@@ -275,6 +272,17 @@ void CMakeBuildStep::handleProjectWasParsed(bool success)
 BuildStepConfigWidget *CMakeBuildStep::createConfigWidget()
 {
     return new CMakeBuildStepConfigWidget(this);
+}
+
+QString CMakeBuildStep::defaultBuildTarget() const
+{
+    const ProjectConfiguration *const pc = qobject_cast<ProjectConfiguration *>(parent());
+    const Core::Id parentId = pc ? pc->id() : Core::Id();
+    if (parentId == ProjectExplorer::Constants::BUILDSTEPS_CLEAN)
+        return cleanTarget();
+    if (parentId == ProjectExplorer::Constants::BUILDSTEPS_DEPLOY)
+        return installTarget();
+    return allTarget();
 }
 
 void CMakeBuildStep::stdOutput(const QString &line)

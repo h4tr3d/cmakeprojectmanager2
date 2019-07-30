@@ -30,24 +30,48 @@
 namespace CMakeProjectManager {
 namespace Internal {
 
-class CMakeLocatorFilter : public Core::ILocatorFilter
+class CMakeTargetLocatorFilter : public Core::ILocatorFilter
 {
     Q_OBJECT
 
 public:
-    CMakeLocatorFilter();
+    CMakeTargetLocatorFilter();
 
     void prepareSearch(const QString &entry) override;
     QList<Core::LocatorFilterEntry> matchesFor(QFutureInterface<Core::LocatorFilterEntry> &future,
-                                               const QString &entry) override;
-    void accept(Core::LocatorFilterEntry selection,
-                QString *newText, int *selectionStart, int *selectionLength) const override;
-    void refresh(QFutureInterface<void> &future) override;
+                                               const QString &entry) final;
+    void refresh(QFutureInterface<void> &future) final;
 
 private:
     void projectListUpdated();
 
     QList<Core::LocatorFilterEntry> m_result;
+};
+
+class BuildCMakeTargetLocatorFilter : CMakeTargetLocatorFilter
+{
+    Q_OBJECT
+
+public:
+    BuildCMakeTargetLocatorFilter();
+
+    void accept(Core::LocatorFilterEntry selection,
+                QString *newText,
+                int *selectionStart,
+                int *selectionLength) const final;
+};
+
+class OpenCMakeTargetLocatorFilter : CMakeTargetLocatorFilter
+{
+    Q_OBJECT
+
+public:
+    OpenCMakeTargetLocatorFilter();
+
+    void accept(Core::LocatorFilterEntry selection,
+                QString *newText,
+                int *selectionStart,
+                int *selectionLength) const final;
 };
 
 } // namespace Internal
