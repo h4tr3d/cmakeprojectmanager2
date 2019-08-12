@@ -367,6 +367,8 @@ void CMakeProject::clearCMakeCache()
     CMakeBuildConfiguration *bc = activeBc(this);
     if (bc)
         bc->m_buildDirManager.clearCache();
+}
+
 void CMakeProject::updateProjectData()
 {
     auto t = activeTarget();
@@ -504,8 +506,6 @@ bool CMakeProject::renameFile(const QString &filePath, const QString &newFilePat
     });
 
     return true;
-}
-
 }
 
 void CMakeProject::startParsing(int reparseParameters)
