@@ -64,8 +64,9 @@ public:
 
     bool isParsing() const;
 
-    void setParametersAndRequestParse(const BuildDirParameters &parameters,
-                                      int newReaderReparseOptions, int existingReaderReparseOptions);
+    void stopParsingAndClearState();
+
+    void setParametersAndRequestParse(const BuildDirParameters &parameters, int reparseOptions);
     // nullptr if the BC is not active anymore!
     CMakeBuildConfiguration *buildConfiguration() const;
     CMakeProject *project() const {return m_project; }
@@ -88,15 +89,17 @@ public:
     static CMakeConfig parseCMakeConfiguration(const Utils::FilePath &cacheFile,
                                               QString *errorMessage);
 
-    enum ReparseParameters { REPARSE_DEFAULT = 0, // use defaults
-                             REPARSE_URGENT = 1, // Do not wait for more requests, start ASAP
-                             REPARSE_FORCE_CMAKE_RUN = 2, // Force cmake to run
-                             REPARSE_FORCE_CONFIGURATION = 4, // Force configuration arguments to cmake
-                             REPARSE_CHECK_CONFIGURATION = 8, // Check and warn if on-disk config and QtC config differ
-                             REPARSE_SCAN = 16,
-                             REPARSE_IGNORE = 32, // Do not reparse:-)
-                             REPARSE_FAIL = 64 // Do not reparse and raise a warning
-                           };
+    enum ReparseParameters {
+        REPARSE_DEFAULT = 0,             // use defaults
+        REPARSE_URGENT = 1,              // Do not wait for more requests, start ASAP
+        REPARSE_FORCE_CMAKE_RUN = 2,     // Force cmake to run
+        REPARSE_FORCE_CONFIGURATION = 4, // Force configuration arguments to cmake
+        REPARSE_CHECK_CONFIGURATION = 8, // Check and warn if on-disk config and QtC config differ
+        REPARSE_SCAN = 16,
+        REPARSE_IGNORE = 32, // Do not reparse:-)
+    };
+
+    static QString flagsString(int reparseFlags);
 
 signals:
     void requestReparse(int reparseParameters) const;

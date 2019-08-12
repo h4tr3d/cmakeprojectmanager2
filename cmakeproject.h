@@ -65,8 +65,6 @@ public:
 
     QStringList buildTargetTitles() const;
 
-    bool knowsAllBuildExecutables() const final;
-
     ProjectExplorer::Tasks projectIssues(const ProjectExplorer::Kit *k) const final;
 
     void runCMake();
@@ -88,13 +86,12 @@ public:
     void checkAndReportError(QString &errorMessage) const;
     void reportError(const QString &errorMessage) const;
 
+    void requestReparse(int reparseParameters);
+
 protected:
-    RestoreResult fromMap(const QVariantMap &map, QString *errorMessage) final;
     bool setupTarget(ProjectExplorer::Target *t) final;
 
 private:
-    void handleReparseRequest(int reparseParameters);
-
     void startParsing(int reparseParameters);
 
     void handleTreeScanningFinished();
@@ -103,10 +100,7 @@ private:
     void handleParsingError(Internal::CMakeBuildConfiguration *bc);
     void combineScanAndParse(Internal::CMakeBuildConfiguration *bc);
     void updateProjectData(Internal::CMakeBuildConfiguration *bc);
-    void updateQmlJSCodeModel();
-
-    std::unique_ptr<Internal::CMakeProjectNode>
-    generateProjectTree(const QList<const ProjectExplorer::FileNode*> &allFiles) const;
+    void updateQmlJSCodeModel(Internal::CMakeBuildConfiguration *bc);
 
     QList<ProjectExplorer::ExtraCompiler *> findExtraCompilers() const;
     QStringList filesGeneratedFrom(const QString &sourceFile) const final;
@@ -120,7 +114,6 @@ private:
     QList<ProjectExplorer::ExtraCompiler *> m_extraCompilers;
 
     ProjectExplorer::TreeScanner m_treeScanner;
-    Internal::BuildDirManager m_buildDirManager;
 
     bool m_waitingForScan = true;
     bool m_waitingForParse = false;
@@ -132,6 +125,8 @@ private:
 
     QTimer m_delayedParsingTimer;
     int m_delayedParsingParameters = 0;
+
+    ParseGuard m_parseGuard;
 
     friend class Internal::CMakeBuildConfiguration;
     friend class Internal::CMakeBuildSettingsWidget;

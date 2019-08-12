@@ -62,6 +62,8 @@ public:
     QString error() const;
     QString warning() const;
 
+    CMakeProject *project() const;
+
     QStringList buildTargetTitles() const;
     const QList<CMakeBuildTarget> &buildTargets() const;
     const QList<ProjectExplorer::BuildTargetInfo> appTargets() const;
@@ -102,6 +104,15 @@ private:
 
     void setError(const QString &message);
     void setWarning(const QString &message);
+
+    void handleParsingSucceeded();
+
+    std::unique_ptr<CMakeProjectNode> generateProjectTree(
+        const QList<const ProjectExplorer::FileNode *> &allFiles);
+
+    void checkAndReportError(QString &errorMessage);
+
+    Internal::BuildDirManager m_buildDirManager;
 
     CMakeConfig m_configurationForCMake;
     CMakeConfig m_initialConfiguration;

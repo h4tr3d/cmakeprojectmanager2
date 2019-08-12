@@ -30,7 +30,6 @@
 #include "cmakeparser.h"
 #include "cmakeprojectconstants.h"
 #include "cmakeproject.h"
-#include "cmakerunconfiguration.h"
 #include "cmaketool.h"
 
 #include <projectexplorer/buildsteplist.h>
@@ -105,11 +104,6 @@ CMakeBuildConfiguration *CMakeBuildStep::cmakeBuildConfiguration() const
     return static_cast<CMakeBuildConfiguration *>(buildConfiguration());
 }
 
-CMakeRunConfiguration *CMakeBuildStep::targetsActiveRunConfiguration() const
-{
-    return qobject_cast<CMakeRunConfiguration *>(target()->activeRunConfiguration());
-}
-
 void CMakeBuildStep::handleBuildTargetChanges(bool success)
 {
     if (!success)
@@ -169,7 +163,7 @@ bool CMakeBuildStep::init()
         canInit = false;
     }
 
-    CMakeRunConfiguration *rc = targetsActiveRunConfiguration();
+    RunConfiguration *rc =  target()->activeRunConfiguration();
     if (isCurrentExecutableTarget(m_buildTarget) && (!rc || rc->buildKey().isEmpty())) {
         emit addTask(Task(Task::Error,
                           QCoreApplication::translate("ProjectExplorer::Task",
@@ -347,7 +341,7 @@ void CMakeBuildStep::setToolArguments(const QString &list)
     m_toolArguments = list;
 }
 
-Utils::CommandLine CMakeBuildStep::cmakeCommand(CMakeRunConfiguration *rc) const
+Utils::CommandLine CMakeBuildStep::cmakeCommand(RunConfiguration *rc) const
 {
     CMakeTool *tool = CMakeKitAspect::cmakeTool(target()->kit());
 
@@ -357,10 +351,15 @@ Utils::CommandLine CMakeBuildStep::cmakeCommand(CMakeRunConfiguration *rc) const
     QString target;
 
     if (isCurrentExecutableTarget(m_buildTarget)) {
-        if (rc)
-            target = rc->buildKey().section('\n', 0, 0);
-        else
+        if (rc) {
+            target = rc->buildKey();
+            const int pos = target.indexOf("///::///");
+            if (pos >= 0) {
+                target = target.mid(pos + 8);
+            }
+        } else {
             target = "<i>&lt;" + tr(ADD_RUNCONFIGURATION_TEXT) + "&gt;</i>";
+        }
     } else {
         target = m_buildTarget;
     }
@@ -442,15 +441,15 @@ CMakeBuildStepConfigWidget::CMakeBuildStepConfigWidget(CMakeBuildStep *buildStep
 
     connect(m_buildStep, &CMakeBuildStep::buildTargetsChanged, this, &CMakeBuildStepConfigWidget::buildTargetsChanged);
     connect(m_buildStep, &CMakeBuildStep::targetToBuildChanged, this, &CMakeBuildStepConfigWidget::selectedBuildTargetsChanged);
-    m_buildStep->project()->subscribeSignal(&BuildConfiguration::environmentChanged, this, [this]() {
-        if (static_cast<BuildConfiguration *>(sender())->isActive())
-            updateDetails();
-    });
-    connect(m_buildStep->project(), &Project::activeProjectConfigurationChanged,
-            this, [this](ProjectConfiguration *pc) {
-        if (pc && pc->isActive())
-            updateDetails();
-    });
+
+    connect(m_buildStep->buildConfiguration(), &BuildConfiguration::environmentChanged,
+            this, &CMakeBuildStepConfigWidget::updateDetails);
+
+    connect(m_buildStep->project(), &Project::activeBuildConfigurationChanged,
+            this, &CMakeBuildStepConfigWidget::updateDetails);
+
+    connect(m_buildStep->project(), &Project::activeTargetChanged,
+            this, &CMakeBuildStepConfigWidget::updateDetails);
 }
 
 void CMakeBuildStepConfigWidget::toolArgumentsEdited()
