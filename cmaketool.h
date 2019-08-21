@@ -89,11 +89,13 @@ public:
     Core::Id id() const { return m_id; }
     QVariantMap toMap () const;
 
-    void setCMakeExecutable(const Utils::FilePath &executable);
     void setAutorun(bool autoRun);
     void setAutoCreateBuildDirectory(bool autoBuildDir);
 
+    void setFilePath(const Utils::FilePath &executable);
+    Utils::FilePath filePath() const;
     Utils::FilePath cmakeExecutable() const;
+    static Utils::FilePath cmakeExecutable(const Utils::FilePath &path);
     bool isAutoRun() const;
     bool autoCreateBuildDirectory() const;
     QList<Generator> supportedGenerators() const;
@@ -111,11 +113,6 @@ public:
     PathMapper pathMapper() const;
 
     ReaderType readerType() const;
-
-    static bool isCanonicalPath(const Utils::FilePath &path);
-    bool isExecutablePathCanonical() const;
-
-    static QString nonCanonicalPathToCMakeExecutableWarningMessage();
 
 private:
     enum class QueryType {

@@ -28,6 +28,7 @@
 #include "cmake_global.h"
 
 #include "builddirmanager.h"
+#include "cmakebuildsystem.h"
 #include "cmakebuildtarget.h"
 #include "cmakeprojectimporter.h"
 
@@ -49,6 +50,8 @@ namespace ProjectExplorer { class FileNode; }
 
 namespace CMakeProjectManager {
 
+class BuildSystem;
+
 namespace Internal {
 class CMakeBuildConfiguration;
 class CMakeBuildSettingsWidget;
@@ -63,7 +66,7 @@ public:
     explicit CMakeProject(const Utils::FilePath &filename);
     ~CMakeProject() final;
 
-    QStringList buildTargetTitles() const;
+    BuildSystem *buildSystem() const { return m_buildsystem.get(); }
 
     ProjectExplorer::Tasks projectIssues(const ProjectExplorer::Kit *k) const final;
 
@@ -77,59 +80,31 @@ public:
 
     bool persistCMakeState();
     void clearCMakeCache();
-    bool mustUpdateCMakeStateBeforeBuild();
+    bool mustUpdateCMakeStateBeforeBuild() const;
 
     bool addFiles(const QStringList &filePaths);
     bool eraseFiles(const QStringList &filePaths);
     bool renameFile(const QString &filePath, const QString &newFilePath);
 
-    void checkAndReportError(QString &errorMessage) const;
-    void reportError(const QString &errorMessage) const;
-
-    void requestReparse(int reparseParameters);
-
 protected:
     bool setupTarget(ProjectExplorer::Target *t) final;
 
 private:
-    void startParsing(int reparseParameters);
-
-    void handleTreeScanningFinished();
-    void handleParsingSuccess(Internal::CMakeBuildConfiguration *bc);
     void updateProjectData();
-    void handleParsingError(Internal::CMakeBuildConfiguration *bc);
-    void combineScanAndParse(Internal::CMakeBuildConfiguration *bc);
-    void updateProjectData(Internal::CMakeBuildConfiguration *bc);
-    void updateQmlJSCodeModel(Internal::CMakeBuildConfiguration *bc);
-
-    QList<ProjectExplorer::ExtraCompiler *> findExtraCompilers() const;
     QStringList filesGeneratedFrom(const QString &sourceFile) const final;
 
     ProjectExplorer::DeploymentKnowledge deploymentKnowledge() const override;
-    bool hasMakeInstallEquivalent() const override { return true; }
     ProjectExplorer::MakeInstallCommand makeInstallCommand(const ProjectExplorer::Target *target,
                                                            const QString &installRoot) override;
 
-    CppTools::CppProjectUpdater *m_cppCodeModelUpdater = nullptr;
-    QList<ProjectExplorer::ExtraCompiler *> m_extraCompilers;
-
-    ProjectExplorer::TreeScanner m_treeScanner;
-
-    bool m_waitingForScan = true;
-    bool m_waitingForParse = false;
-    bool m_combinedScanAndParseResult = false;
-
-    QHash<QString, bool> m_mimeBinaryCache;
-    QList<const ProjectExplorer::FileNode *> m_allFiles;
     mutable std::unique_ptr<Internal::CMakeProjectImporter> m_projectImporter;
 
-    QTimer m_delayedParsingTimer;
-    int m_delayedParsingParameters = 0;
+    std::unique_ptr<CMakeBuildSystem> m_buildsystem;
 
-    ParseGuard m_parseGuard;
+    // friend class Internal::CMakeBuildConfiguration;
+    // friend class Internal::CMakeBuildSettingsWidget;
 
-    friend class Internal::CMakeBuildConfiguration;
-    friend class Internal::CMakeBuildSettingsWidget;
+    friend class CMakeBuildSystem;
 };
 
 } // namespace CMakeProjectManager

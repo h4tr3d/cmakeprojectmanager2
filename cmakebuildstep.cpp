@@ -83,13 +83,6 @@ CMakeBuildStep::CMakeBuildStep(BuildStepList *bsl) :
     //: Default display name for the cmake make step.
     setDefaultDisplayName(tr("CMake Build"));
 
-    auto bc = qobject_cast<CMakeBuildConfiguration *>(bsl->parent());
-    if (!bc) {
-        auto t = qobject_cast<Target *>(bsl->parent()->parent());
-        QTC_ASSERT(t, return);
-        bc = qobject_cast<CMakeBuildConfiguration *>(t->activeBuildConfiguration());
-    }
-
     // Set a good default build target:
     if (m_buildTarget.isEmpty())
         setBuildTarget(defaultBuildTarget());
@@ -108,8 +101,7 @@ void CMakeBuildStep::handleBuildTargetChanges(bool success)
 {
     if (!success)
         return; // Do not change when parsing failed.
-    if (!isCurrentExecutableTarget(m_buildTarget)
-        && !static_cast<CMakeProject *>(project())->buildTargetTitles().contains(m_buildTarget)) {
+    if (!isCurrentExecutableTarget(m_buildTarget) && !knownBuildTargets().contains(m_buildTarget)) {
         setBuildTarget(defaultBuildTarget());
     }
     emit buildTargetsChanged();
@@ -200,7 +192,7 @@ bool CMakeBuildStep::init()
     pp->setMacroExpander(bc->macroExpander());
     Utils::Environment env = bc->environment();
     Utils::Environment::setupEnglishOutput(&env);
-    if (!env.value("NINJA_STATUS").startsWith(m_ninjaProgressString))
+    if (!env.expandedValueForKey("NINJA_STATUS").startsWith(m_ninjaProgressString))
         env.set("NINJA_STATUS", m_ninjaProgressString + "%o/sec] ");
     pp->setEnvironment(env);
     pp->setWorkingDirectory(bc->buildDirectory());
@@ -270,8 +262,9 @@ BuildStepConfigWidget *CMakeBuildStep::createConfigWidget()
 
 QString CMakeBuildStep::defaultBuildTarget() const
 {
-    const ProjectConfiguration *const pc = qobject_cast<ProjectConfiguration *>(parent());
-    const Core::Id parentId = pc ? pc->id() : Core::Id();
+    const BuildStepList *const bsl = stepList();
+    QTC_ASSERT(bsl, return {});
+    const Core::Id parentId = bsl->id();
     if (parentId == ProjectExplorer::Constants::BUILDSTEPS_CLEAN)
         return cleanTarget();
     if (parentId == ProjectExplorer::Constants::BUILDSTEPS_DEPLOY)
@@ -374,6 +367,12 @@ Utils::CommandLine CMakeBuildStep::cmakeCommand(RunConfiguration *rc) const
     return cmd;
 }
 
+QStringList CMakeBuildStep::knownBuildTargets()
+{
+    auto bc = qobject_cast<CMakeBuildConfiguration *>(buildConfiguration());
+    return bc ? bc->buildTargetTitles() : QStringList();
+}
+
 QString CMakeBuildStep::cleanTarget()
 {
     return QString("clean");
@@ -444,12 +443,6 @@ CMakeBuildStepConfigWidget::CMakeBuildStepConfigWidget(CMakeBuildStep *buildStep
 
     connect(m_buildStep->buildConfiguration(), &BuildConfiguration::environmentChanged,
             this, &CMakeBuildStepConfigWidget::updateDetails);
-
-    connect(m_buildStep->project(), &Project::activeBuildConfigurationChanged,
-            this, &CMakeBuildStepConfigWidget::updateDetails);
-
-    connect(m_buildStep->project(), &Project::activeTargetChanged,
-            this, &CMakeBuildStepConfigWidget::updateDetails);
 }
 
 void CMakeBuildStepConfigWidget::toolArgumentsEdited()
@@ -472,8 +465,7 @@ void CMakeBuildStepConfigWidget::buildTargetsChanged()
         QSignalBlocker blocker(m_buildTargetsList);
         m_buildTargetsList->clear();
 
-        auto pro = static_cast<CMakeProject *>(m_buildStep->project());
-        QStringList targetList = pro->buildTargetTitles();
+        QStringList targetList = m_buildStep->knownBuildTargets();
         targetList.sort();
 
         QFont italics;
