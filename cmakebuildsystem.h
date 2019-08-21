@@ -136,10 +136,14 @@ public:
     explicit CMakeBuildSystem(CMakeProject *project);
     ~CMakeBuildSystem() final;
 
+    bool addFiles(const QStringList &filePaths);
+    bool eraseFiles(const QStringList &filePaths);
+    bool renameFile(const QString &filePath, const QString &newFilePath);
+    
 protected:
     bool validateParsingContext(const ParsingContext &ctx) final;
     void parseProject(ParsingContext &&ctx) final;
-
+    
 private:
     // Treescanner states:
     void handleTreeScanningFinished();
@@ -151,6 +155,7 @@ private:
     // Combining Treescanner and Parser states:
     void combineScanAndParse();
 
+    void updateProjectData();
     void updateProjectData(CMakeProject *p, Internal::CMakeBuildConfiguration *bc);
     QList<ProjectExplorer::ExtraCompiler *> findExtraCompilers(CMakeProject *p);
     void updateQmlJSCodeModel(CMakeProject *p, Internal::CMakeBuildConfiguration *bc);

@@ -96,7 +96,6 @@ CMakeProject::CMakeProject(const FilePath &fileName)
     setCanBuildProducts();
     setKnowsAllBuildExecutables(false);
     setHasMakeInstallEquivalent(true);
-            newRoot->setTopLevelProject(this);
 }
 
 CMakeProject::~CMakeProject() = default;
@@ -166,143 +165,19 @@ void CMakeProject::clearCMakeCache()
         bc->m_buildDirManager.clearCache();
 }
 
-void CMakeProject::updateProjectData()
-{
-    auto t = activeTarget();
-    if (!t)
-        return;
-
-    auto bc = qobject_cast<CMakeBuildConfiguration*>(t->activeBuildConfiguration());
-    if (!bc)
-        return;
-
-    updateProjectData(bc);
-}
-
 bool CMakeProject::addFiles(const QStringList &filePaths)
 {
-    QList<const FileNode *> nodes; // nodes to store in persistent tree
-    for (auto &filePath : filePaths) {
-        const auto mimeType = Utils::mimeTypeForFile(filePath);
-        auto fn = FilePath::fromString(filePath);
-        auto type = TreeScanner::genericFileType(mimeType, fn);
-
-        auto node = new FileNode(fn, type);
-        node->setEnabled(false);
-        node->setIsGenerated(false);
-        nodes << node;
-    }
-
-    if (nodes.empty())
-        return true;
-
-    // Update tree without full rescan run
-    sort(nodes, Node::sortByPath);
-
-    auto oldSize = m_allFiles.size();
-    m_allFiles.append(nodes);
-    std::inplace_merge(m_allFiles.begin(),
-                       m_allFiles.begin() + oldSize,
-                       m_allFiles.end(),
-                       Node::sortByPath);
-
-
-    // Real adding occurs after function exit.
-    QTimer::singleShot(200, this, [this](){
-        this->updateProjectData();
-    });
-
-    return true;
+    return m_buildsystem->addFiles(filePaths);
 }
 
 bool CMakeProject::eraseFiles(const QStringList &filePaths)
 {
-    QList<const FileNode *> removed;
-    for (auto& filePath : filePaths) {
-        const auto mimeType = Utils::mimeTypeForFile(filePath);
-        auto fn = FilePath::fromString(filePath);
-        auto type = TreeScanner::genericFileType(mimeType, fn);
-        auto toRemove = new FileNode(fn, type);
-        toRemove->setIsGenerated(false);
-
-        // To update list
-        removed << toRemove;
-    }
-
-    // Update tree without full rescan run
-    sort(removed, Node::sortByPath);
-
-    // Inplace change m_allFiles in one pass
-
-    auto it = std::lower_bound(m_allFiles.begin(), m_allFiles.end(), removed[0], Node::sortByPath);
-    QTC_ASSERT(it != m_allFiles.end(), return false);
-
-    int allIdx = static_cast<int>(std::distance(m_allFiles.begin(), it));
-    int remIdx = 0;
-    while (allIdx < m_allFiles.size() && remIdx < removed.size()) {
-        auto &allNode = m_allFiles[allIdx];
-        auto &removeNode = removed[remIdx];
-
-        if (Node::sortByPath(allNode, removeNode)) {
-            allIdx++;
-        } else if (Node::sortByPath(removeNode, allNode)) {
-            remIdx++;
-        } else {
-            delete allNode;
-            m_allFiles.removeAt(allIdx);
-            // We should not increment allIdx here
-            remIdx++;
-        }
-    }
-
-    // Real deleting occurs after function exit.
-    QTimer::singleShot(200, this, [this](){
-        this->updateProjectData();
-    });
-
-    return true;
+    return m_buildsystem->eraseFiles(filePaths);
 }
 
 bool CMakeProject::renameFile(const QString &filePath, const QString &newFilePath)
 {
-    auto fn = FilePath::fromString(filePath);
-    auto newfn = FilePath::fromString(newFilePath);
-    const auto mimeType = Utils::mimeTypeForFile(filePath);
-    auto type = TreeScanner::genericFileType(mimeType, fn);
-    auto node = new FileNode(fn, type);
-    node->setIsGenerated(false);
-
-    // Update tree without full rescan run
-    {
-        auto it = std::lower_bound(m_allFiles.begin(),
-                                   m_allFiles.end(),
-                                   node,
-                                   Node::sortByPath);
-        if (it == m_allFiles.end())
-            return false;
-
-        // Update data in scanned files and in the project tree
-        delete *it;
-        m_allFiles.removeAt(static_cast<int>(std::distance(m_allFiles.begin(), it)));
-
-        // We add only one new file. Use std::lower_bound to insert item to right place
-        auto toAdd = new FileNode(newfn, node->fileType()); // do not copy parent and other
-        toAdd->setIsGenerated(false);
-        toAdd->setEnabled(false);
-
-        it = std::lower_bound(m_allFiles.begin(),
-                              m_allFiles.end(),
-                              toAdd,
-                              Node::sortByPath);
-
-        m_allFiles.insert(it, toAdd);
-    }
-
-    QTimer::singleShot(200, this, [this](){
-        this->updateProjectData();
-    });
-
-    return true;
+    return m_buildsystem->renameFile(filePath, newFilePath);
 }
 
 bool CMakeProject::setupTarget(Target *t)

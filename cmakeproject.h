@@ -90,7 +90,6 @@ protected:
     bool setupTarget(ProjectExplorer::Target *t) final;
 
 private:
-    void updateProjectData();
     QStringList filesGeneratedFrom(const QString &sourceFile) const final;
 
     ProjectExplorer::DeploymentKnowledge deploymentKnowledge() const override;
