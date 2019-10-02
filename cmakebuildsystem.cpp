@@ -145,7 +145,9 @@ void CMakeBuildSystem::parseProject(ParsingContext &&ctx)
 
 void CMakeBuildSystem::updateProjectData()
 {
-    updateProjectData(qobject_cast<CMakeProject*>(project()), activeBc(project()));
+    auto p = project();
+    updateProjectData(qobject_cast<CMakeProject*>(project()),
+        qobject_cast<CMakeBuildConfiguration *>(p->activeTarget() ? p->activeTarget()->activeBuildConfiguration() : nullptr));
 }
 
 bool CMakeBuildSystem::addFiles(const QStringList &filePaths)

@@ -166,17 +166,20 @@ void CMakeProject::clearCMakeCache()
 
 bool CMakeProject::addFiles(const QStringList &filePaths)
 {
-    return m_buildsystem->addFiles(filePaths);
+    auto *bs = qobject_cast<CMakeBuildSystem *>(buildSystem());
+    return bs->addFiles(filePaths);
 }
 
 bool CMakeProject::eraseFiles(const QStringList &filePaths)
 {
-    return m_buildsystem->eraseFiles(filePaths);
+    auto *bs = qobject_cast<CMakeBuildSystem *>(buildSystem());
+    return bs->eraseFiles(filePaths);
 }
 
 bool CMakeProject::renameFile(const QString &filePath, const QString &newFilePath)
 {
-    return m_buildsystem->renameFile(filePath, newFilePath);
+    auto *bs = qobject_cast<CMakeBuildSystem *>(buildSystem());
+    return bs->renameFile(filePath, newFilePath);
 }
 
 bool CMakeProject::setupTarget(Target *t)
