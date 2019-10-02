@@ -67,7 +67,7 @@ public:
     CMakeConfig takeParsedConfiguration(QString &errorMessage) final;
     std::unique_ptr<CMakeProjectNode> generateProjectTree(
         const QList<const ProjectExplorer::FileNode *> &allFiles, QString &errorMessage) override;
-    CppTools::RawProjectParts createRawProjectParts(QString &errorMessage) final;
+    ProjectExplorer::RawProjectParts createRawProjectParts(QString &errorMessage) final;
 
 protected:
     void startState();
@@ -81,7 +81,7 @@ protected:
     CMakeConfig m_cache;
     QSet<Utils::FilePath> m_cmakeFiles;
     QList<CMakeBuildTarget> m_buildTargets;
-    CppTools::RawProjectParts m_projectParts;
+    ProjectExplorer::RawProjectParts m_projectParts;
     std::unique_ptr<CMakeProjectNode> m_rootProjectNode;
     QSet<Utils::FilePath> m_knownHeaders;
 

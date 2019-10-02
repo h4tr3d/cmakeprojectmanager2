@@ -58,7 +58,6 @@
 using namespace ProjectExplorer;
 
 namespace CMakeProjectManager {
-namespace Internal {
 // --------------------------------------------------------------------
 // CMakeKitAspect:
 // --------------------------------------------------------------------
@@ -1002,7 +1001,7 @@ Tasks CMakeConfigurationKitAspect::validate(const Kit *k) const
                            Utils::FilePath(), -1, Core::Id(ProjectExplorer::Constants::TASK_CATEGORY_BUILDSYSTEM));
         }
     }
-    if (version && !qtInstallDirs.contains(version->qmakeProperty("QT_INSTALL_PREFIX")) && !isQt4) {
+    if (version && !qtInstallDirs.contains(version->prefix().toString()) && !isQt4) {
         if (version->isValid()) {
             result << Task(Task::Warning, tr("CMake configuration has no CMAKE_PREFIX_PATH set "
                                              "that points to the kit Qt version."),
@@ -1075,5 +1074,4 @@ KitAspectWidget *CMakeConfigurationKitAspect::createConfigWidget(Kit *k) const
     return new CMakeConfigurationKitAspectWidget(k, this);
 }
 
-} // namespace Internal
 } // namespace CMakeProjectManager

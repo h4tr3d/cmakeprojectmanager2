@@ -177,7 +177,7 @@ bool FileApiReader::isParsing() const
 
 QVector<FilePath> FileApiReader::takeProjectFilesToWatch()
 {
-    return QVector<FilePath>::fromList(m_cmakeFiles.toList());
+    return QVector<FilePath>::fromList(Utils::toList(m_cmakeFiles));
 }
 
 QList<CMakeBuildTarget> FileApiReader::takeBuildTargets(QString &errorMessage){
@@ -206,11 +206,11 @@ std::unique_ptr<CMakeProjectNode> FileApiReader::generateProjectTree(
     return std::move(m_rootProjectNode);
 }
 
-CppTools::RawProjectParts FileApiReader::createRawProjectParts(QString &errorMessage)
+RawProjectParts FileApiReader::createRawProjectParts(QString &errorMessage)
 {
     Q_UNUSED(errorMessage)
 
-    CppTools::RawProjectParts result = std::move(m_projectParts);
+    RawProjectParts result = std::move(m_projectParts);
     m_projectParts.clear();
     return result;
 }

@@ -25,6 +25,8 @@
 
 #pragma once
 
+#include "cmake_global.h"
+
 #include <utils/optional.h>
 
 #include <QByteArray>
@@ -40,11 +42,11 @@ class MacroExpander;
 
 namespace CMakeProjectManager {
 
-class CMakeConfigItem {
+class CMAKE_EXPORT CMakeConfigItem {
 public:
     enum Type { FILEPATH, PATH, BOOL, STRING, INTERNAL, STATIC };
     CMakeConfigItem();
-    CMakeConfigItem(const QByteArray &k, Type t, const QByteArray &d, const QByteArray &v);
+    CMakeConfigItem(const QByteArray &k, Type t, const QByteArray &d, const QByteArray &v, const QStringList &s = {});
     CMakeConfigItem(const QByteArray &k, const QByteArray &v);
 
     static QByteArray valueOf(const QByteArray &key, const QList<CMakeConfigItem> &input);

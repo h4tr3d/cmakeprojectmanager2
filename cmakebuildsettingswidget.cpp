@@ -91,7 +91,7 @@ CMakeBuildSettingsWidget::CMakeBuildSettingsWidget(CMakeBuildConfiguration *bc) 
     setDisplayName(tr("CMake"));
 
     auto vbox = new QVBoxLayout(this);
-    vbox->setMargin(0);
+    vbox->setContentsMargins(0, 0, 0, 0);
     auto container = new Utils::DetailsWidget;
     container->setState(Utils::DetailsWidget::NoSummary);
     vbox->addWidget(container);
@@ -100,7 +100,7 @@ CMakeBuildSettingsWidget::CMakeBuildSettingsWidget(CMakeBuildConfiguration *bc) 
     container->setWidget(details);
 
     auto mainLayout = new QGridLayout(details);
-    mainLayout->setMargin(0);
+    mainLayout->setContentsMargins(0, 0, 0, 0);
     mainLayout->setColumnStretch(1, 10);
 
     auto project = static_cast<CMakeProject *>(bc->project());
@@ -252,7 +252,7 @@ CMakeBuildSettingsWidget::CMakeBuildSettingsWidget(CMakeBuildConfiguration *bc) 
         m_showProgressTimer.start();
     });
 
-    if (m_buildConfiguration->isParsing())
+    if (project->isParsing())
         m_showProgressTimer.start();
     else {
         m_configModel->setConfiguration(m_buildConfiguration->configurationFromCMake());
@@ -363,7 +363,7 @@ void CMakeBuildSettingsWidget::setWarning(const QString &message)
 
 void CMakeBuildSettingsWidget::updateButtonState()
 {
-    const bool isParsing = m_buildConfiguration->isParsing();
+    const bool isParsing = m_buildConfiguration->project()->isParsing();
     const bool hasChanges = m_configModel->hasChanges();
     m_resetButton->setEnabled(hasChanges && !isParsing);
     m_reconfigureButton->setEnabled((hasChanges || m_configModel->hasCMakeChanges()) && !isParsing);

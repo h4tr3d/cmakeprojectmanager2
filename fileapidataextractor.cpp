@@ -270,15 +270,17 @@ static QStringList splitFragments(const QStringList &fragments)
     return result;
 }
 
-CppTools::RawProjectParts generateRawProjectParts(const PreprocessedData &input,
-                                                  const FilePath &sourceDirectory)
+RawProjectParts generateRawProjectParts(const PreprocessedData &input,
+                                        const FilePath &sourceDirectory)
 {
-    CppTools::RawProjectParts rpps;
+    RawProjectParts rpps;
 
     int counter = 0;
     for (const TargetDetails &t : input.targetDetails) {
         QDir sourceDir(sourceDirectory.toString());
 
+        bool needPostfix = t.compileGroups.size() > 1;
+        int count = 1;
         for (const CompileInfo &ci : t.compileGroups) {
             if (ci.language != "C" && ci.language != "CXX" && ci.language != "CUDA")
                 continue; // No need to bother the C++ codemodel
@@ -296,30 +298,45 @@ CppTools::RawProjectParts generateRawProjectParts(const PreprocessedData &input,
                 continue;
             }
 
+            QString ending;
+            if (ci.language == "C")
+                ending = "/cmake_pch.h";
+            else if (ci.language == "CXX")
+                ending = "/cmake_pch.hxx";
+
             ++counter;
-            CppTools::RawProjectPart rpp;
+            RawProjectPart rpp;
             rpp.setProjectFileLocation(t.sourceDir.pathAppended("CMakeLists.txt").toString());
             rpp.setBuildSystemTarget(t.name);
-            rpp.setDisplayName(t.id);
+            const QString postfix = needPostfix ? "_cg" + QString::number(count) : QString();
+            rpp.setDisplayName(t.id + postfix);
             rpp.setMacros(transform<QVector>(ci.defines, &DefineInfo::define));
             rpp.setHeaderPaths(transform<QVector>(ci.includes, &IncludeInfo::path));
 
-            CppTools::RawProjectPartFlags cProjectFlags;
+            RawProjectPartFlags cProjectFlags;
             cProjectFlags.commandLineFlags = splitFragments(ci.fragments);
             rpp.setFlagsForC(cProjectFlags);
 
-            CppTools::RawProjectPartFlags cxxProjectFlags;
+            RawProjectPartFlags cxxProjectFlags;
             cxxProjectFlags.commandLineFlags = cProjectFlags.commandLineFlags;
             rpp.setFlagsForCxx(cxxProjectFlags);
+
+            const QString precompiled_header
+                = findOrDefault(t.sources, [&ending](const SourceInfo &si) {
+                      return si.path.endsWith(ending);
+                  }).path;
 
             rpp.setFiles(transform<QList>(ci.sources, [&t, &sourceDir](const int si) {
                 return sourceDir.absoluteFilePath(t.sources[static_cast<size_t>(si)].path);
             }));
+            if (!precompiled_header.isEmpty())
+                rpp.setPreCompiledHeaders({precompiled_header});
 
             const bool isExecutable = t.type == "EXECUTABLE";
-            rpp.setBuildTargetType(isExecutable ? CppTools::ProjectPart::Executable
-                                                : CppTools::ProjectPart::Library);
+            rpp.setBuildTargetType(isExecutable ? ProjectExplorer::BuildTargetType::Executable
+                                                : ProjectExplorer::BuildTargetType::Library);
             rpps.append(rpp);
+            ++count;
         }
     }
 

@@ -47,6 +47,7 @@
 #include <QDir>
 #include <QLoggingCategory>
 #include <QMessageBox>
+#include <QPointer>
 #include <QPushButton>
 #include <QSet>
 
@@ -95,6 +96,18 @@ Utils::FilePath BuildDirManager::workDirectory(const BuildDirParameters &paramet
     return Utils::FilePath::fromString(tmpDirIt->second->path());
 }
 
+void BuildDirManager::updateReparseParameters(const int parameters)
+{
+    m_reparseParameters |= parameters;
+}
+
+int BuildDirManager::takeReparseParameters()
+{
+    int result = m_reparseParameters;
+    m_reparseParameters = REPARSE_DEFAULT;
+    return result;
+}
+
 void BuildDirManager::emitDataAvailable()
 {
     if (!isParsing())
@@ -106,6 +119,14 @@ void BuildDirManager::emitErrorOccured(const QString &message) const
     m_isHandlingError = true;
     emit errorOccured(message);
     m_isHandlingError = false;
+}
+
+void BuildDirManager::emitReparseRequest() const
+{
+    if (m_reparseParameters & REPARSE_URGENT)
+        emit requestReparse();
+    else
+        emit requestDelayedReparse();
 }
 
 void BuildDirManager::updateReaderType(const BuildDirParameters &p,
@@ -208,7 +229,7 @@ void BuildDirManager::stopParsingAndClearState()
 }
 
 void BuildDirManager::setParametersAndRequestParse(const BuildDirParameters &parameters,
-                                                   int reparseOptions)
+                                                   const int reparseParameters)
 {
     if (!parameters.cmakeTool()) {
         TaskHub::addTask(Task::Error,
@@ -222,9 +243,9 @@ void BuildDirManager::setParametersAndRequestParse(const BuildDirParameters &par
 
     m_parameters = parameters;
     m_parameters.workDirectory = workDirectory(parameters);
+    updateReparseParameters(reparseParameters);
 
-    updateReaderType(m_parameters,
-                     [this, reparseOptions]() { emit requestReparse(reparseOptions); });
+    updateReaderType(m_parameters, [this]() { emitReparseRequest(); });
 }
 
 CMakeBuildConfiguration *BuildDirManager::buildConfiguration() const
@@ -248,7 +269,8 @@ void BuildDirManager::becameDirty()
     if (!tool->isAutoRun())
         return;
 
-    emit requestReparse(REPARSE_CHECK_CONFIGURATION | REPARSE_SCAN);
+    updateReparseParameters(REPARSE_CHECK_CONFIGURATION | REPARSE_SCAN);
+    emit requestReparse();
 }
 
 void BuildDirManager::resetData()
@@ -276,18 +298,29 @@ bool BuildDirManager::persistCMakeState()
     return true;
 }
 
-void BuildDirManager::parse(int reparseParameters)
+void BuildDirManager::requestFilesystemScan()
 {
-    qCDebug(cmakeBuildDirManagerLog)
-        << "Parse called with flags:" << flagsString(reparseParameters);
+    updateReparseParameters(REPARSE_SCAN);
+}
 
+bool BuildDirManager::isFilesystemScanRequested() const
+{
+    return m_reparseParameters & REPARSE_SCAN;
+}
+
+void BuildDirManager::parse()
+{
     QTC_ASSERT(m_parameters.isValid(), return );
     QTC_ASSERT(m_reader, return);
-    QTC_ASSERT((reparseParameters & REPARSE_IGNORE) == 0, return);
 
     m_reader->stop();
 
     TaskHub::clearTasks(ProjectExplorer::Constants::TASK_CATEGORY_BUILDSYSTEM);
+
+    int reparseParameters = takeReparseParameters();
+
+    qCDebug(cmakeBuildDirManagerLog)
+        << "Parse called with flags:" << flagsString(reparseParameters);
 
     const QString cache = m_parameters.workDirectory.pathAppended("CMakeCache.txt").toString();
     if (!QFileInfo::exists(cache)) {
@@ -314,23 +347,12 @@ QVector<FilePath> BuildDirManager::takeProjectFilesToWatch()
     Utils::FilePath sourceDir = m_parameters.sourceDirectory;
     Utils::FilePath buildDir = m_parameters.workDirectory;
 
-    const QVector<FilePath> toWatch = Utils::filtered(m_reader->takeProjectFilesToWatch(),
-                                                      [&sourceDir,
-                                                       &buildDir](const Utils::FilePath &p) {
-                                                          return p.isChildOf(sourceDir)
-                                                                 || p.isChildOf(buildDir);
-                                                      });
-
-    if (!toWatch.isEmpty()) {
-        connect(project(), &Project::projectFileIsDirty, this, [this]() {
-            if (m_parameters.cmakeTool() && m_parameters.cmakeTool()->isAutoRun())
-                requestReparse(REPARSE_DEFAULT);
-        });
-    } else {
-        disconnect(project(), nullptr, this, nullptr);
-    }
-
-    return toWatch;
+    return Utils::filtered(m_reader->takeProjectFilesToWatch(),
+                           [&sourceDir,
+                           &buildDir](const Utils::FilePath &p) {
+        return p.isChildOf(sourceDir)
+                        || p.isChildOf(buildDir);
+    });
 }
 
 std::unique_ptr<CMakeProjectNode> BuildDirManager::generateProjectTree(
@@ -342,7 +364,7 @@ std::unique_ptr<CMakeProjectNode> BuildDirManager::generateProjectTree(
     return m_reader->generateProjectTree(allFiles, errorMessage);
 }
 
-CppTools::RawProjectParts BuildDirManager::createRawProjectParts(QString &errorMessage) const
+RawProjectParts BuildDirManager::createRawProjectParts(QString &errorMessage) const
 {
     QTC_ASSERT(!m_isHandlingError, return {});
     QTC_ASSERT(m_reader, return {});
@@ -452,8 +474,6 @@ QString BuildDirManager::flagsString(int reparseFlags)
             result += " CHECK_CONFIG";
         if (reparseFlags & REPARSE_SCAN)
             result += " SCAN";
-        if (reparseFlags & REPARSE_IGNORE)
-            result += " IGNORE";
     }
     return result.trimmed();
 }

@@ -89,17 +89,17 @@ CMakeBuildConfiguration::CMakeBuildConfiguration(Target *parent, Core::Id id)
                                            target()->kit(),
                                            displayName(),
                                            BuildConfiguration::Unknown));
-    connect(project(), &Project::parsingFinished, this, &BuildConfiguration::enabledChanged);
 
     BuildSystem *bs = qobject_cast<CMakeBuildSystem *>(project()->buildSystem());
 
     // BuildDirManager:
-    connect(&m_buildDirManager, &BuildDirManager::requestReparse, this, [this, bs](int options) {
-        if (isActive()) {
-            qCDebug(cmakeBuildConfigurationLog)
-                << "Passing on reparse request with flags" << BuildDirManager::flagsString(options);
-            bs->requestParse(options);
-        }
+    connect(&m_buildDirManager, &BuildDirManager::requestReparse, this, [this, bs]() {
+        if (isActive())
+            bs->requestParse();
+    });
+    connect(&m_buildDirManager, &BuildDirManager::requestDelayedReparse, this, [this, bs]() {
+        if (isActive())
+            bs->requestDelayedParse();
     });
     connect(&m_buildDirManager,
             &BuildDirManager::dataAvailable,
@@ -170,11 +170,19 @@ CMakeBuildConfiguration::CMakeBuildConfiguration(Target *parent, Core::Id id)
                                               BuildDirManager::REPARSE_FORCE_CONFIGURATION);
         }
     });
+
+    connect(parent->project(), &Project::projectFileIsDirty, this, [this]() {
+        if (isActive()) {
+            m_buildDirManager
+                .setParametersAndRequestParse(BuildDirParameters(this),
+                                              BuildDirManager::REPARSE_DEFAULT);
+        }
+    });
 }
 
-void CMakeBuildConfiguration::initialize(const BuildInfo &info)
+void CMakeBuildConfiguration::initialize()
 {
-    BuildConfiguration::initialize(info);
+    BuildConfiguration::initialize();
 
     BuildStepList *buildSteps = stepList(ProjectExplorer::Constants::BUILDSTEPS_BUILD);
     buildSteps->appendStep(Constants::CMAKE_BUILD_STEP_ID);
@@ -196,10 +204,21 @@ void CMakeBuildConfiguration::initialize(const BuildInfo &info)
                                                                             CMakeProjectManager::CMakeConfigItem::Type::PATH,
                                                                             "Android CMake toolchain file",
                                                                             ndkLocation.pathAppended("build/cmake/android.toolchain.cmake").toUserOutput().toUtf8()});
+        auto androidAbis = bs->data(Android::Constants::AndroidABIs).toStringList();
+        QString preferredAbi;
+        if (androidAbis.contains("arm64-v8a")) {
+            preferredAbi = "arm64-v8a";
+        } else if (androidAbis.isEmpty() || androidAbis.contains("armeabi-v7a")) {
+            preferredAbi = "armeabi-v7a";
+        } else {
+            preferredAbi = androidAbis.first();
+        }
+        // FIXME: configmodel doesn't care about our androidAbis list...
         m_initialConfiguration.prepend(CMakeProjectManager::CMakeConfigItem{"ANDROID_ABI",
                                                                             CMakeProjectManager::CMakeConfigItem::Type::STRING,
                                                                             "Android ABI",
-                                                                            bs->data(Android::Constants::AndroidABI).toString().toUtf8()});
+                                                                            preferredAbi.toLatin1(),
+                                                                            androidAbis});
         m_initialConfiguration.prepend(CMakeProjectManager::CMakeConfigItem{"ANDROID_STL",
                                                                             CMakeProjectManager::CMakeConfigItem::Type::STRING,
                                                                             "Android STL",
@@ -213,19 +232,15 @@ void CMakeBuildConfiguration::initialize(const BuildInfo &info)
     BuildStepList *cleanSteps = stepList(ProjectExplorer::Constants::BUILDSTEPS_CLEAN);
     cleanSteps->appendStep(Constants::CMAKE_BUILD_STEP_ID);
 
-    if (info.buildDirectory.isEmpty()) {
+    if (initialBuildDirectory().isEmpty()) {
         auto project = target()->project();
         setBuildDirectory(CMakeBuildConfiguration::shadowBuildDirectory(project->projectFilePath(),
                                                                         target()->kit(),
-                                                                        info.displayName, info.buildType));
+                                                                        initialDisplayName(),
+                                                                        initialBuildType()));
     }
-    auto extraInfo = info.extraInfo.value<CMakeExtraBuildInfo>();
-    setConfigurationForCMake(extraInfo.configuration);
-}
-
-bool CMakeBuildConfiguration::isEnabled() const
-{
-    return m_error.isEmpty() && !isParsing();
+    auto info = extraInfo().value<CMakeExtraBuildInfo>();
+    setConfigurationForCMake(info.configuration);
 }
 
 QString CMakeBuildConfiguration::disabledReason() const
@@ -257,11 +272,6 @@ bool CMakeBuildConfiguration::fromMap(const QVariantMap &map)
     return true;
 }
 
-bool CMakeBuildConfiguration::isParsing() const
-{
-    return project()->isParsing() && isActive();
-}
-
 const QList<BuildTargetInfo> CMakeBuildConfiguration::appTargets() const
 {
     QList<BuildTargetInfo> appTargetList;
@@ -282,10 +292,8 @@ const QList<BuildTargetInfo> CMakeBuildConfiguration::appTargets() const
             bti.runEnvModifier = [this](Environment &env, bool) {
                 if (HostOsInfo::isWindowsHost()) {
                     const Kit *k = target()->kit();
-                    if (const QtSupport::BaseQtVersion *qt = QtSupport::QtKitAspect::qtVersion(k)) {
-                        const QString installBinPath = qt->qmakeProperty("QT_INSTALL_BINS");
-                        env.prependOrSetPath(installBinPath);
-                    }
+                    if (const QtSupport::BaseQtVersion *qt = QtSupport::QtKitAspect::qtVersion(k))
+                        env.prependOrSetPath(qt->binPath().toString());
                 }
             };
 
@@ -319,7 +327,7 @@ DeploymentData CMakeBuildConfiguration::deploymentData() const
     for (const CMakeBuildTarget &ct : m_buildTargets) {
         if (ct.targetType == ExecutableType || ct.targetType == DynamicLibraryType) {
             if (!ct.executable.isEmpty()
-                    && !result.deployableForLocalFile(ct.executable.toString()).isValid()) {
+                    && !result.deployableForLocalFile(ct.executable).isValid()) {
                 result.addFile(ct.executable.toString(),
                                deploymentPrefix + buildDir.relativeFilePath(ct.executable.toFileInfo().dir().path()),
                                DeployableFile::TypeExecutable);
@@ -633,7 +641,7 @@ QList<BuildInfo> CMakeBuildConfigurationFactory::availableBuilds(const Kit *k,
 
     FilePath path = forSetup ? Project::projectDirectory(projectPath) : projectPath;
 
-    for (int type = BuildTypeNone; type != BuildTypeLast; ++type) {
+    for (int type = BuildTypeDebug; type != BuildTypeLast; ++type) {
         BuildInfo info = createBuildInfo(k, path.toString(), BuildType(type));
         if (forSetup) {
             info.displayName = info.typeName;

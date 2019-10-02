@@ -29,8 +29,6 @@
 #include "cmakeproject.h"
 #include "configmodel.h"
 
-#include <cpptools/cpprawprojectpart.h>
-
 #include <projectexplorer/buildconfiguration.h>
 #include <projectexplorer/buildtargetinfo.h>
 #include <projectexplorer/deploymentdata.h>
@@ -54,8 +52,6 @@ class CMakeBuildConfiguration : public ProjectExplorer::BuildConfiguration
 
 public:
     void emitBuildTypeChanged();
-
-    bool isEnabled() const override;
 
     CMakeConfig configurationForCMake() const;
     CMakeConfig configurationFromCMake() const;
@@ -86,14 +82,12 @@ private:
     QVariantMap toMap() const override;
     BuildType buildType() const override;
 
-    void initialize(const ProjectExplorer::BuildInfo &info) override;
+    void initialize() override;
     QString disabledReason() const override;
 
     ProjectExplorer::NamedWidget *createConfigWidget() override;
 
     bool fromMap(const QVariantMap &map) override;
-
-    bool isParsing() const;
 
     enum ForceEnabledChanged { False, True };
     void clearError(ForceEnabledChanged fec = ForceEnabledChanged::False);

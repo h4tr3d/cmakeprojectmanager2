@@ -295,10 +295,10 @@ std::unique_ptr<CMakeProjectNode> ServerModeReader::generateProjectTree(const QL
     return root;
 }
 
-CppTools::RawProjectParts ServerModeReader::createRawProjectParts(QString &errorMessage)
+RawProjectParts ServerModeReader::createRawProjectParts(QString &errorMessage)
 {
     Q_UNUSED(errorMessage)
-    CppTools::RawProjectParts rpps;
+    RawProjectParts rpps;
 
     int counter = 0;
     for (const FileGroup *fg : qAsConst(m_fileGroups)) {
@@ -338,7 +338,7 @@ CppTools::RawProjectParts ServerModeReader::createRawProjectParts(QString &error
             }
         }
 
-        CppTools::RawProjectPart rpp;
+        RawProjectPart rpp;
         rpp.setProjectFileLocation(fg->target->sourceDirectory.toString() + "/CMakeLists.txt");
         rpp.setBuildSystemTarget(fg->target->name);
         rpp.setDisplayName(fg->target->name + QString::number(counter));
@@ -346,19 +346,19 @@ CppTools::RawProjectParts ServerModeReader::createRawProjectParts(QString &error
         rpp.setPreCompiledHeaders(pchFiles);
         rpp.setIncludePaths(includes);
 
-        CppTools::RawProjectPartFlags cProjectFlags;
+        RawProjectPartFlags cProjectFlags;
         cProjectFlags.commandLineFlags = flags;
         rpp.setFlagsForC(cProjectFlags);
 
-        CppTools::RawProjectPartFlags cxxProjectFlags;
+        RawProjectPartFlags cxxProjectFlags;
         cxxProjectFlags.commandLineFlags = flags;
         rpp.setFlagsForCxx(cxxProjectFlags);
 
         rpp.setFiles(transform(fg->sources, &FilePath::toString));
 
         const bool isExecutable = fg->target->type == "EXECUTABLE";
-        rpp.setBuildTargetType(isExecutable ? CppTools::ProjectPart::Executable
-                                            : CppTools::ProjectPart::Library);
+        rpp.setBuildTargetType(isExecutable ? ProjectExplorer::BuildTargetType::Executable
+                                            : ProjectExplorer::BuildTargetType::Library);
         rpps.append(rpp);
     }
 
