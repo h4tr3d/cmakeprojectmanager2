@@ -51,6 +51,8 @@
 #include <QPushButton>
 #include <QSet>
 
+#include <app/app_version.h>
+
 using namespace ProjectExplorer;
 using namespace Utils;
 
@@ -123,28 +125,44 @@ void BuildDirManager::emitErrorOccured(const QString &message) const
 
 void BuildDirManager::emitReparseRequest() const
 {
-    if (m_reparseParameters & REPARSE_URGENT)
+    if (m_reparseParameters & REPARSE_URGENT) {
+        qCDebug(cmakeBuildDirManagerLog) << "emitting requestReparse";
         emit requestReparse();
-    else
+    } else {
+        qCDebug(cmakeBuildDirManagerLog) << "emitting requestDelayedReparse";
         emit requestDelayedReparse();
+    }
 }
 
 void BuildDirManager::updateReaderType(const BuildDirParameters &p,
                                        std::function<void()> todo)
 {
-    if (!m_reader || !m_reader->isCompatible(p))
+    if (!m_reader || !m_reader->isCompatible(p)) {
+        if (m_reader) {
+            stopParsingAndClearState();
+            qCDebug(cmakeBuildDirManagerLog) << "Creating new reader do to incompatible parameters";
+        } else {
+            qCDebug(cmakeBuildDirManagerLog) << "Creating first reader";
+        }
         m_reader = BuildDirReader::createReader(p);
 
-    QTC_ASSERT(m_reader, return);
+        connect(m_reader.get(),
+                &BuildDirReader::configurationStarted,
+                this,
+                &BuildDirManager::parsingStarted);
+        connect(m_reader.get(),
+                &BuildDirReader::dataAvailable,
+                this,
+                &BuildDirManager::emitDataAvailable);
+        connect(m_reader.get(),
+                &BuildDirReader::errorOccured,
+                this,
+                &BuildDirManager::emitErrorOccured);
+        connect(m_reader.get(), &BuildDirReader::dirty, this, &BuildDirManager::becameDirty);
+        connect(m_reader.get(), &BuildDirReader::isReadyNow, this, todo);
+    }
 
-    connect(m_reader.get(), &BuildDirReader::configurationStarted,
-            this, &BuildDirManager::parsingStarted);
-    connect(m_reader.get(), &BuildDirReader::dataAvailable,
-            this, &BuildDirManager::emitDataAvailable);
-    connect(m_reader.get(), &BuildDirReader::errorOccured,
-            this, &BuildDirManager::emitErrorOccured);
-    connect(m_reader.get(), &BuildDirReader::dirty, this, &BuildDirManager::becameDirty);
-    connect(m_reader.get(), &BuildDirReader::isReadyNow, this, todo);
+    QTC_ASSERT(m_reader, return );
 
     m_reader->setParameters(p);
 }
@@ -220,7 +238,10 @@ bool BuildDirManager::isParsing() const
 
 void BuildDirManager::stopParsingAndClearState()
 {
+    qCDebug(cmakeBuildDirManagerLog) << "stopping parsing run!";
     if (m_reader) {
+        if (m_reader->isParsing())
+            m_reader->errorOccured(tr("Parsing has been canceled."));
         disconnect(m_reader.get(), nullptr, this, nullptr);
         m_reader->stop();
     }
@@ -231,6 +252,7 @@ void BuildDirManager::stopParsingAndClearState()
 void BuildDirManager::setParametersAndRequestParse(const BuildDirParameters &parameters,
                                                    const int reparseParameters)
 {
+    qCDebug(cmakeBuildDirManagerLog) << "setting parameters and requesting reparse";
     if (!parameters.cmakeTool()) {
         TaskHub::addTask(Task::Error,
                          tr("The kit needs to define a CMake tool to parse this project."),
@@ -238,8 +260,6 @@ void BuildDirManager::setParametersAndRequestParse(const BuildDirParameters &par
         return;
     }
     QTC_ASSERT(parameters.isValid(), return );
-
-    stopParsingAndClearState();
 
     m_parameters = parameters;
     m_parameters.workDirectory = workDirectory(parameters);
@@ -262,6 +282,7 @@ FilePath BuildDirManager::buildDirectory() const
 
 void BuildDirManager::becameDirty()
 {
+    qCDebug(cmakeBuildDirManagerLog) << "BuildDirManager: becameDirty was triggered.";
     if (isParsing() || !buildConfiguration())
         return;
 
@@ -310,8 +331,10 @@ bool BuildDirManager::isFilesystemScanRequested() const
 
 void BuildDirManager::parse()
 {
+    qCDebug(cmakeBuildDirManagerLog) << "parsing!";
     QTC_ASSERT(m_parameters.isValid(), return );
-    QTC_ASSERT(m_reader, return);
+    QTC_ASSERT(m_reader, return );
+    QTC_ASSERT(!m_reader->isParsing(), return );
 
     m_reader->stop();
 
@@ -335,6 +358,7 @@ void BuildDirManager::parse()
         }
     }
 
+    qCDebug(cmakeBuildDirManagerLog) << "Asking reader to parse";
     m_reader->parse(reparseParameters & REPARSE_FORCE_CMAKE_RUN,
                     reparseParameters & REPARSE_FORCE_CONFIGURATION);
 }
@@ -512,21 +536,27 @@ bool BuildDirManager::checkConfiguration()
         QStringList keyList = changedKeys.keys();
         Utils::sort(keyList);
         QString table = QString::fromLatin1("<table><tr><th>%1</th><th>%2</th><th>%3</th></tr>")
-                .arg(tr("Key")).arg(tr("CMakeCache.txt")).arg(tr("Project"));
+                            .arg(tr("Key"))
+                            .arg(tr("%1 Project").arg(Core::Constants::IDE_DISPLAY_NAME))
+                            .arg(tr("Changed value"));
         foreach (const QString &k, keyList) {
             const QPair<QString, QString> data = changedKeys.value(k);
             table += QString::fromLatin1("\n<tr><td>%1</td><td>%2</td><td>%3</td></tr>")
-                    .arg(k)
-                    .arg(data.first.toHtmlEscaped())
-                    .arg(data.second.toHtmlEscaped());
+                         .arg(k)
+                         .arg(data.second.toHtmlEscaped())
+                         .arg(data.first.toHtmlEscaped());
         }
         table += QLatin1String("\n</table>");
 
         QPointer<QMessageBox> box = new QMessageBox(Core::ICore::mainWindow());
-        box->setText(tr("CMake configuration has changed on disk."));
+        box->setText(tr("The project has been changed outside of %1.")
+                         .arg(Core::Constants::IDE_DISPLAY_NAME));
         box->setInformativeText(table);
-        auto *defaultButton = box->addButton(tr("Overwrite Changes in CMakeCache.txt"), QMessageBox::RejectRole);
-        auto *applyButton = box->addButton(tr("Apply Changes to Project"), QMessageBox::ApplyRole);
+        auto *defaultButton = box->addButton(tr("Discard external changes"),
+                                             QMessageBox::RejectRole);
+        auto *applyButton = box->addButton(tr("Adapt %1 project to changes")
+                                               .arg(Core::Constants::IDE_DISPLAY_NAME),
+                                           QMessageBox::ApplyRole);
         box->setDefaultButton(defaultButton);
 
         box->exec();
