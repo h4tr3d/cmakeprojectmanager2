@@ -57,8 +57,8 @@ Q_LOGGING_CATEGORY(cmakeBuildSystemLog, "qtc.cmake.buildsystem", QtWarningMsg);
 // CMakeBuildSystem:
 // --------------------------------------------------------------------
 
-CMakeBuildSystem::CMakeBuildSystem(CMakeProject *p)
-    : BuildSystem(p)
+CMakeBuildSystem::CMakeBuildSystem(Project *project)
+    : BuildSystem(project)
     , m_cppCodeModelUpdater(new CppTools::CppProjectUpdater)
 {
     // TreeScanner:
@@ -67,9 +67,9 @@ CMakeBuildSystem::CMakeBuildSystem(CMakeProject *p)
             this,
             &CMakeBuildSystem::handleTreeScanningFinished);
 
-    m_treeScanner.setFilter([this, p](const Utils::MimeType &mimeType, const Utils::FilePath &fn) {
+    m_treeScanner.setFilter([this](const MimeType &mimeType, const FilePath &fn) {
         // Mime checks requires more resources, so keep it last in check list
-        auto isIgnored = fn.toString().startsWith(p->projectFilePath().toString() + ".user")
+        auto isIgnored = fn.toString().startsWith(projectFilePath().toString() + ".user")
                          || TreeScanner::isWellKnownBinary(mimeType, fn);
 
         // Cache mime check result for speed up
@@ -287,7 +287,6 @@ void CMakeBuildSystem::handleTreeScanningFinished()
         return fn; 
     });
 
-    m_combinedScanAndParseResult = m_combinedScanAndParseResult && true;
     m_waitingForScan = false;
 
     combineScanAndParse();
@@ -301,7 +300,6 @@ void CMakeBuildSystem::handleParsingSuccess(CMakeBuildConfiguration *bc)
     QTC_ASSERT(m_waitingForParse, return );
 
     m_waitingForParse = false;
-    m_combinedScanAndParseResult = m_combinedScanAndParseResult && true;
 
     combineScanAndParse();
 }

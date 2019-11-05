@@ -90,7 +90,7 @@ void noAutoAdditionNotify(const QStringList &filePaths, const ProjectExplorer::P
                                                                      "\nCopy the path to the source files to the clipboard?"),
                                                      "Remember My Choice", &checkValue, QDialogButtonBox::Yes | QDialogButtonBox::No,
                                                      QDialogButtonBox::Yes);
-            if (true == checkValue) {
+            if (checkValue) {
                 if (QDialogButtonBox::Yes == reply)
                     settings->setAfterAddFileSetting(AfterAddFileAction::COPY_FILE_PATH);
                 else if (QDialogButtonBox::No == reply)
@@ -140,11 +140,6 @@ bool CMakeListsNode::showInSimpleTree() const
     return false;
 }
 
-bool CMakeListsNode::supportsAction(ProjectExplorer::ProjectAction action, const ProjectExplorer::Node *) const
-{
-    return action == ProjectExplorer::ProjectAction::AddNewFile;
-}
-
 Utils::optional<Utils::FilePath> CMakeListsNode::visibleAfterAddFileAction() const
 {
     return filePath().pathAppended("CMakeLists.txt");
@@ -192,7 +187,6 @@ bool CMakeProjectNode::supportsAction(ProjectExplorer::ProjectAction action, con
 
 bool CMakeProjectNode::addFiles(const QStringList &filePaths, QStringList *)
 {
-    noAutoAdditionNotify(filePaths, this);
     return m_project ? m_project->addFiles(filePaths) : false;
 }
 
@@ -204,6 +198,21 @@ bool CMakeProjectNode::deleteFiles(const QStringList &filePaths)
 bool CMakeProjectNode::renameFile(const QString &filePath, const QString &newFilePath)
 {
     return m_project ? m_project->renameFile(filePath, newFilePath) : false;
+}
+
+bool CMakeBuildSystem::addFiles(Node *context, const QStringList &filePaths, QStringList *notAdded)
+{
+    if (auto n = dynamic_cast<CMakeProjectNode *>(context)) {
+        noAutoAdditionNotify(filePaths, n);
+        return true; // Return always true as autoadd is not supported!
+    }
+
+    if (auto n = dynamic_cast<CMakeTargetNode *>(context)) {
+        noAutoAdditionNotify(filePaths, n);
+        return true; // Return always true as autoadd is not supported!
+    }
+
+    return BuildSystem::addFiles(context, filePaths, notAdded);
 }
 
 CMakeTargetNode::CMakeTargetNode(const Utils::FilePath &directory, const QString &target) :
@@ -282,16 +291,15 @@ void CMakeTargetNode::setConfig(const CMakeConfig &config)
     m_config = config;
 }
 
-bool CMakeTargetNode::supportsAction(ProjectExplorer::ProjectAction action,
-                                     const ProjectExplorer::Node *) const
+bool CMakeBuildSystem::supportsAction(Node *context, ProjectAction action, const Node *node) const
 {
-    return action == ProjectExplorer::ProjectAction::AddNewFile;
-}
+    if (dynamic_cast<CMakeTargetNode *>(context))
+        return action == ProjectAction::AddNewFile;
 
-bool CMakeTargetNode::addFiles(const QStringList &filePaths, QStringList *)
-{
-    noAutoAdditionNotify(filePaths, this);
-    return true; // Return always true as autoadd is not supported!
+    if (dynamic_cast<CMakeListsNode *>(context))
+        return action == ProjectAction::AddNewFile;
+
+    return BuildSystem::supportsAction(context, action, node);
 }
 
 Utils::optional<Utils::FilePath> CMakeTargetNode::visibleAfterAddFileAction() const

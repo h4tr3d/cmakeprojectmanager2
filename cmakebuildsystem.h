@@ -48,7 +48,7 @@ class CMakeBuildSystem : public ProjectExplorer::BuildSystem
     Q_OBJECT
 
 public:
-    explicit CMakeBuildSystem(CMakeProject *project);
+    explicit CMakeBuildSystem(ProjectExplorer::Project *project);
     ~CMakeBuildSystem() final;
 
     bool addFiles(const QStringList &filePaths);
@@ -58,6 +58,13 @@ public:
 protected:
     bool validateParsingContext(const ParsingContext &ctx) final;
     void parseProject(ParsingContext &&ctx) final;
+
+    bool supportsAction(ProjectExplorer::Node *context,
+                        ProjectExplorer::ProjectAction action,
+                        const ProjectExplorer::Node *node) const override;
+
+    bool addFiles(ProjectExplorer::Node *context,
+                  const QStringList &filePaths, QStringList *) final;
     
 private:
     // Treescanner states:

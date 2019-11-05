@@ -84,13 +84,6 @@ CMakeProcess::~CMakeProcess()
     }
 }
 
-QStringList CMakeProcess::toArguments(const CMakeConfig &config,
-                                      const Utils::MacroExpander *expander) {
-    return Utils::transform(config, [expander](const CMakeConfigItem &i) -> QString {
-        return i.toArgument(expander);
-    });
-}
-
 void CMakeProcess::run(const BuildDirParameters &parameters, const QStringList &arguments)
 {
     QTC_ASSERT(!m_process && !m_parser && !m_future, return);
@@ -135,9 +128,10 @@ void CMakeProcess::run(const BuildDirParameters &parameters, const QStringList &
     connect(process.get(), QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
             this, &CMakeProcess::handleProcessFinished);
 
-    QStringList args(srcDir);
+    QStringList args;
     args += parameters.generatorArguments;
     args += arguments;
+    args += srcDir;
     Utils::CommandLine commandLine(cmake->cmakeExecutable(), args);
 
     TaskHub::clearTasks(ProjectExplorer::Constants::TASK_CATEGORY_BUILDSYSTEM);
@@ -221,12 +215,12 @@ void CMakeProcess::handleProcessFinished(int code, QProcess::ExitStatus status)
     QString msg;
     if (status != QProcess::NormalExit) {
         if (m_processWasCanceled) {
-            msg = tr("*** cmake process was canceled by the user.");
+            msg = tr("CMake process was canceled by the user.");
         } else {
-            msg = tr("*** cmake process crashed.");
+            msg = tr("CMake process crashed.");
         }
     } else if (code != 0) {
-        msg = tr("*** cmake process exited with exit code %1.").arg(code);
+        msg = tr("CMake process exited with exit code %1.").arg(code);
     }
 
     if (!msg.isEmpty()) {

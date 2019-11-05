@@ -33,6 +33,7 @@ QT_BEGIN_NAMESPACE
 class QLineEdit;
 class QListWidget;
 class QListWidgetItem;
+class QRadioButton;
 QT_END_NAMESPACE
 
 namespace Utils {
@@ -64,7 +65,6 @@ public:
     QString buildTarget() const;
     bool buildsBuildTarget(const QString &target) const;
     void setBuildTarget(const QString &target);
-    void clearBuildTargets();
 
     QString toolArguments() const;
     void setToolArguments(const QString &list);
@@ -131,7 +131,9 @@ private:
     void toolArgumentsEdited();
     void updateDetails();
     void buildTargetsChanged();
-    void selectedBuildTargetsChanged();
+    void updateBuildTarget();
+
+    QRadioButton *itemWidget(QListWidgetItem *item);
 
     CMakeBuildStep *m_buildStep;
     QLineEdit *m_toolArguments;
