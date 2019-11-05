@@ -55,16 +55,6 @@ public:
     explicit CMakeProjectNode(const Utils::FilePath &directory);
 
     QString tooltip() const final;
-    CMakeProject* project() { return m_project; }
-
-    void setTopLevelProject(CMakeProject *project);
-    bool supportsAction(ProjectExplorer::ProjectAction action, const Node *node) const final;
-    bool addFiles(const QStringList &filePaths, QStringList *notAdded) final;
-    bool deleteFiles(const QStringList &filePaths) final;
-    bool renameFile(const QString &filePath, const QString &newFilePath) final;
-
-private:
-    CMakeProject *m_project = nullptr;
 };
 
 class CMakeTargetNode : public ProjectExplorer::ProjectNode

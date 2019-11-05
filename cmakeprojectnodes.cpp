@@ -158,50 +158,9 @@ QString CMakeProjectNode::tooltip() const
     return QString();
 }
 
-void CMakeProjectNode::setTopLevelProject(CMakeProject* project)
-{
-    m_project = project;
-}
-
-bool CMakeProjectNode::supportsAction(ProjectExplorer::ProjectAction action, const Node *node) const
-{
-    Q_UNUSED(node);
-    if (!m_project)
-        return false;
-
-    const auto t = m_project->activeTarget();
-    if (!t)
-        return false;
-
-    switch (action) {
-        case ProjectExplorer::AddNewFile:
-        case ProjectExplorer::EraseFile:
-        case ProjectExplorer::Rename:
-            return true;
-        default:
-            break;
-    }
-
-    return false;
-}
-
-bool CMakeProjectNode::addFiles(const QStringList &filePaths, QStringList *)
-{
-    return m_project ? m_project->addFiles(filePaths) : false;
-}
-
-bool CMakeProjectNode::deleteFiles(const QStringList &filePaths)
-{
-    return m_project ? m_project->eraseFiles(filePaths) : false;
-}
-
-bool CMakeProjectNode::renameFile(const QString &filePath, const QString &newFilePath)
-{
-    return m_project ? m_project->renameFile(filePath, newFilePath) : false;
-}
-
 bool CMakeBuildSystem::addFiles(Node *context, const QStringList &filePaths, QStringList *notAdded)
 {
+#if 0
     if (auto n = dynamic_cast<CMakeProjectNode *>(context)) {
         noAutoAdditionNotify(filePaths, n);
         return true; // Return always true as autoadd is not supported!
@@ -211,8 +170,40 @@ bool CMakeBuildSystem::addFiles(Node *context, const QStringList &filePaths, QSt
         noAutoAdditionNotify(filePaths, n);
         return true; // Return always true as autoadd is not supported!
     }
+#else
+    if (auto n = dynamic_cast<CMakeProjectNode *>(context)) {
+        noAutoAdditionNotify(filePaths, n);
+    } else if (auto n = dynamic_cast<CMakeTargetNode *>(context)) {
+        noAutoAdditionNotify(filePaths, n);
+    }
 
+    if (addFilesPriv(filePaths))
+        return true;
+#endif
+    
     return BuildSystem::addFiles(context, filePaths, notAdded);
+}
+
+bool CMakeBuildSystem::deleteFiles(Node *context, const QStringList &filePaths)
+{
+    if (eraseFilesPriv(filePaths))
+        return true;
+    
+    return BuildSystem::deleteFiles(context, filePaths);
+}
+
+bool CMakeBuildSystem::canRenameFile(Node *context, const QString &filePath, const QString &newFilePath)
+{
+    // TBD: filter out rename ability
+    return true;
+}
+
+bool CMakeBuildSystem::renameFile(Node *context, const QString &filePath, const QString &newFilePath)
+{
+    if (renameFilePriv(filePath, newFilePath))
+        return true;
+    
+    return BuildSystem::renameFile(context, filePath, newFilePath);
 }
 
 CMakeTargetNode::CMakeTargetNode(const Utils::FilePath &directory, const QString &target) :
@@ -293,11 +284,22 @@ void CMakeTargetNode::setConfig(const CMakeConfig &config)
 
 bool CMakeBuildSystem::supportsAction(Node *context, ProjectAction action, const Node *node) const
 {
+#if 0
     if (dynamic_cast<CMakeTargetNode *>(context))
         return action == ProjectAction::AddNewFile;
 
     if (dynamic_cast<CMakeListsNode *>(context))
         return action == ProjectAction::AddNewFile;
+#else
+    switch (action) {
+        case ProjectExplorer::AddNewFile:
+        case ProjectExplorer::EraseFile:
+        case ProjectExplorer::Rename:
+            return true;
+        default:
+            break;
+    }
+#endif
 
     return BuildSystem::supportsAction(context, action, node);
 }

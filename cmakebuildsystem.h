@@ -50,10 +50,6 @@ class CMakeBuildSystem : public ProjectExplorer::BuildSystem
 public:
     explicit CMakeBuildSystem(ProjectExplorer::Project *project);
     ~CMakeBuildSystem() final;
-
-    bool addFiles(const QStringList &filePaths);
-    bool eraseFiles(const QStringList &filePaths);
-    bool renameFile(const QString &filePath, const QString &newFilePath);
     
 protected:
     bool validateParsingContext(const ParsingContext &ctx) final;
@@ -66,7 +62,17 @@ protected:
     bool addFiles(ProjectExplorer::Node *context,
                   const QStringList &filePaths, QStringList *) final;
     
+    bool deleteFiles(ProjectExplorer::Node *context,
+                     const QStringList &filePaths) final;
+
+    bool canRenameFile(ProjectExplorer::Node *context, const QString &filePath, const QString &newFilePath) final;
+    bool renameFile(ProjectExplorer::Node *context, const QString &filePath, const QString &newFilePath) final;
+                  
 private:
+    bool addFilesPriv(const QStringList &filePaths);
+    bool eraseFilesPriv(const QStringList &filePaths);
+    bool renameFilePriv(const QString &filePath, const QString &newFilePath);
+    
     // Treescanner states:
     void handleTreeScanningFinished();
 

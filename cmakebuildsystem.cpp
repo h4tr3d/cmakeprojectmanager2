@@ -151,7 +151,7 @@ void CMakeBuildSystem::updateProjectData()
         qobject_cast<CMakeBuildConfiguration *>(p->activeTarget() ? p->activeTarget()->activeBuildConfiguration() : nullptr));
 }
 
-bool CMakeBuildSystem::addFiles(const QStringList &filePaths)
+bool CMakeBuildSystem::addFilesPriv(const QStringList &filePaths)
 {
     QList<const FileNode *> nodes; // nodes to store in persistent tree
     for (auto &filePath : filePaths) {
@@ -187,7 +187,7 @@ bool CMakeBuildSystem::addFiles(const QStringList &filePaths)
     return true;
 }
 
-bool CMakeBuildSystem::eraseFiles(const QStringList &filePaths)
+bool CMakeBuildSystem::eraseFilesPriv(const QStringList &filePaths)
 {
     QList<const FileNode *> removed;
     for (auto& filePath : filePaths) {
@@ -235,7 +235,7 @@ bool CMakeBuildSystem::eraseFiles(const QStringList &filePaths)
     return true;
 }
 
-bool CMakeBuildSystem::renameFile(const QString &filePath, const QString &newFilePath)
+bool CMakeBuildSystem::renameFilePriv(const QString &filePath, const QString &newFilePath)
 {
     auto fn = FilePath::fromString(filePath);
     auto newfn = FilePath::fromString(newFilePath);
@@ -380,7 +380,6 @@ void CMakeBuildSystem::updateProjectData(CMakeProject *p, CMakeBuildConfiguratio
     {
         auto newRoot = bc->generateProjectTree(m_allFiles);
         if (newRoot) {
-            newRoot->setTopLevelProject(p);
             p->setRootProjectNode(std::move(newRoot));
             if (p->rootProjectNode())
                 p->setDisplayName(p->rootProjectNode()->displayName());

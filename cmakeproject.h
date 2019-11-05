@@ -61,10 +61,6 @@ public:
     void clearCMakeCache();
     bool mustUpdateCMakeStateBeforeBuild() const;
 
-    bool addFiles(const QStringList &filePaths);
-    bool eraseFiles(const QStringList &filePaths);
-    bool renameFile(const QString &filePath, const QString &newFilePath);
-
 protected:
     bool setupTarget(ProjectExplorer::Target *t) final;
 
