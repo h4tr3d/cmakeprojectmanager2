@@ -25,7 +25,11 @@
 
 #pragma once
 
+#include "builddirmanager.h"
+
 #include <projectexplorer/buildsystem.h>
+
+namespace ProjectExplorer { class ExtraCompiler; }
 
 namespace CppTools {
 class CppProjectUpdater;
@@ -37,7 +41,6 @@ class CMakeProject;
 
 namespace Internal {
 class CMakeBuildConfiguration;
-} // namespace Internal
 
 // --------------------------------------------------------------------
 // CMakeBuildSystem:
@@ -48,12 +51,10 @@ class CMakeBuildSystem : public ProjectExplorer::BuildSystem
     Q_OBJECT
 
 public:
-    explicit CMakeBuildSystem(ProjectExplorer::Project *project);
+    explicit CMakeBuildSystem(CMakeBuildConfiguration *bc);
     ~CMakeBuildSystem() final;
     
-protected:
-    bool validateParsingContext(const ParsingContext &ctx) final;
-    void parseProject(ParsingContext &&ctx) final;
+    void triggerParsing() final;
 
     bool supportsAction(ProjectExplorer::Node *context,
                         ProjectExplorer::ProjectAction action,
@@ -62,31 +63,60 @@ protected:
     bool addFiles(ProjectExplorer::Node *context,
                   const QStringList &filePaths, QStringList *) final;
     
+    QStringList filesGeneratedFrom(const QString &sourceFile) const final;
+
+    void runCMake();
+    void runCMakeAndScanProjectTree();
+
+    // Context menu actions:
     bool deleteFiles(ProjectExplorer::Node *context,
                      const QStringList &filePaths) final;
 
     bool canRenameFile(ProjectExplorer::Node *context, const QString &filePath, const QString &newFilePath) final;
     bool renameFile(ProjectExplorer::Node *context, const QString &filePath, const QString &newFilePath) final;
                   
+    void buildCMakeTarget(const QString &buildTarget);
+
+    // Treescanner states:
+    void handleTreeScanningFinished();
+
+    bool persistCMakeState();
+    void clearCMakeCache();
+
+    // Parser states:
+    void handleParsingSuccess();
+    void handleParsingError();
+
+    ProjectExplorer::BuildConfiguration *buildConfiguration() const;
+    CMakeBuildConfiguration *cmakeBuildConfiguration() const;
+
+    const QList<ProjectExplorer::BuildTargetInfo> appTargets() const;
+    QStringList buildTargetTitles() const;
+    const QList<CMakeBuildTarget> &buildTargets() const;
+    ProjectExplorer::DeploymentData deploymentData() const;
+
 private:
     bool addFilesPriv(const QStringList &filePaths);
     bool eraseFilesPriv(const QStringList &filePaths);
     bool renameFilePriv(const QString &filePath, const QString &newFilePath);
-    
-    // Treescanner states:
-    void handleTreeScanningFinished();
 
-    // Parser states:
-    void handleParsingSuccess(Internal::CMakeBuildConfiguration *bc);
-    void handleParsingError(Internal::CMakeBuildConfiguration *bc);
+    std::unique_ptr<CMakeProjectNode> generateProjectTree(
+            const QList<const ProjectExplorer::FileNode *> &allFiles);
 
     // Combining Treescanner and Parser states:
     void combineScanAndParse();
 
+    void checkAndReportError(QString &errorMessage);
+
     void updateProjectData();
-    void updateProjectData(CMakeProject *p, Internal::CMakeBuildConfiguration *bc);
-    QList<ProjectExplorer::ExtraCompiler *> findExtraCompilers(CMakeProject *p);
-    void updateQmlJSCodeModel(CMakeProject *p, Internal::CMakeBuildConfiguration *bc);
+    QList<ProjectExplorer::ExtraCompiler *> findExtraCompilers();
+    void updateQmlJSCodeModel();
+
+    void handleParsingSucceeded();
+    void handleParsingFailed(const QString &msg);
+
+    CMakeBuildConfiguration *m_buildConfiguration = nullptr;
+    BuildDirManager m_buildDirManager;
 
     ProjectExplorer::TreeScanner m_treeScanner;
     QHash<QString, bool> m_mimeBinaryCache;
@@ -96,12 +126,12 @@ private:
     bool m_waitingForParse = false;
     bool m_combinedScanAndParseResult = false;
 
-    ParsingContext m_currentContext;
+    ParseGuard m_currentGuard;
 
     CppTools::CppProjectUpdater *m_cppCodeModelUpdater = nullptr;
     QList<ProjectExplorer::ExtraCompiler *> m_extraCompilers;
-
-    friend class Internal::CMakeBuildConfiguration; // For handleParsing* callbacks
+    QList<CMakeBuildTarget> m_buildTargets;
 };
 
+} // namespace Internal
 } // namespace CMakeProjectManager
