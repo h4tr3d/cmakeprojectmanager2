@@ -491,6 +491,8 @@ void CMakeBuildSystem::combineScanAndParse()
     }
 
     m_currentGuard = {};
+
+    emitBuildSystemUpdated();
 }
 
 void CMakeBuildSystem::checkAndReportError(QString &errorMessage)
@@ -549,7 +551,7 @@ void CMakeBuildSystem::updateProjectData()
     {
         auto newRoot = generateProjectTree(m_allFiles);
         if (newRoot) {
-            p->setRootProjectNode(std::move(newRoot));
+            setRootProjectNode(std::move(newRoot));
             if (p->rootProjectNode())
                 p->setDisplayName(p->rootProjectNode()->displayName());
 
