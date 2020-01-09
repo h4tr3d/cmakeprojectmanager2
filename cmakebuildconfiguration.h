@@ -47,7 +47,7 @@ class CMakeBuildConfiguration : public ProjectExplorer::BuildConfiguration
     Q_OBJECT
 
     friend class ProjectExplorer::BuildConfigurationFactory;
-    CMakeBuildConfiguration(ProjectExplorer::Target *parent, Core::Id id);
+    CMakeBuildConfiguration(ProjectExplorer::Target *target, Core::Id id);
     ~CMakeBuildConfiguration() final;
 
 public:
@@ -58,8 +58,6 @@ public:
 
     QString error() const;
     QString warning() const;
-
-    CMakeProject *project() const;
 
     static Utils::FilePath
     shadowBuildDirectory(const Utils::FilePath &projectFilePath, const ProjectExplorer::Kit *k,
@@ -79,7 +77,6 @@ private:
     QVariantMap toMap() const override;
     BuildType buildType() const override;
 
-    void initialize() override;
     QString disabledReason() const override;
 
     ProjectExplorer::NamedWidget *createConfigWidget() override;

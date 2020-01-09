@@ -256,6 +256,17 @@ QList<CMakeBuildTarget> generateBuildTargets(const PreprocessedData &input,
                     extractBacktraceInformation(t.backtraceGraph, sourceDir, id.backtrace, 500));
             }
 
+            // Is this a terminal application?
+            if (ct.targetType == ExecutableType && t.link && t.link.value().language == "CXX") {
+                for (const FragmentInfo &f : t.link.value().fragments) {
+                    if (f.role != "libraries")
+                        continue;
+                    if (f.fragment.contains("QtGui") || f.fragment.contains("Qt5Gui")
+                        || f.fragment.contains("Qt6Gui"))
+                        ct.linksToQtGui = true;
+                }
+            }
+
             return ct;
         });
     return result;
@@ -456,7 +467,7 @@ void addCompileGroups(ProjectNode *targetRoot,
         if (sourcePath.isChildOf(buildDirectory) && !inSourceBuild) {
             buildFileNodes.emplace_back(std::move(node));
         } else if (sourcePath.isChildOf(sourceDirectory)) {
-            sourceGroupNodes[si.sourceGroup]->addNode(std::move(node));
+            sourceGroupNodes[si.sourceGroup]->addNestedNode(std::move(node));
         } else {
             otherFileNodes.emplace_back(std::move(node));
         }
