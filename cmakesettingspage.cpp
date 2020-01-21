@@ -524,7 +524,8 @@ void CMakeToolItemConfigWidget::load(const CMakeToolTreeItem *item)
 
 class CMakeToolConfigWidget : public Core::IOptionsPageWidget
 {
-    Q_OBJECT
+    Q_DECLARE_TR_FUNCTIONS(CMakeProjectManager::Internal::CMakeToolConfigWidget)
+
 public:
     CMakeToolConfigWidget()
     {
@@ -589,7 +590,6 @@ public:
     }
 
     void apply() final;
-    void finish() final {}
 
     void cloneCMakeTool();
     void addCMakeTool();
@@ -689,12 +689,10 @@ void CMakeToolConfigWidget::currentCMakeToolChanged(const QModelIndex &newCurren
 CMakeSettingsPage::CMakeSettingsPage()
 {
     setId(Constants::CMAKE_SETTINGSPAGE_ID);
-    setDisplayName(tr("CMake"));
+    setDisplayName(CMakeToolConfigWidget::tr("CMake"));
     setCategory(ProjectExplorer::Constants::KITS_SETTINGS_CATEGORY);
     setWidgetCreator([] { return new CMakeToolConfigWidget; });
 }
 
 } // namespace Internal
 } // namespace CMakeProjectManager
-
-#include "cmakesettingspage.moc"

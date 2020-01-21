@@ -51,7 +51,7 @@ using namespace Utils;
 
 namespace {
 
-Q_LOGGING_CATEGORY(cmInputLog, "qtc.cmake.import", QtWarningMsg);
+static Q_LOGGING_CATEGORY(cmInputLog, "qtc.cmake.import", QtWarningMsg);
 
 struct DirectoryData
 {
@@ -335,17 +335,13 @@ Kit *CMakeProjectImporter::createKit(void *directoryData) const
     });
 }
 
-const QList<BuildInfo> CMakeProjectImporter::buildInfoListForKit(const Kit *k, void *directoryData) const
+const QList<BuildInfo> CMakeProjectImporter::buildInfoList(void *directoryData) const
 {
     auto data = static_cast<const DirectoryData *>(directoryData);
-    auto factory = qobject_cast<CMakeBuildConfigurationFactory *>(
-                BuildConfigurationFactory::find(k, projectFilePath()));
-    if (!factory)
-        return {};
 
     // create info:
-    BuildInfo info = factory->createBuildInfo(k, projectDirectory().toString(),
-                                              CMakeBuildConfigurationFactory::buildTypeFromByteArray(data->cmakeBuildType));
+    BuildInfo info = CMakeBuildConfigurationFactory::createBuildInfo(
+                CMakeBuildConfigurationFactory::buildTypeFromByteArray(data->cmakeBuildType));
     info.buildDirectory = data->buildDirectory;
     info.displayName = info.typeName;
 

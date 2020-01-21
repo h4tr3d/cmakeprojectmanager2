@@ -62,7 +62,7 @@ using namespace Utils;
 namespace CMakeProjectManager {
 namespace Internal {
 
-Q_LOGGING_CATEGORY(cmakeBuildConfigurationLog, "qtc.cmake.bc", QtWarningMsg);
+static Q_LOGGING_CATEGORY(cmakeBuildConfigurationLog, "qtc.cmake.bc", QtWarningMsg);
 
 const char CONFIGURATION_KEY[] = "CMake.Configuration";
 
@@ -408,6 +408,24 @@ CMakeBuildConfigurationFactory::CMakeBuildConfigurationFactory()
 
     setSupportedProjectType(CMakeProjectManager::Constants::CMAKEPROJECT_ID);
     setSupportedProjectMimeTypeName(Constants::CMAKEPROJECTMIMETYPE);
+
+    setBuildGenerator([](const Kit *k, const FilePath &projectPath, bool forSetup) {
+        QList<BuildInfo> result;
+
+        FilePath path = forSetup ? Project::projectDirectory(projectPath) : projectPath;
+
+        for (int type = BuildTypeDebug; type != BuildTypeLast; ++type) {
+            BuildInfo info = createBuildInfo(BuildType(type));
+            if (forSetup) {
+                info.buildDirectory = CMakeBuildConfiguration::shadowBuildDirectory(projectPath,
+                                k,
+                                info.typeName,
+                                info.buildType);
+            }
+            result << info;
+        }
+        return result;
+    });
 }
 
 CMakeBuildConfigurationFactory::BuildType CMakeBuildConfigurationFactory::buildTypeFromByteArray(
@@ -439,58 +457,34 @@ BuildConfiguration::BuildType CMakeBuildConfigurationFactory::cmakeBuildTypeToBu
         return BuildConfiguration::Unknown;
 }
 
-QList<BuildInfo> CMakeBuildConfigurationFactory::availableBuilds(const Kit *k,
-                                                                 const FilePath &projectPath,
-                                                                 bool forSetup) const
+BuildInfo CMakeBuildConfigurationFactory::createBuildInfo(BuildType buildType)
 {
-    QList<BuildInfo> result;
-
-    FilePath path = forSetup ? Project::projectDirectory(projectPath) : projectPath;
-
-    for (int type = BuildTypeDebug; type != BuildTypeLast; ++type) {
-        BuildInfo info = createBuildInfo(k, path.toString(), BuildType(type));
-        if (forSetup) {
-            info.buildDirectory = CMakeBuildConfiguration::shadowBuildDirectory(projectPath,
-                                                                                k,
-                                                                                info.typeName,
-                                                                                info.buildType);
-        }
-        result << info;
-    }
-    return result;
-}
-
-BuildInfo CMakeBuildConfigurationFactory::createBuildInfo(const Kit *k,
-                                                          const QString &,
-                                                          BuildType buildType) const
-{
-    BuildInfo info(this);
-    info.kitId = k->id();
+    BuildInfo info;
 
     switch (buildType) {
     case BuildTypeNone:
         info.typeName = "Build";
-        info.displayName = tr("Build");
+        info.displayName = BuildConfiguration::tr("Build");
         info.buildType = BuildConfiguration::Unknown;
         break;
     case BuildTypeDebug:
         info.typeName = "Debug";
-        info.displayName = tr("Debug");
+        info.displayName = BuildConfiguration::tr("Debug");
         info.buildType = BuildConfiguration::Debug;
         break;
     case BuildTypeRelease:
         info.typeName = "Release";
-        info.displayName = tr("Release");
+        info.displayName = BuildConfiguration::tr("Release");
         info.buildType = BuildConfiguration::Release;
         break;
     case BuildTypeMinSizeRel:
         info.typeName = "MinSizeRel";
-        info.displayName = tr("Minimum Size Release");
+        info.displayName = CMakeBuildConfiguration::tr("Minimum Size Release");
         info.buildType = BuildConfiguration::Release;
         break;
     case BuildTypeRelWithDebInfo:
         info.typeName = "RelWithDebInfo";
-        info.displayName = tr("Release with Debug Information");
+        info.displayName = CMakeBuildConfiguration::tr("Release with Debug Information");
         info.buildType = BuildConfiguration::Profile;
         break;
     default:

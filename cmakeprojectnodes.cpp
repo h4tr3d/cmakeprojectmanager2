@@ -28,6 +28,7 @@
 #include "cmakeproject.h"
 #include "cmakeprojectconstants.h"
 #include "cmakeprojectplugin.h"
+#include "cmakespecificsettings.h"
 #include "cmakekitinformation.h"
 #include "cmaketool.h"
 #include "cmakeproject.h"

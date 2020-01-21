@@ -33,6 +33,7 @@
 #include <utils/algorithm.h>
 #include <utils/qtcassert.h>
 #include <utils/qtcprocess.h>
+#include <utils/utilsicons.h>
 
 #include <QDir>
 
@@ -395,31 +396,35 @@ void addProjects(const QHash<Utils::FilePath, ProjectNode *> &cmakeListsNodes,
     }
 }
 
-QVector<FolderNode *> addSourceGroups(ProjectNode *targetRoot,
-                                      const TargetDetails &td,
-                                      const FilePath &sourceDirectory)
+FolderNode *createSourceGroupNode(const QString &sourceGroupName,
+                                  const FilePath &sourceDirectory,
+                                  FolderNode *targetRoot)
 {
-    QVector<FolderNode *> sourceGroupNodes;
-    if (td.sourceGroups.size() == 1) {
-        sourceGroupNodes.append(
-            targetRoot); // Only one source group, so do not bother to display any:-)
-    } else {
-        for (const QString &sg : td.sourceGroups) {
-            if (sg.isEmpty()) {
-                sourceGroupNodes.append(targetRoot);
-            } else {
-                auto sgNode = createCMakeVFolder(sourceDirectory,
-                                                 Node::DefaultFolderPriority + 5,
-                                                 sg);
-                sgNode->setListInProject(false);
+    FolderNode *currentNode = targetRoot;
 
-                sourceGroupNodes.append(sgNode.get());
-                targetRoot->addNode(std::move(sgNode));
+    if (!sourceGroupName.isEmpty()) {
+        const QStringList parts = sourceGroupName.split("\\");
+
+        for (const QString &p : parts) {
+            FolderNode *existingNode = Utils::findOrDefault(currentNode->folderNodes(),
+                                                            [&p](const FolderNode *fn) {
+                                                                return fn->displayName() == p;
+                                                            });
+
+            if (!existingNode) {
+                auto node = createCMakeVFolder(sourceDirectory, Node::DefaultFolderPriority + 5, p);
+                node->setListInProject(false);
+                node->setIcon(QIcon::fromTheme("edit-copy", ::Utils::Icons::COPY.icon()));
+
+                existingNode = node.get();
+
+                currentNode->addNode(std::move(node));
             }
+
+            currentNode = existingNode;
         }
     }
-
-    return sourceGroupNodes;
+    return currentNode;
 }
 
 void addCompileGroups(ProjectNode *targetRoot,
@@ -439,11 +444,11 @@ void addCompileGroups(ProjectNode *targetRoot,
     targetRoot->forEachGenericNode(
         [&alreadyListed](const Node *n) { alreadyListed.insert(n->filePath()); });
 
-    QVector<FolderNode *> sourceGroupNodes = addSourceGroups(targetRoot, td, sourceDirectory);
     const QDir topSourceDir(topSourceDirectory.toString());
 
     std::vector<std::unique_ptr<FileNode>> buildFileNodes;
     std::vector<std::unique_ptr<FileNode>> otherFileNodes;
+    std::vector<std::vector<std::unique_ptr<FileNode>>> sourceGroupFileNodes{td.sourceGroups.size()};
 
     for (const SourceInfo &si : td.sources) {
         const FilePath sourcePath = FilePath::fromString(
@@ -467,10 +472,29 @@ void addCompileGroups(ProjectNode *targetRoot,
         if (sourcePath.isChildOf(buildDirectory) && !inSourceBuild) {
             buildFileNodes.emplace_back(std::move(node));
         } else if (sourcePath.isChildOf(sourceDirectory)) {
-            sourceGroupNodes[si.sourceGroup]->addNestedNode(std::move(node));
+            sourceGroupFileNodes[si.sourceGroup].emplace_back(std::move(node));
         } else {
             otherFileNodes.emplace_back(std::move(node));
         }
+    }
+
+    // Calculate base directory for source groups:
+    for (size_t i = 0; i < sourceGroupFileNodes.size(); ++i) {
+        std::vector<std::unique_ptr<FileNode>> &current = sourceGroupFileNodes[i];
+        FilePath baseDirectory;
+        // All the sourceGroupFileNodes are below sourceDirectory, so this is safe:
+        for (const std::unique_ptr<FileNode> &fn : current) {
+            if (baseDirectory.isEmpty()) {
+                baseDirectory = fn->filePath().parentDir();
+            } else {
+                baseDirectory = Utils::FileUtils::commonPath(baseDirectory, fn->filePath());
+            }
+        }
+
+        FolderNode *insertNode = createSourceGroupNode(td.sourceGroups[i],
+                                                       baseDirectory,
+                                                       targetRoot);
+        insertNode->addNestedNodes(std::move(sourceGroupFileNodes[i]));
     }
 
     addCMakeVFolder(targetRoot,
