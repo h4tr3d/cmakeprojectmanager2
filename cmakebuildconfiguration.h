@@ -42,9 +42,14 @@ class BuildDirManager;
 class CMakeBuildSystem;
 class CMakeBuildSettingsWidget;
 
-class CMakeBuildConfiguration : public ProjectExplorer::BuildConfiguration
+class CMakeBuildConfiguration final : public ProjectExplorer::BuildConfiguration
 {
     Q_OBJECT
+
+    // used in DebuggerRunConfigurationAspect
+    Q_PROPERTY(bool linkQmlDebuggingLibrary
+               READ isQmlDebuggingEnabled
+               NOTIFY configurationForCMakeChanged)
 
     friend class ProjectExplorer::BuildConfigurationFactory;
     CMakeBuildConfiguration(ProjectExplorer::Target *target, Core::Id id);
@@ -77,8 +82,6 @@ private:
     QVariantMap toMap() const override;
     BuildType buildType() const override;
 
-    QString disabledReason() const override;
-
     ProjectExplorer::NamedWidget *createConfigWidget() override;
 
     bool fromMap(const QVariantMap &map) override;
@@ -92,6 +95,8 @@ private:
 
     void setError(const QString &message);
     void setWarning(const QString &message);
+
+    bool isQmlDebuggingEnabled() const;
 
     CMakeConfig m_configurationForCMake;
     CMakeConfig m_initialConfiguration;

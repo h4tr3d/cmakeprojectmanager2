@@ -37,6 +37,7 @@
 #include <projectexplorer/project.h>
 #include <projectexplorer/projectexplorer.h>
 #include <projectexplorer/target.h>
+#include <qtsupport/qtbuildaspects.h>
 
 #include <utils/categorysortfiltermodel.h>
 #include <utils/detailswidget.h>
@@ -106,7 +107,7 @@ CMakeBuildSettingsWidget::CMakeBuildSettingsWidget(CMakeBuildConfiguration *bc) 
 
     auto project = bc->project();
 
-    auto buildDirChooser = new Utils::PathChooser(this);
+    auto buildDirChooser = new Utils::PathChooser;
     buildDirChooser->setBaseDirectory(project->projectDirectory());
     buildDirChooser->setFileName(bc->buildDirectory());
     connect(buildDirChooser, &Utils::PathChooser::rawPathChanged, this,
@@ -117,8 +118,16 @@ CMakeBuildSettingsWidget::CMakeBuildSettingsWidget(CMakeBuildConfiguration *bc) 
 
     int row = 0;
     mainLayout->addWidget(new QLabel(tr("Build directory:")), row, 0);
-    mainLayout->addWidget(buildDirChooser->lineEdit(), row, 1);
-    mainLayout->addWidget(buildDirChooser->buttonAtIndex(0), row, 2);
+    mainLayout->addWidget(buildDirChooser, row, 1, 1, 2);
+    ++row;
+
+    auto qmlDebugAspect = bc->aspect<QtSupport::QmlDebuggingAspect>();
+    connect(qmlDebugAspect, &QtSupport::QmlDebuggingAspect::changed,
+            this, [this]() { handleQmlDebugCxxFlags(); });
+    auto widget = new QWidget;
+    LayoutBuilder builder(widget);
+    qmlDebugAspect->addToLayout(builder);
+    mainLayout->addWidget(widget, row, 0, 1, 2);
 
     ++row;
     mainLayout->addItem(new QSpacerItem(20, 10), row, 0);
@@ -235,7 +244,7 @@ CMakeBuildSettingsWidget::CMakeBuildSettingsWidget(CMakeBuildConfiguration *bc) 
     setError(bc->error());
     setWarning(bc->warning());
 
-    connect(bc->target(), &Target::parsingStarted, this, [this]() {
+    connect(bc->buildSystem(), &BuildSystem::parsingStarted, this, [this] {
         updateButtonState();
         m_configView->setEnabled(false);
         m_showProgressTimer.start();
@@ -255,6 +264,7 @@ CMakeBuildSettingsWidget::CMakeBuildSettingsWidget(CMakeBuildConfiguration *bc) 
         stretcher->stretch();
         updateButtonState();
         buildDirChooser->triggerChanged(); // refresh valid state...
+        handleQmlDebugCxxFlags();
         m_showProgressTimer.stop();
         m_progressIndicator->hide();
     });
@@ -375,6 +385,45 @@ void CMakeBuildSettingsWidget::updateFromKit()
         configHash.insert(QString::fromUtf8(i.key), i.expandedValue(k));
 
     m_configModel->setConfigurationFromKit(configHash);
+}
+
+void CMakeBuildSettingsWidget::handleQmlDebugCxxFlags()
+{
+    bool changed = false;
+    const auto aspect = m_buildConfiguration->aspect<QtSupport::QmlDebuggingAspect>();
+    const bool enable = aspect->setting() == TriState::Enabled;
+
+    CMakeConfig changedConfig = m_buildConfiguration->configurationForCMake();
+    const CMakeConfig configList = m_buildConfiguration->configurationFromCMake();
+    const QByteArrayList cxxFlags{"CMAKE_CXX_FLAGS", "CMAKE_CXX_FLAGS_DEBUG",
+                                  "CMAKE_CXX_FLAGS_RELWITHDEBINFO"};
+    const QByteArray qmlDebug("-DQT_QML_DEBUG");
+
+    for (CMakeConfigItem item : configList) {
+        CMakeConfigItem it(item);
+
+        if (cxxFlags.contains(it.key)) {
+            if (enable) {
+                if (!it.value.contains(qmlDebug)) {
+                    it.value = it.value.append(' ').append(qmlDebug);
+                    changed = true;
+                }
+            } else {
+                int index = it.value.indexOf(qmlDebug);
+                if (index != -1) {
+                    it.value.remove(index, qmlDebug.length());
+                    changed = true;
+                }
+            }
+            it.value = it.value.trimmed();
+            changedConfig.append(it);
+        }
+    }
+
+    if (!changed)
+        return;
+
+    m_buildConfiguration->setConfigurationForCMake(changedConfig);
 }
 
 void CMakeBuildSettingsWidget::setConfigurationForCMake()

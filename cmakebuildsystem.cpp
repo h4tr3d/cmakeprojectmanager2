@@ -35,6 +35,7 @@
 #include <coreplugin/progressmanager/progressmanager.h>
 #include <cpptools/cppprojectupdater.h>
 #include <cpptools/generatedcodemodelsupport.h>
+#include <projectexplorer/projectexplorerconstants.h>
 #include <projectexplorer/kitmanager.h>
 #include <projectexplorer/project.h>
 #include <projectexplorer/target.h>
@@ -232,7 +233,7 @@ void CMakeBuildSystem::triggerParsing()
     qCDebug(cmakeBuildSystemLog) << "Parsing has been triggered";
     m_currentGuard = guardParsingRun();
 
-    QTC_CHECK(m_currentGuard.guardsProject());
+    QTC_ASSERT(m_currentGuard.guardsProject(), return );
 
     if (m_allFiles.isEmpty())
         m_buildDirManager.requestFilesystemScan();
@@ -610,8 +611,6 @@ void CMakeBuildSystem::updateProjectData()
         updateQmlJSCodeModel();
     }
 
-    emit p->fileListChanged();
-
     emit m_buildConfiguration->emitBuildTypeChanged();
 
     m_buildDirManager.resetData();
@@ -830,6 +829,8 @@ void CMakeBuildSystem::updateQmlJSCodeModel()
     foreach (const QString &cmakeImport, CMakeConfigItem::cmakeSplitValue(cmakeImports))
         projectInfo.importPaths.maybeInsert(FilePath::fromString(cmakeImport), QmlJS::Dialect::Qml);
 
+    project()->setProjectLanguage(ProjectExplorer::Constants::QMLJS_LANGUAGE_ID,
+                                  !projectInfo.sourceFiles.isEmpty());
     modelManager->updateProjectInfo(projectInfo, p);
 }
 

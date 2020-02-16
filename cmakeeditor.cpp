@@ -111,7 +111,7 @@ void CMakeEditor::contextHelp(const HelpCallback &callback) const
 // CMakeEditorWidget
 //
 
-class CMakeEditorWidget : public TextEditorWidget
+class CMakeEditorWidget final : public TextEditorWidget
 {
 public:
     ~CMakeEditorWidget() final = default;
@@ -223,7 +223,7 @@ static TextDocument *createCMakeDocument()
 CMakeEditorFactory::CMakeEditorFactory()
 {
     setId(Constants::CMAKE_EDITOR_ID);
-    setDisplayName(tr(Constants::CMAKE_EDITOR_DISPLAY_NAME));
+    setDisplayName(QCoreApplication::translate("OpenWith::Editors", "CMake Editor"));
     addMimeType(Constants::CMAKEMIMETYPE);
     addMimeType(Constants::CMAKEPROJECTMIMETYPE);
 
