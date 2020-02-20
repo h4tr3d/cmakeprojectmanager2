@@ -3,7 +3,7 @@
     "kind": "project",
     "id": "S.Plain CXX (CMake)",
     "category": "I.Projects",
-    "trDescription": "Creates a plain C/C++ project using CMake (with optional Qt 4/5 library)",
+    "trDescription": "Creates a plain C/C++ project using CMake (with optional Qt5 support)",
     "trDisplayName": "Plain C/C++ Project (CMake Build)",
     "trDisplayCategory": "Non-Qt Project",
     "icon": "../../global/consoleapplication.png",
@@ -73,11 +73,6 @@
                                 "value": "none"
                             },
                             {
-                                "trKey": "Qt 4",
-                                "value": "qt4",
-                                "condition": "%{JS: '%{ProjectLanguage}' === 'cpp'}"
-                            },
-                            {
                                 "trKey": "Qt 5",
                                 "value": "qt5",
                                 "condition": "%{JS: '%{ProjectLanguage}' === 'cpp'}"
@@ -111,12 +106,6 @@
                     "target": "%{CMakeFile}",
                     "openAsProject": true,
                     "condition": "%{JS: '%{QtVersion}' === 'none' || '%{ProjectLanguage}' === 'plainc'}"
-                },
-                {
-                    "source": "CMakeLists_qt4.txt",
-                    "target": "%{CMakeFile}",
-                    "openAsProject": true,
-                    "condition": "%{JS: '%{QtVersion}' === 'qt4'}"
                 },
                 {
                     "source": "CMakeLists_qt5.txt",

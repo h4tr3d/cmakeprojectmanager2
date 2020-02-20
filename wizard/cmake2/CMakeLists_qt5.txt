@@ -1,25 +1,12 @@
 project(%{ProjectName})
-cmake_minimum_required(VERSION 2.8)
+cmake_minimum_required(VERSION 3.14)
 
-# Qt5
+# Qt5 search
 #set(QT_ROOT /opt/Qt5.3.2/5.3/gcc_64)
 #set(CMAKE_PREFIX_PATH ${QT_ROOT})
 
-set(CMAKE_AUTOMOC ON)
-set(CMAKE_INCLUDE_CURRENT_DIR ON)
-
 # Modules
-find_package(Qt5Widgets REQUIRED)
-find_package(Qt5Core REQUIRED)
-set(QT_MODULES Qt5::Core Qt5::Widgets)
-
-include_directories(${QT_INCLUDES})
-
-# Remove comments if needed
-#set(UI_SRC dialog.ui)
-#set(RC_DATA resource.qrc)
-#qt5_wrap_ui(UI_HDR ${UI_SRC})
-#qt5_add_resources(RC_SRC ${RC_DATA})
+set(QT_COMPONENTS Core Widgets)
 
 # where to look first for cmake modules, before ${CMAKE_ROOT}/modules/ is checked
 set(CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake/modules)
@@ -36,8 +23,28 @@ set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 #set(CMAKE_C_EXTENSIONS OFF) # turn on/off GNU or some other extensions
 
+# Set up Qt stuff:
+set(CMAKE_AUTOMOC ON)
+set(CMAKE_AUTORCC ON)
+set(CMAKE_AUTOUIC ON)
+set(CMAKE_INCLUDE_CURRENT_DIR ON)
+
+#
+# Search Packages
+#
 find_package(Threads)
 #find_package(PkgConfig)
+
+# Qt
+find_package(Qt5
+  COMPONENTS ${QT_COMPONENTS} REQUIRED
+)
+
+# Add prefix `Qt5::` to the components
+set(QT_COMPONENT_TARGETS)
+foreach(l ${QT_COMPONENTS})
+    list(APPEND QT_COMPONENT_TARGETS Qt5::${l})
+endforeach()
 
 # Warnings
 if(MSVC)
@@ -53,8 +60,10 @@ elseif(CMAKE_COMPILER_IS_GNUCC OR CMAKE_COMPILER_IS_GNUCXX)
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra")
 endif()
 
+# Sources
 aux_source_directory(. SRC_LIST)
 
+# Target
 add_executable(${PROJECT_NAME} ${SRC_LIST})
-target_link_libraries(${PROJECT_NAME} ${CMAKE_THREAD_LIBS_INIT} ${QT_MODULES})
+target_link_libraries(${PROJECT_NAME} Threads::Threads ${QT_COMPONENT_TARGETS})
 
