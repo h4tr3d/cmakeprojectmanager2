@@ -38,13 +38,13 @@ namespace ProjectExplorer { class ProjectNode; }
 namespace CMakeProjectManager {
 namespace Internal {
 
-class ServerModeReader final : public BuildDirReader
+class ServerModeReader : public BuildDirReader
 {
     Q_OBJECT
 
 public:
     ServerModeReader();
-    ~ServerModeReader();
+    ~ServerModeReader() override;
 
     void setParameters(const BuildDirParameters &p) final;
 

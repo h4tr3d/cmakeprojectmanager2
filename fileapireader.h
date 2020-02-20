@@ -45,7 +45,7 @@ namespace Internal {
 
 class FileApiQtcData;
 
-class FileApiReader final : public BuildDirReader
+class FileApiReader : public BuildDirReader
 {
     Q_OBJECT
 
