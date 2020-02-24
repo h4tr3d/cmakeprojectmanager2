@@ -156,8 +156,8 @@ bool CMakeBuildStep::init()
     bool canInit = true;
     CMakeBuildConfiguration *bc = cmakeBuildConfiguration();
     if (bc && !bc->isEnabled()) {
-        emit addTask(BuildSystemTask(Task::Error,
-                          tr("CMakeProjectManager::CMakeBuildStep")));
+        emit addTask(
+            BuildSystemTask(Task::Error, tr("The build configuration is currently disabled.")));
         canInit = false;
     }
 
