@@ -155,10 +155,10 @@ bool CMakeBuildStep::init()
 {
     bool canInit = true;
     CMakeBuildConfiguration *bc = cmakeBuildConfiguration();
-    TC_ASSERT(bc, return false);
+    QTC_ASSERT(bc, return false);
     if (!bc->isEnabled()) {
-        emit addTask(
-            BuildSystemTask(Task::Error, tr("The build configuration is currently disabled.")));
+        emit addTask(BuildSystemTask(Task::Error,
+                                     tr("The build configuration is currently disabled.")));
         canInit = false;
     }
 
