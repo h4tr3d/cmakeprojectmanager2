@@ -46,18 +46,11 @@ class CMakeBuildConfiguration final : public ProjectExplorer::BuildConfiguration
 {
     Q_OBJECT
 
-    // used in DebuggerRunConfigurationAspect
-    Q_PROPERTY(bool linkQmlDebuggingLibrary
-               READ isQmlDebuggingEnabled
-               NOTIFY configurationForCMakeChanged)
-
     friend class ProjectExplorer::BuildConfigurationFactory;
     CMakeBuildConfiguration(ProjectExplorer::Target *target, Core::Id id);
     ~CMakeBuildConfiguration() final;
 
 public:
-    void emitBuildTypeChanged();
-
     CMakeConfig configurationForCMake() const;
     CMakeConfig configurationFromCMake() const;
 
@@ -95,8 +88,6 @@ private:
 
     void setError(const QString &message);
     void setWarning(const QString &message);
-
-    bool isQmlDebuggingEnabled() const;
 
     CMakeConfig m_configurationForCMake;
     CMakeConfig m_initialConfiguration;

@@ -27,7 +27,6 @@
 
 #include "fileapireader.h"
 #include "servermodereader.h"
-#include "tealeafreader.h"
 #include "simpleservermodereader.h"
 #include "simplefileapireader.h"
 
@@ -53,7 +52,7 @@ std::unique_ptr<BuildDirReader> BuildDirReader::createReader(const BuildDirParam
     case CMakeTool::ServerMode:
         return std::make_unique<SimpleServerModeReader>();
     default:
-        return std::make_unique<TeaLeafReader>();
+        return {};
     }
 }
 

@@ -63,18 +63,7 @@ using namespace FileApiDetails;
 // FileApiReader:
 // --------------------------------------------------------------------
 
-FileApiReader::FileApiReader()
-{
-    connect(Core::EditorManager::instance(),
-            &Core::EditorManager::aboutToSave,
-            this,
-            [this](const Core::IDocument *document) {
-                if (m_cmakeFiles.contains(document->filePath())) {
-                    qCDebug(cmakeFileApiMode) << "FileApiReader: DIRTY SIGNAL";
-                    emit dirty();
-                }
-            });
-}
+FileApiReader::FileApiReader() {}
 
 FileApiReader::~FileApiReader()
 {
@@ -175,9 +164,9 @@ bool FileApiReader::isParsing() const
     return m_isParsing;
 }
 
-QVector<FilePath> FileApiReader::takeProjectFilesToWatch()
+QSet<FilePath> FileApiReader::projectFilesToWatch() const
 {
-    return QVector<FilePath>::fromList(Utils::toList(m_cmakeFiles));
+    return m_cmakeFiles;
 }
 
 QList<CMakeBuildTarget> FileApiReader::takeBuildTargets(QString &errorMessage){

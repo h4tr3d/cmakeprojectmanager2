@@ -50,7 +50,6 @@ HEADERS = builddirmanager.h \
     projecttreehelper.h \
     servermode.h \
     servermodereader.h \
-    tealeafreader.h \
     compat.h \
     simpleservermodereader.h \
     simplefileapireader.h
@@ -91,7 +90,6 @@ SOURCES = builddirmanager.cpp \
     projecttreehelper.cpp \
     servermode.cpp \
     servermodereader.cpp \
-    tealeafreader.cpp \
     compat.cpp \
     simpleservermodereader.cpp \
     simplefileapireader.cpp

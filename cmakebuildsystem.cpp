@@ -26,6 +26,7 @@
 #include "cmakebuildsystem.h"
 
 #include "cmakebuildconfiguration.h"
+#include "cmakekitinformation.h"
 #include "cmakeproject.h"
 #include "cmakeprojectconstants.h"
 #include "cmakeprojectnodes.h"
@@ -203,11 +204,14 @@ CMakeBuildSystem::CMakeBuildSystem(CMakeBuildConfiguration *bc)
     });
 
     connect(project(), &Project::projectFileIsDirty, this, [this]() {
-        if (m_buildConfiguration->isActive()) {
-            qCDebug(cmakeBuildSystemLog) << "Requesting parse due to dirty project file";
-            m_buildDirManager
-                .setParametersAndRequestParse(BuildDirParameters(m_buildConfiguration),
-                                              BuildDirManager::REPARSE_DEFAULT);
+        if (m_buildConfiguration->isActive() && !isParsing()) {
+            const auto cmake = CMakeKitAspect::cmakeTool(m_buildConfiguration->target()->kit());
+            if (cmake && cmake->isAutoRun()) {
+                qCDebug(cmakeBuildSystemLog) << "Requesting parse due to dirty project file";
+                m_buildDirManager.setParametersAndRequestParse(BuildDirParameters(
+                                                                   m_buildConfiguration),
+                                                               BuildDirManager::REPARSE_DEFAULT);
+            }
         }
     });
 
@@ -231,9 +235,20 @@ CMakeBuildSystem::~CMakeBuildSystem()
 void CMakeBuildSystem::triggerParsing()
 {
     qCDebug(cmakeBuildSystemLog) << "Parsing has been triggered";
-    m_currentGuard = guardParsingRun();
 
-    QTC_ASSERT(m_currentGuard.guardsProject(), return );
+    auto guard = guardParsingRun();
+
+    if (!guard.guardsProject()) {
+        // This can legitimately trigger if e.g. Build->Run CMake
+        // is selected while this here is already running.
+
+        // FIXME: Instead of aborting the second run here we could try to
+        // cancel the first one in the Build->Run CMake handler and then
+        // continue to here normally. This here could then be an Assert.
+        return;
+    }
+
+    m_currentGuard = std::move(guard);
 
     if (m_allFiles.isEmpty())
         m_buildDirManager.requestFilesystemScan();
@@ -269,7 +284,7 @@ QStringList CMakeBuildSystem::filesGeneratedFrom(const QString &sourceFile) cons
 
     QDir srcDirRoot = QDir(project.toString());
     QString relativePath = srcDirRoot.relativeFilePath(baseDirectory.toString());
-    QDir buildDir = QDir(target()->activeBuildConfiguration()->buildDirectory().toString());
+    QDir buildDir = QDir(buildConfiguration()->buildDirectory().toString());
     QString generatedFilePath = buildDir.absoluteFilePath(relativePath);
 
     if (fi.suffix() == "ui") {
@@ -523,7 +538,7 @@ void CMakeBuildSystem::updateProjectData()
 
     QTC_ASSERT(m_treeScanner.isFinished() && !m_buildDirManager.isParsing(), return);
 
-    m_buildConfiguration->project()->setExtraProjectFiles(m_buildDirManager.takeProjectFilesToWatch());
+    m_buildConfiguration->project()->setExtraProjectFiles(m_buildDirManager.projectFilesToWatch());
 
     CMakeConfig patchedConfig = m_buildConfiguration->configurationFromCMake();
     {
@@ -611,7 +626,7 @@ void CMakeBuildSystem::updateProjectData()
         updateQmlJSCodeModel();
     }
 
-    emit m_buildConfiguration->emitBuildTypeChanged();
+    emit m_buildConfiguration->buildTypeChanged();
 
     m_buildDirManager.resetData();
 

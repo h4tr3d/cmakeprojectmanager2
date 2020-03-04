@@ -60,16 +60,36 @@
 #include <QListWidget>
 #include <QRadioButton>
 
-using namespace CMakeProjectManager;
-using namespace CMakeProjectManager::Internal;
 using namespace ProjectExplorer;
 
-namespace {
+namespace CMakeProjectManager {
+namespace Internal {
+
 const char BUILD_TARGETS_KEY[] = "CMakeProjectManager.MakeStep.BuildTargets";
 const char TOOL_ARGUMENTS_KEY[] = "CMakeProjectManager.MakeStep.AdditionalArguments";
 const char ADD_RUNCONFIGURATION_ARGUMENT_KEY[] = "CMakeProjectManager.MakeStep.AddRunConfigurationArgument";
 const char ADD_RUNCONFIGURATION_TEXT[] = "Current executable";
-}
+
+class CMakeBuildStepConfigWidget : public BuildStepConfigWidget
+{
+    Q_DECLARE_TR_FUNCTIONS(CMakeProjectManager::Internal::CMakeBuildStepConfigWidget)
+
+public:
+    explicit CMakeBuildStepConfigWidget(CMakeBuildStep *buildStep);
+
+private:
+    void itemChanged(QListWidgetItem *);
+    void toolArgumentsEdited();
+    void updateDetails();
+    void buildTargetsChanged();
+    void updateBuildTarget();
+
+    QRadioButton *itemWidget(QListWidgetItem *item);
+
+    CMakeBuildStep *m_buildStep;
+    QLineEdit *m_toolArguments;
+    QListWidget *m_buildTargetsList;
+};
 
 static bool isCurrentExecutableTarget(const QString &target)
 {
@@ -131,18 +151,14 @@ bool CMakeBuildStep::fromMap(const QVariantMap &map)
     return BuildStep::fromMap(map);
 }
 
-
 bool CMakeBuildStep::init()
 {
     bool canInit = true;
     CMakeBuildConfiguration *bc = cmakeBuildConfiguration();
-    if (!bc) {
-        emit addTask(Task::buildConfigurationMissingTask());
-        canInit = false;
-    }
-    if (bc && !bc->isEnabled()) {
+    QTC_ASSERT(bc, return false);
+    if (!bc->isEnabled()) {
         emit addTask(BuildSystemTask(Task::Error,
-                          tr("CMakeProjectManager::CMakeBuildStep")));
+                                     tr("The build configuration is currently disabled.")));
         canInit = false;
     }
 
@@ -209,15 +225,12 @@ bool CMakeBuildStep::init()
 void CMakeBuildStep::doRun()
 {
     // Make sure CMake state was written to disk before trying to build:
-    CMakeBuildConfiguration *bc = cmakeBuildConfiguration();
-    QTC_ASSERT(bc, return);
-
     m_waiting = false;
-    auto bs = static_cast<CMakeBuildSystem *>(buildConfiguration()->buildSystem());
+    auto bs = static_cast<CMakeBuildSystem *>(buildSystem());
     if (bs->persistCMakeState()) {
         emit addOutput(tr("Persisting CMake state..."), BuildStep::OutputFormat::NormalMessage);
         m_waiting = true;
-    } else if (buildConfiguration()->buildSystem()->isWaitingForParse()) {
+    } else if (buildSystem()->isWaitingForParse()) {
         emit addOutput(tr("Running CMake in preparation to build..."), BuildStep::OutputFormat::NormalMessage);
         m_waiting = true;
     }
@@ -359,8 +372,8 @@ Utils::CommandLine CMakeBuildStep::cmakeCommand(RunConfiguration *rc) const
 
 QStringList CMakeBuildStep::knownBuildTargets()
 {
-    auto bc = qobject_cast<CMakeBuildSystem *>(buildConfiguration()->buildSystem());
-    return bc ? bc->buildTargetTitles() : QStringList();
+    auto bs = qobject_cast<CMakeBuildSystem *>(buildSystem());
+    return bs ? bs->buildTargetTitles() : QStringList();
 }
 
 QString CMakeBuildStep::cleanTarget()
@@ -528,16 +541,10 @@ QRadioButton *CMakeBuildStepConfigWidget::itemWidget(QListWidgetItem *item)
 
 void CMakeBuildStepConfigWidget::updateDetails()
 {
-    BuildConfiguration *bc = m_buildStep->buildConfiguration();
-    if (!bc) {
-        setSummaryText(tr("<b>No build configuration found on this kit.</b>"));
-        return;
-    }
-
     ProcessParameters param;
-    param.setMacroExpander(bc->macroExpander());
-    param.setEnvironment(bc->environment());
-    param.setWorkingDirectory(bc->buildDirectory());
+    param.setMacroExpander(m_buildStep->macroExpander());
+    param.setEnvironment(m_buildStep->buildEnvironment());
+    param.setWorkingDirectory(m_buildStep->buildDirectory());
     param.setCommandLine(m_buildStep->cmakeCommand(nullptr));
 
     setSummaryText(param.summary(displayName()));
@@ -565,3 +572,6 @@ void CMakeBuildStep::processFinished(int exitCode, QProcess::ExitStatus status)
     AbstractProcessStep::processFinished(exitCode, status);
     emit progress(100, QString());
 }
+
+} // Internal
+} // CMakeProjectManager

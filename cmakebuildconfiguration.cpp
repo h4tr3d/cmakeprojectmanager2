@@ -88,9 +88,7 @@ CMakeBuildConfiguration::CMakeBuildConfiguration(Target *target, Core::Id id)
         const QString sysRoot = SysRootKitAspect::sysRoot(k).toString();
         if (!sysRoot.isEmpty()) {
             config.append(CMakeConfigItem("CMAKE_SYSROOT", sysRoot.toUtf8()));
-            ToolChain *tc = ToolChainKitAspect::toolChain(k,
-                                  ProjectExplorer::Constants::CXX_LANGUAGE_ID);
-            if (tc) {
+            if (ToolChain *tc = ToolChainKitAspect::cxxToolChain(k)) {
                 const QByteArray targetTriple = tc->originalTargetTriple().toUtf8();
                 config.append(CMakeConfigItem("CMAKE_C_COMPILER_TARGET", targetTriple));
                 config.append(CMakeConfigItem("CMAKE_CXX_COMPILER_TARGET ", targetTriple));
@@ -195,12 +193,6 @@ bool CMakeBuildConfiguration::fromMap(const QVariantMap &map)
     return true;
 }
 
-
-
-
-
-
-
 FilePath CMakeBuildConfiguration::shadowBuildDirectory(const FilePath &projectFilePath,
                                                        const Kit *k,
                                                        const QString &bcName,
@@ -286,10 +278,7 @@ void CMakeBuildConfiguration::setConfigurationForCMake(const QList<ConfigModel::
             return item.key.startsWith("ANDROID_BUILD_ABI_");
         }) != -1) {
         // We always need to clean when we change the ANDROID_BUILD_ABI_ variables
-        QList<ProjectExplorer::BuildStepList *> stepLists;
-        const Core::Id clean = ProjectExplorer::Constants::BUILDSTEPS_CLEAN;
-        stepLists << cleanSteps();
-        BuildManager::buildLists(stepLists, QStringList() << ProjectExplorerPlugin::displayNameForStepId(clean));
+        BuildManager::buildLists({cleanSteps()});
     }
 }
 
@@ -303,11 +292,6 @@ void CMakeBuildConfiguration::clearError(ForceEnabledChanged fec)
         qCDebug(cmakeBuildConfigurationLog) << "Emitting enabledChanged signal";
         emit enabledChanged();
     }
-}
-
-void CMakeBuildConfiguration::emitBuildTypeChanged()
-{
-    emit buildTypeChanged();
 }
 
 static CMakeConfig removeDuplicates(const CMakeConfig &config)
@@ -381,12 +365,6 @@ void CMakeBuildConfiguration::setWarning(const QString &message)
     m_warning = message;
     emit warningOccured(m_warning);
 }
-
-bool CMakeBuildConfiguration::isQmlDebuggingEnabled() const
-{
-    return aspect<QtSupport::QmlDebuggingAspect>()->setting() == TriState::Enabled;
-}
-
 
 QString CMakeBuildConfiguration::error() const
 {
