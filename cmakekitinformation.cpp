@@ -25,8 +25,10 @@
 
 #include "cmakekitinformation.h"
 #include "cmakeprojectconstants.h"
-#include "cmaketoolmanager.h"
+#include "cmakeprojectplugin.h"
+#include "cmakespecificsettings.h"
 #include "cmaketool.h"
+#include "cmaketoolmanager.h"
 
 #include <app/app_version.h>
 #include <coreplugin/icore.h>
@@ -464,7 +466,20 @@ private:
 
 namespace {
 
-struct GeneratorInfo {
+class GeneratorInfo
+{
+public:
+    GeneratorInfo() = default;
+    GeneratorInfo(const QString &generator_,
+                  const QString &extraGenerator_ = QString(),
+                  const QString &platform_ = QString(),
+                  const QString &toolset_ = QString())
+        : generator(generator_)
+        , extraGenerator(extraGenerator_)
+        , platform(platform_)
+        , toolset(toolset_)
+    {}
+
     QVariant toVariant() const {
         QVariantMap result;
         result.insert(GENERATOR_KEY, generator);
@@ -566,10 +581,12 @@ void CMakeGeneratorKitAspect::setToolset(Kit *k, const QString &toolset)
 }
 
 void CMakeGeneratorKitAspect::set(Kit *k,
-                                       const QString &generator, const QString &extraGenerator,
-                                       const QString &platform, const QString &toolset)
+                                  const QString &generator,
+                                  const QString &extraGenerator,
+                                  const QString &platform,
+                                  const QString &toolset)
 {
-    GeneratorInfo info = {generator, extraGenerator, platform, toolset};
+    GeneratorInfo info(generator, extraGenerator, platform, toolset);
     setGeneratorInfo(k, info);
 }
 
@@ -603,41 +620,48 @@ QVariant CMakeGeneratorKitAspect::defaultValue(const Kit *k) const
     if (!tool)
         return QVariant();
 
-    const QString extraGenerator = "CodeBlocks";
-
-    QList<CMakeTool::Generator> known = tool->supportedGenerators();
-    auto it = std::find_if(known.constBegin(), known.constEnd(),
-                           [extraGenerator](const CMakeTool::Generator &g) {
-        return g.matches("Ninja", extraGenerator);
+    const QList<CMakeTool::Generator> known = tool->supportedGenerators();
+    auto it = std::find_if(known.constBegin(), known.constEnd(), [](const CMakeTool::Generator &g) {
+        return g.matches("Ninja");
     });
     if (it != known.constEnd()) {
-        Utils::Environment env = Utils::Environment::systemEnvironment();
-        k->addToEnvironment(env);
-        const Utils::FilePath ninjaExec = env.searchInPath(QLatin1String("ninja"));
-        if (!ninjaExec.isEmpty())
-            return GeneratorInfo({QString("Ninja"), extraGenerator, QString(), QString()}).toVariant();
+        const bool hasNinja = [k]() {
+            Internal::CMakeSpecificSettings *settings
+                = Internal::CMakeProjectPlugin::projectTypeSpecificSettings();
+
+            if (settings->ninjaPath().isEmpty()) {
+                Utils::Environment env = Utils::Environment::systemEnvironment();
+                k->addToEnvironment(env);
+                return !env.searchInPath("ninja").isEmpty();
+            }
+            return true;
+        }();
+
+        if (hasNinja)
+            return GeneratorInfo("Ninja").toVariant();
     }
 
     if (Utils::HostOsInfo::isWindowsHost()) {
         // *sigh* Windows with its zoo of incompatible stuff again...
         ToolChain *tc = ToolChainKitAspect::cxxToolChain(k);
         if (tc && tc->typeId() == ProjectExplorer::Constants::MINGW_TOOLCHAIN_TYPEID) {
-            it = std::find_if(known.constBegin(), known.constEnd(),
-                              [extraGenerator](const CMakeTool::Generator &g) {
-                return g.matches("MinGW Makefiles", extraGenerator);
-            });
+            it = std::find_if(known.constBegin(),
+                              known.constEnd(),
+                              [](const CMakeTool::Generator &g) {
+                                  return g.matches("MinGW Makefiles");
+                              });
         } else {
-            it = std::find_if(known.constBegin(), known.constEnd(),
-                              [extraGenerator](const CMakeTool::Generator &g) {
-                return g.matches("NMake Makefiles", extraGenerator)
-                        || g.matches("NMake Makefiles JOM", extraGenerator);
-            });
+            it = std::find_if(known.constBegin(),
+                              known.constEnd(),
+                              [](const CMakeTool::Generator &g) {
+                                  return g.matches("NMake Makefiles")
+                                         || g.matches("NMake Makefiles JOM");
+                              });
         }
     } else {
         // Unix-oid OSes:
-        it = std::find_if(known.constBegin(), known.constEnd(),
-                          [extraGenerator](const CMakeTool::Generator &g) {
-            return g.matches("Unix Makefiles", extraGenerator);
+        it = std::find_if(known.constBegin(), known.constEnd(), [](const CMakeTool::Generator &g) {
+            return g.matches("Unix Makefiles");
         });
     }
     if (it == known.constEnd())
@@ -645,7 +669,7 @@ QVariant CMakeGeneratorKitAspect::defaultValue(const Kit *k) const
     if (it == known.constEnd())
         return QVariant();
 
-    return GeneratorInfo({it->name, extraGenerator, QString(), QString()}).toVariant();
+    return GeneratorInfo(it->name).toVariant();
 }
 
 Tasks CMakeGeneratorKitAspect::validate(const Kit *k) const
@@ -712,9 +736,10 @@ void CMakeGeneratorKitAspect::fix(Kit *k)
         dv.fromVariant(defaultValue(k));
         setGeneratorInfo(k, dv);
     } else {
-        const GeneratorInfo dv = {info.generator, info.extraGenerator,
-                                  it->supportsPlatform ? info.platform : QString(),
-                                  it->supportsToolset ? info.toolset : QString()};
+        const GeneratorInfo dv(info.generator,
+                               info.extraGenerator,
+                               it->supportsPlatform ? info.platform : QString(),
+                               it->supportsToolset ? info.toolset : QString());
         setGeneratorInfo(k, dv);
     }
 }
