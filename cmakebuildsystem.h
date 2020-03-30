@@ -36,10 +36,8 @@ class CppProjectUpdater;
 } // namespace CppTools
 
 namespace CMakeProjectManager {
-
-class CMakeProject;
-
 namespace Internal {
+
 class CMakeBuildConfiguration;
 
 // --------------------------------------------------------------------
@@ -87,7 +85,6 @@ public:
     void handleParsingSuccess();
     void handleParsingError();
 
-    ProjectExplorer::BuildConfiguration *buildConfiguration() const;
     CMakeBuildConfiguration *cmakeBuildConfiguration() const;
 
     const QList<ProjectExplorer::BuildTargetInfo> appTargets() const;
@@ -101,7 +98,7 @@ private:
     bool renameFilePriv(const QString &filePath, const QString &newFilePath);
 
     std::unique_ptr<CMakeProjectNode> generateProjectTree(
-            const QList<const ProjectExplorer::FileNode *> &allFiles);
+        const QList<const ProjectExplorer::FileNode *> &allFiles);
 
     // Combining Treescanner and Parser states:
     void combineScanAndParse();
