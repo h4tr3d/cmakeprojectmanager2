@@ -76,7 +76,7 @@ void SimpleFileApiReader::endState(const QFileInfo &replyFi)
         if (value->errorMessage.isEmpty()) {
             emit this->dataAvailable();
         } else {
-            emit this->errorOccured(value->errorMessage);
+            emit this->errorOccurred(value->errorMessage);
         }
     });
 }
