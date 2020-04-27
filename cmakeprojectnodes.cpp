@@ -24,100 +24,22 @@
 ****************************************************************************/
 
 #include "cmakeprojectnodes.h"
-#include "cmakeconfigitem.h"
-#include "cmakeproject.h"
+#include "cmakebuildsystem.h"
 #include "cmakeprojectconstants.h"
-#include "cmakeprojectplugin.h"
-#include "cmakespecificsettings.h"
 #include "cmakekitinformation.h"
 #include "cmaketool.h"
 #include "cmakeproject.h"
 
 #include <android/androidconstants.h>
-
 #include <coreplugin/fileiconprovider.h>
-#include <coreplugin/icore.h>
-#include <cpptools/cpptoolsconstants.h>
-
 #include <projectexplorer/target.h>
 
-#include <utils/algorithm.h>
-#include <utils/checkablemessagebox.h>
-#include <utils/mimetypes/mimedatabase.h>
-#include <utils/optional.h>
 #include <utils/qtcassert.h>
-
-#include <QClipboard>
-#include <QDir>
-#include <QGuiApplication>
-#include <QMessageBox>
 
 using namespace ProjectExplorer;
 
 namespace CMakeProjectManager {
 namespace Internal {
-
-namespace {
-void copySourcePathToClipboard(Utils::optional<QString> srcPath,
-                               const ProjectExplorer::ProjectNode *node)
-{
-    QClipboard *clip = QGuiApplication::clipboard();
-
-    QDir projDir{node->filePath().toFileInfo().absoluteFilePath()};
-    clip->setText(QDir::cleanPath(projDir.relativeFilePath(srcPath.value())));
-}
-
-void noAutoAdditionNotify(const QStringList &filePaths, const ProjectExplorer::ProjectNode *node)
-{
-    Utils::optional<QString> srcPath{};
-
-    for (const QString &file : filePaths) {
-        if (Utils::mimeTypeForFile(file).name() == CppTools::Constants::CPP_SOURCE_MIMETYPE) {
-            srcPath = file;
-            break;
-        }
-    }
-
-    if (srcPath) {
-        CMakeSpecificSettings *settings = CMakeProjectPlugin::projectTypeSpecificSettings();
-        switch (settings->afterAddFileSetting()) {
-        case CMakeProjectManager::Internal::ASK_USER: {
-            bool checkValue{false};
-            QDialogButtonBox::StandardButton reply =
-                Utils::CheckableMessageBox::question(nullptr,
-                                                     QMessageBox::tr("Copy to Clipboard?"),
-                                                     QMessageBox::tr("Files are not automatically added to the "
-                                                                     "CMakeLists.txt file of the CMake project."
-                                                                     "\nCopy the path to the source files to the clipboard?"),
-                                                     "Remember My Choice", &checkValue, QDialogButtonBox::Yes | QDialogButtonBox::No,
-                                                     QDialogButtonBox::Yes);
-            if (checkValue) {
-                if (QDialogButtonBox::Yes == reply)
-                    settings->setAfterAddFileSetting(AfterAddFileAction::COPY_FILE_PATH);
-                else if (QDialogButtonBox::No == reply)
-                    settings->setAfterAddFileSetting(AfterAddFileAction::NEVER_COPY_FILE_PATH);
-
-                settings->toSettings(Core::ICore::settings());
-            }
-
-            if (QDialogButtonBox::Yes == reply) {
-                copySourcePathToClipboard(srcPath, node);
-            }
-            break;
-        }
-
-        case CMakeProjectManager::Internal::COPY_FILE_PATH: {
-            copySourcePathToClipboard(srcPath, node);
-            break;
-        }
-
-        case CMakeProjectManager::Internal::NEVER_COPY_FILE_PATH:
-            break;
-        }
-    }
-}
-
-}
 
 CMakeInputsNode::CMakeInputsNode(const Utils::FilePath &cmakeLists) :
     ProjectExplorer::ProjectNode(cmakeLists)
@@ -131,7 +53,7 @@ CMakeInputsNode::CMakeInputsNode(const Utils::FilePath &cmakeLists) :
 CMakeListsNode::CMakeListsNode(const Utils::FilePath &cmakeListPath) :
     ProjectExplorer::ProjectNode(cmakeListPath)
 {
-    static QIcon folderIcon = Core::FileIconProvider::directoryIcon(Constants::FILEOVERLAY_CMAKE);
+    static QIcon folderIcon = Core::FileIconProvider::directoryIcon(Constants::FILE_OVERLAY_CMAKE);
     setIcon(folderIcon);
     setListInProject(false);
 }
@@ -159,53 +81,7 @@ QString CMakeProjectNode::tooltip() const
     return QString();
 }
 
-bool CMakeBuildSystem::addFiles(Node *context, const QStringList &filePaths, QStringList *notAdded)
-{
-#if 0
-    if (auto n = dynamic_cast<CMakeProjectNode *>(context)) {
-        noAutoAdditionNotify(filePaths, n);
-        return true; // Return always true as autoadd is not supported!
-    }
 
-    if (auto n = dynamic_cast<CMakeTargetNode *>(context)) {
-        noAutoAdditionNotify(filePaths, n);
-        return true; // Return always true as autoadd is not supported!
-    }
-#else
-    if (auto n = dynamic_cast<CMakeProjectNode *>(context)) {
-        noAutoAdditionNotify(filePaths, n);
-    } else if (auto n = dynamic_cast<CMakeTargetNode *>(context)) {
-        noAutoAdditionNotify(filePaths, n);
-    }
-
-    if (addFilesPriv(filePaths))
-        return true;
-#endif
-    
-    return BuildSystem::addFiles(context, filePaths, notAdded);
-}
-
-bool CMakeBuildSystem::deleteFiles(Node *context, const QStringList &filePaths)
-{
-    if (eraseFilesPriv(filePaths))
-        return true;
-    
-    return BuildSystem::deleteFiles(context, filePaths);
-}
-
-bool CMakeBuildSystem::canRenameFile(Node *context, const QString &filePath, const QString &newFilePath)
-{
-    // TBD: filter out rename ability
-    return true;
-}
-
-bool CMakeBuildSystem::renameFile(Node *context, const QString &filePath, const QString &newFilePath)
-{
-    if (renameFilePriv(filePath, newFilePath))
-        return true;
-    
-    return BuildSystem::renameFile(context, filePath, newFilePath);
-}
 
 CMakeTargetNode::CMakeTargetNode(const Utils::FilePath &directory, const QString &target) :
     ProjectExplorer::ProjectNode(directory)
@@ -283,27 +159,6 @@ void CMakeTargetNode::setConfig(const CMakeConfig &config)
     m_config = config;
 }
 
-bool CMakeBuildSystem::supportsAction(Node *context, ProjectAction action, const Node *node) const
-{
-#if 0
-    if (dynamic_cast<CMakeTargetNode *>(context))
-        return action == ProjectAction::AddNewFile;
-
-    if (dynamic_cast<CMakeListsNode *>(context))
-        return action == ProjectAction::AddNewFile;
-#else
-    switch (action) {
-        case ProjectExplorer::AddNewFile:
-        case ProjectExplorer::EraseFile:
-        case ProjectExplorer::Rename:
-            return true;
-        default:
-            break;
-    }
-#endif
-
-    return BuildSystem::supportsAction(context, action, node);
-}
 
 Utils::optional<Utils::FilePath> CMakeTargetNode::visibleAfterAddFileAction() const
 {

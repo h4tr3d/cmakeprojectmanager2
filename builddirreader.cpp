@@ -46,14 +46,16 @@ std::unique_ptr<BuildDirReader> BuildDirReader::createReader(const BuildDirParam
     CMakeTool *cmake = p.cmakeTool();
     QTC_ASSERT(p.isValid() && cmake, return {});
 
-    switch (cmake->readerType()) {
+    auto type = cmake->readerType();
+    if (!type)
+        return {};
+    switch (type.value()) {
     case CMakeTool::FileApi:
         return std::make_unique<SimpleFileApiReader>();
     case CMakeTool::ServerMode:
         return std::make_unique<SimpleServerModeReader>();
-    default:
-        return {};
     }
+    return {};
 }
 
 } // namespace Internal

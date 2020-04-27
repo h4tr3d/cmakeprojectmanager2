@@ -26,34 +26,27 @@
 #include "cmakebuildconfiguration.h"
 
 #include "builddirmanager.h"
+#include "cmakebuildsettingswidget.h"
 #include "cmakebuildstep.h"
-#include "cmakeconfigitem.h"
+#include "cmakebuildsystem.h"
 #include "cmakekitinformation.h"
 #include "cmakeprojectconstants.h"
-#include "cmakebuildsettingswidget.h"
 
 #include <android/androidconstants.h>
-
-#include <coreplugin/icore.h>
-
+#include <projectexplorer/buildaspects.h>
 #include <projectexplorer/buildinfo.h>
 #include <projectexplorer/buildmanager.h>
 #include <projectexplorer/buildsteplist.h>
-#include <projectexplorer/kit.h>
 #include <projectexplorer/kitinformation.h>
+#include <projectexplorer/project.h>
 #include <projectexplorer/projectexplorer.h>
-#include <projectexplorer/projectexplorerconstants.h>
 #include <projectexplorer/projectmacroexpander.h>
 #include <projectexplorer/target.h>
-
 #include <qtsupport/baseqtversion.h>
 #include <qtsupport/qtbuildaspects.h>
 #include <qtsupport/qtkitinformation.h>
 
-#include <utils/algorithm.h>
-#include <utils/mimetypes/mimedatabase.h>
 #include <utils/qtcassert.h>
-#include <utils/qtcprocess.h>
 
 #include <QLoggingCategory>
 
@@ -71,10 +64,8 @@ CMakeBuildConfiguration::CMakeBuildConfiguration(Target *target, Core::Id id)
     : BuildConfiguration(target, id)
 {
     m_buildSystem = new CMakeBuildSystem(this);
-    setBuildDirectory(shadowBuildDirectory(project()->projectFilePath(),
-                                           target->kit(),
-                                           displayName(),
-                                           BuildConfiguration::Unknown));
+
+    buildDirectoryAspect()->setFileDialogOnly(true);
 
     appendInitialBuildStep(Constants::CMAKE_BUILD_STEP_ID);
     appendInitialCleanStep(Constants::CMAKE_BUILD_STEP_ID);
@@ -161,7 +152,6 @@ CMakeBuildConfiguration::CMakeBuildConfiguration(Target *target, Core::Id id)
     qmlDebuggingAspect->setKit(target->kit());
     connect(qmlDebuggingAspect, &QtSupport::QmlDebuggingAspect::changed,
             this, &CMakeBuildConfiguration::configurationForCMakeChanged);
-
 }
 
 CMakeBuildConfiguration::~CMakeBuildConfiguration()
@@ -390,8 +380,8 @@ CMakeBuildConfigurationFactory::CMakeBuildConfigurationFactory()
     registerBuildConfiguration<CMakeBuildConfiguration>(
         "CMakeProjectManager.CMakeBuildConfiguration");
 
-    setSupportedProjectType(CMakeProjectManager::Constants::CMAKEPROJECT_ID);
-    setSupportedProjectMimeTypeName(Constants::CMAKEPROJECTMIMETYPE);
+    setSupportedProjectType(CMakeProjectManager::Constants::CMAKE_PROJECT_ID);
+    setSupportedProjectMimeTypeName(Constants::CMAKE_PROJECT_MIMETYPE);
 
     setBuildGenerator([](const Kit *k, const FilePath &projectPath, bool forSetup) {
         QList<BuildInfo> result;

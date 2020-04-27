@@ -27,31 +27,20 @@
 
 #include "cmakefilecompletionassist.h"
 #include "cmakeprojectconstants.h"
-#include "cmakeproject.h"
 #include "cmakeindenter.h"
 #include "cmakeautocompleter.h"
 
 #include <coreplugin/actionmanager/actioncontainer.h>
 #include <coreplugin/actionmanager/actionmanager.h>
-#include <coreplugin/editormanager/editormanager.h>
-#include <coreplugin/icore.h>
-
-#include <extensionsystem/pluginmanager.h>
-
-#include <projectexplorer/projectexplorer.h>
-#include <projectexplorer/session.h>
-
+#include <texteditor/textdocument.h>
 #include <texteditor/texteditoractionhandler.h>
-#include <texteditor/texteditorconstants.h>
 
-#include <utils/qtcassert.h>
-#include <utils/textutils.h>
+#include <QDir>
+#include <QTextDocument>
 
-#include <QFileInfo>
-#include <QTextBlock>
+#include <functional>
 
 using namespace Core;
-using namespace ProjectExplorer;
 using namespace TextEditor;
 
 namespace CMakeProjectManager {
@@ -212,7 +201,7 @@ static TextDocument *createCMakeDocument()
 {
     auto doc = new TextDocument;
     doc->setId(Constants::CMAKE_EDITOR_ID);
-    doc->setMimeType(QLatin1String(Constants::CMAKEMIMETYPE));
+    doc->setMimeType(QLatin1String(Constants::CMAKE_MIMETYPE));
     return doc;
 }
 
@@ -224,8 +213,8 @@ CMakeEditorFactory::CMakeEditorFactory()
 {
     setId(Constants::CMAKE_EDITOR_ID);
     setDisplayName(QCoreApplication::translate("OpenWith::Editors", "CMake Editor"));
-    addMimeType(Constants::CMAKEMIMETYPE);
-    addMimeType(Constants::CMAKEPROJECTMIMETYPE);
+    addMimeType(Constants::CMAKE_MIMETYPE);
+    addMimeType(Constants::CMAKE_PROJECT_MIMETYPE);
 
     setEditorCreator([]() { return new CMakeEditor; });
     setEditorWidgetCreator([]() { return new CMakeEditorWidget; });

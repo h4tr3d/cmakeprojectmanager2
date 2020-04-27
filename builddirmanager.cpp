@@ -27,29 +27,20 @@
 
 #include "cmakebuildconfiguration.h"
 #include "cmakebuildstep.h"
-#include "cmakekitinformation.h"
+#include "cmakebuildsystem.h"
 #include "cmakeprojectnodes.h"
-#include "cmaketool.h"
 
 #include <coreplugin/icore.h>
-#include <projectexplorer/kit.h>
-#include <projectexplorer/kitinformation.h>
-#include <projectexplorer/project.h>
 #include <projectexplorer/projectexplorerconstants.h>
-#include <projectexplorer/target.h>
 #include <projectexplorer/taskhub.h>
-#include <projectexplorer/toolchain.h>
 
 #include <utils/algorithm.h>
-#include <utils/fileutils.h>
 #include <utils/qtcassert.h>
 
-#include <QDir>
 #include <QLoggingCategory>
 #include <QMessageBox>
 #include <QPointer>
 #include <QPushButton>
-#include <QSet>
 
 #include <app/app_version.h>
 
@@ -151,6 +142,13 @@ void BuildDirManager::updateReaderType(const BuildDirParameters &p,
             qCDebug(cmakeBuildDirManagerLog) << "Creating first reader";
         }
         m_reader = BuildDirReader::createReader(p);
+
+        if (!m_reader) {
+            TaskHub::addTask(BuildSystemTask(
+                Task::Error,
+                tr("The kit does not define a valid CMake tool to parse this project with.")));
+            return;
+        }
 
         connect(m_reader.get(),
                 &BuildDirReader::configurationStarted,
@@ -427,8 +425,8 @@ void BuildDirManager::clearCache()
     QTC_ASSERT(m_parameters.isValid(), return);
     QTC_ASSERT(!m_isHandlingError, return);
 
-    const FilePath cmakeCache = m_parameters.workDirectory.pathAppended("CMakeCache.txt");
-    const FilePath cmakeFiles = m_parameters.workDirectory.pathAppended("CMakeFiles");
+    const FilePath cmakeCache = m_parameters.workDirectory / "CMakeCache.txt";
+    const FilePath cmakeFiles = m_parameters.workDirectory / "CMakeFiles";
 
     const bool mustCleanUp = cmakeCache.exists() || cmakeFiles.exists();
     if (!mustCleanUp)

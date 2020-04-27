@@ -30,32 +30,19 @@
 #include "cmakekitinformation.h"
 #include "cmakeparser.h"
 #include "cmakeprojectconstants.h"
-#include "cmakeproject.h"
 #include "cmaketool.h"
 
-#include <projectexplorer/buildsteplist.h>
-#include <projectexplorer/deployconfiguration.h>
-#include <projectexplorer/gnumakeparser.h>
-#include <projectexplorer/kitinformation.h>
-#include <projectexplorer/processparameters.h>
-#include <projectexplorer/projectexplorerconstants.h>
-#include <projectexplorer/projectexplorer.h>
-#include <projectexplorer/target.h>
-#include <projectexplorer/toolchain.h>
-
-#include <qtsupport/qtkitinformation.h>
-#include <qtsupport/qtparser.h>
-
 #include <coreplugin/find/itemviewfind.h>
+#include <projectexplorer/buildsteplist.h>
+#include <projectexplorer/gnumakeparser.h>
+#include <projectexplorer/processparameters.h>
+#include <projectexplorer/project.h>
+#include <projectexplorer/projectexplorer.h>
+#include <projectexplorer/runconfiguration.h>
+#include <projectexplorer/target.h>
 
-#include <utils/algorithm.h>
-#include <utils/qtcprocess.h>
-#include <utils/pathchooser.h>
-
-#include <QCheckBox>
-#include <QDir>
+#include <QBoxLayout>
 #include <QFormLayout>
-#include <QGroupBox>
 #include <QLineEdit>
 #include <QListWidget>
 #include <QRadioButton>
@@ -210,16 +197,17 @@ bool CMakeBuildStep::init()
     pp->setCommandLine(cmakeCommand(rc));
     pp->resolveAll();
 
-    CMakeParser *cmakeParser = new CMakeParser;
-    cmakeParser->setSourceDirectory(projectDirectory.toString());
-    setOutputParser(cmakeParser);
-    appendOutputParser(new GnuMakeParser);
-    IOutputParser *parser = target()->kit()->createOutputParser();
-    if (parser)
-        appendOutputParser(parser);
-    outputParser()->setWorkingDirectory(pp->effectiveWorkingDirectory());
-
     return AbstractProcessStep::init();
+}
+
+void CMakeBuildStep::setupOutputFormatter(Utils::OutputFormatter *formatter)
+{
+    CMakeParser *cmakeParser = new CMakeParser;
+    cmakeParser->setSourceDirectory(project()->projectDirectory().toString());
+    formatter->addLineParsers({cmakeParser, new GnuMakeParser});
+    formatter->addLineParsers(target()->kit()->createOutputParsers());
+    formatter->addSearchDir(processParameters()->effectiveWorkingDirectory());
+    AbstractProcessStep::setupOutputFormatter(formatter);
 }
 
 void CMakeBuildStep::doRun()
@@ -558,7 +546,7 @@ CMakeBuildStepFactory::CMakeBuildStepFactory()
 {
     registerStep<CMakeBuildStep>(Constants::CMAKE_BUILD_STEP_ID);
     setDisplayName(CMakeBuildStep::tr("Build", "Display name for CMakeProjectManager::CMakeBuildStep id."));
-    setSupportedProjectType(Constants::CMAKEPROJECT_ID);
+    setSupportedProjectType(Constants::CMAKE_PROJECT_ID);
 }
 
 void CMakeBuildStep::processStarted()

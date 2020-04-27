@@ -112,7 +112,8 @@ private:
     void handleParsingSucceeded();
     void handleParsingFailed(const QString &msg);
 
-    CMakeBuildConfiguration *m_buildConfiguration = nullptr;
+    void wireUpConnections(const ProjectExplorer::Project *p);
+
     BuildDirManager m_buildDirManager;
 
     ProjectExplorer::TreeScanner m_treeScanner;

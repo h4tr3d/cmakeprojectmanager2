@@ -25,26 +25,15 @@
 
 #include "servermodereader.h"
 
-#include "cmakebuildconfiguration.h"
-#include "cmakeprojectconstants.h"
-#include "cmakeprojectmanager.h"
-#include "cmakeprojectnodes.h"
-#include "servermode.h"
+#include "cmakeparser.h"
 #include "projecttreehelper.h"
 
-#include <coreplugin/editormanager/editormanager.h>
 #include <coreplugin/messagemanager.h>
 #include <coreplugin/progressmanager/progressmanager.h>
-#include <projectexplorer/projectexplorerconstants.h>
-#include <projectexplorer/toolchain.h>
 #include <projectexplorer/task.h>
 #include <projectexplorer/taskhub.h>
 
 #include <utils/algorithm.h>
-#include <utils/qtcassert.h>
-#include <utils/qtcprocess.h>
-
-#include <QVector>
 
 using namespace ProjectExplorer;
 using namespace Utils;
@@ -75,16 +64,8 @@ Q_LOGGING_CATEGORY(cmakeServerModeReader, "qtc.cmake.serverModeReader", QtWarnin
 
 ServerModeReader::ServerModeReader()
 {
-    connect(&m_parser, &CMakeParser::addOutput,
-            this, [](const QString &m) { Core::MessageManager::write(m); });
-    connect(&m_parser, &CMakeParser::addTask, this, [this](const Task &t) {
-        Task editable(t);
-        if (!editable.file.isEmpty()) {
-            QDir srcDir(m_parameters.sourceDirectory.toString());
-            editable.file = FilePath::fromString(srcDir.absoluteFilePath(editable.file.toString()));
-        }
-        TaskHub::addTask(editable);
-    });
+    m_cmakeParser = new CMakeParser;
+    m_parser.addLineParser(m_cmakeParser);
 }
 
 ServerModeReader::~ServerModeReader()
@@ -98,8 +79,7 @@ void ServerModeReader::setParameters(const BuildDirParameters &p)
     QTC_ASSERT(cmake, return);
 
     m_parameters = p;
-
-    m_parser.setSourceDirectory(m_parameters.sourceDirectory.toString());
+    m_cmakeParser->setSourceDirectory(m_parameters.sourceDirectory.toString());
     createNewServer();
 }
 
@@ -385,7 +365,7 @@ void ServerModeReader::createNewServer()
     connect(m_cmakeServer.get(), &ServerMode::cmakeMessage, [this](const QString &m) {
         const QStringList lines = m.split('\n');
         for (const QString &l : lines) {
-            m_parser.stdError(l);
+            m_parser.appendMessage(l, StdErrFormat);
             Core::MessageManager::write(l);
         }
     });

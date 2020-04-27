@@ -25,10 +25,8 @@
 
 #include "fileapidataextractor.h"
 
-#include "cmakeprojectnodes.h"
+#include "fileapiparser.h"
 #include "projecttreehelper.h"
-
-#include <projectexplorer/projectnodes.h>
 
 #include <utils/algorithm.h>
 #include <utils/qtcassert.h>
@@ -78,7 +76,7 @@ CMakeFileResult extractCMakeFilesData(const std::vector<FileApiDetails::CMakeFil
         if (oldCount < result.cmakeFiles.count()) {
             if (info.isCMake && !info.isCMakeListsDotTxt) {
                 // Skip files that cmake considers to be part of the installation -- but include
-                // CMakeLists.txt files. This unbreaks cmake binaries running from their own
+                // CMakeLists.txt files. This fixes cmake binaries running from their own
                 // build directory.
                 continue;
             }
@@ -309,15 +307,13 @@ static QStringList splitFragments(const QStringList &fragments)
 }
 
 RawProjectParts generateRawProjectParts(const PreprocessedData &input,
-                                        const FilePath &sourceDirectory,
-                                        const FilePath &buildDirectory)
+                                        const FilePath &sourceDirectory)
 {
     RawProjectParts rpps;
 
     int counter = 0;
     for (const TargetDetails &t : input.targetDetails) {
         QDir sourceDir(sourceDirectory.toString());
-        QDir buildDir(buildDirectory.toString());
 
         bool needPostfix = t.compileGroups.size() > 1;
         int count = 1;
@@ -371,11 +367,7 @@ RawProjectParts generateRawProjectParts(const PreprocessedData &input,
             }));
             if (!precompiled_header.isEmpty()) {
                 if (precompiled_header.toFileInfo().isRelative()) {
-                    const FilePath parentDir = FilePath::fromString(buildDir.absolutePath());
-                    const QString dirName = buildDir.dirName();
-                    if (precompiled_header.startsWith(dirName))
-                        precompiled_header = FilePath::fromString(
-                            precompiled_header.toString().mid(dirName.length() + 1));
+                    const FilePath parentDir = FilePath::fromString(sourceDir.absolutePath());
                     precompiled_header = parentDir.pathAppended(precompiled_header.toString());
                 }
                 rpp.setPreCompiledHeaders({precompiled_header.toString()});
@@ -735,7 +727,7 @@ FileApiQtcData extractData(FileApiData &input,
 
     result.buildTargets = generateBuildTargets(data, sourceDirectory, buildDirectory);
     result.cmakeFiles = std::move(data.cmakeFiles);
-    result.projectParts = generateRawProjectParts(data, sourceDirectory, buildDirectory);
+    result.projectParts = generateRawProjectParts(data, sourceDirectory);
 
     auto pair = !plain ? generateRootProjectNode(data, sourceDirectory, buildDirectory) : generateRootProjectNodePlain(data, sourceDirectory, buildDirectory);
     result.rootProjectNode = std::move(pair.first);

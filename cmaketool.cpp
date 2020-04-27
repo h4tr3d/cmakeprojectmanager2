@@ -24,23 +24,21 @@
 ****************************************************************************/
 
 #include "cmaketool.h"
+
 #include "cmaketoolmanager.h"
 
 #include <utils/algorithm.h>
 #include <utils/environment.h>
-#include <utils/hostosinfo.h>
 #include <utils/qtcassert.h>
 
 #include <QDir>
-#include <QFileInfo>
 #include <QJsonDocument>
 #include <QJsonObject>
-#include <QProcess>
 #include <QRegularExpression>
 #include <QSet>
-#include <QTextDocument>
 #include <QUuid>
-#include <QVariantMap>
+
+#include <memory>
 
 namespace CMakeProjectManager {
 
@@ -71,10 +69,11 @@ static bool ignoreFileApi()
 
 static Utils::optional<CMakeTool::ReaderType> readerTypeFromString(const QString &input)
 {
+    // Do not try to be clever here, just use whatever is in the string!
     if (input == READER_TYPE_SERVERMODE)
         return CMakeTool::ServerMode;
     if (input == READER_TYPE_FILEAPI)
-        return ignoreFileApi() ? CMakeTool::ServerMode : CMakeTool::FileApi;
+        return CMakeTool::FileApi;
     return {};
 }
 
@@ -86,7 +85,7 @@ static QString readerTypeToString(const CMakeTool::ReaderType &type)
     case CMakeTool::FileApi:
         return QString(READER_TYPE_FILEAPI);
     }
-    return QString("<INVALID>");
+    return {};
 }
 
 // --------------------------------------------------------------------
@@ -122,9 +121,10 @@ public:
 ///////////////////////////
 // CMakeTool
 ///////////////////////////
-CMakeTool::CMakeTool(Detection d, const Core::Id &id) :
-    m_id(id), m_isAutoDetected(d == AutoDetection),
-    m_introspection(std::make_unique<Internal::IntrospectionData>())
+CMakeTool::CMakeTool(Detection d, const Core::Id &id)
+    : m_id(id)
+    , m_isAutoDetected(d == AutoDetection)
+    , m_introspection(std::make_unique<Internal::IntrospectionData>())
 {
     QTC_ASSERT(m_id.isValid(), m_id = Core::Id::fromString(QUuid::createUuid().toString()));
 }
@@ -200,7 +200,7 @@ bool CMakeTool::isValid() const
     if (!m_introspection->m_didAttemptToRun)
         supportedGenerators();
 
-    return m_introspection->m_didRun && (hasFileApi() || hasServerMode());
+    return m_introspection->m_didRun && readerType().has_value();
 }
 
 Utils::SynchronousProcessResponse CMakeTool::run(const QStringList &args, int timeoutS) const
@@ -225,7 +225,7 @@ QVariantMap CMakeTool::toMap() const
     data.insert(CMAKE_INFORMATION_QCH_FILE_PATH, m_qchFilePath.toString());
     data.insert(CMAKE_INFORMATION_AUTORUN, m_isAutoRun);
     data.insert(CMAKE_INFORMATION_AUTO_CREATE_BUILD_DIRECTORY, m_autoCreateBuildDirectory);
-    if (m_readerType.has_value())
+    if (m_readerType)
         data.insert(CMAKE_INFORMATION_READERTYPE,
                     Internal::readerTypeToString(m_readerType.value()));
     data.insert(CMAKE_INFORMATION_AUTODETECTED, m_isAutoDetected);
@@ -330,7 +330,7 @@ bool CMakeTool::hasFileApi() const
     return !m_introspection->m_fileApis.isEmpty();
 }
 
-QVector<std::pair<QString, int> > CMakeTool::supportedFileApiObjects() const
+QVector<std::pair<QString, int>> CMakeTool::supportedFileApiObjects() const
 {
     readInformation(QueryType::SERVER_MODE);
     return Utils::transform(m_introspection->m_fileApis, [](const Internal::FileApi &api) { return std::make_pair(api.kind, api.version.first); });
@@ -370,19 +370,17 @@ CMakeTool::PathMapper CMakeTool::pathMapper() const
     return [](const Utils::FilePath &fn) { return fn; };
 }
 
-CMakeTool::ReaderType CMakeTool::readerType() const
+Utils::optional<CMakeTool::ReaderType> CMakeTool::readerType() const
 {
-    if (!m_readerType.has_value()) {
-        // Find best possible reader type:
-        if (hasFileApi()) {
-            if (hasServerMode() && Internal::ignoreFileApi())
-                return ServerMode; // We were asked to fall back to server mode
-            return FileApi;
-        }
-        if (hasServerMode())
-            return ServerMode;
-    }
-    return m_readerType.value();
+    if (m_readerType)
+        return m_readerType; // Allow overriding the auto-detected value via .user files
+
+    // Find best possible reader type:
+    if (hasFileApi() && !Internal::ignoreFileApi())
+        return FileApi;
+    if (hasServerMode())
+        return ServerMode;
+    return {};
 }
 
 Utils::FilePath CMakeTool::searchQchFile(const Utils::FilePath &executable)

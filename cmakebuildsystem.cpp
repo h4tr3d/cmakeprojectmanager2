@@ -27,32 +27,106 @@
 
 #include "cmakebuildconfiguration.h"
 #include "cmakekitinformation.h"
-#include "cmakeproject.h"
 #include "cmakeprojectconstants.h"
 #include "cmakeprojectnodes.h"
+#include "cmakeprojectplugin.h"
+#include "cmakespecificsettings.h"
 
 #include <android/androidconstants.h>
-
+#include <coreplugin/icore.h>
 #include <coreplugin/progressmanager/progressmanager.h>
 #include <cpptools/cppprojectupdater.h>
+#include <cpptools/cpptoolsconstants.h>
 #include <cpptools/generatedcodemodelsupport.h>
-#include <projectexplorer/kitmanager.h>
-#include <projectexplorer/project.h>
+#include <projectexplorer/kitinformation.h>
 #include <projectexplorer/projectexplorerconstants.h>
+#include <projectexplorer/session.h>
 #include <projectexplorer/target.h>
 #include <qmljs/qmljsmodelmanagerinterface.h>
 
 #include <qtsupport/qtcppkitinfo.h>
-#include <qtsupport/qtkitinformation.h>
 
+#include <utils/checkablemessagebox.h>
 #include <utils/fileutils.h>
 #include <utils/mimetypes/mimetype.h>
 #include <utils/qtcassert.h>
 
+#include <QClipboard>
+#include <QDir>
+#include <QGuiApplication>
 #include <QLoggingCategory>
+#include <QTimer>
 
 using namespace ProjectExplorer;
 using namespace Utils;
+
+namespace {
+
+void copySourcePathToClipboard(Utils::optional<QString> srcPath,
+                               const ProjectExplorer::ProjectNode *node)
+{
+    QClipboard *clip = QGuiApplication::clipboard();
+
+    QDir projDir{node->filePath().toFileInfo().absoluteFilePath()};
+    clip->setText(QDir::cleanPath(projDir.relativeFilePath(srcPath.value())));
+}
+
+void noAutoAdditionNotify(const QStringList &filePaths, const ProjectExplorer::ProjectNode *node)
+{
+    Utils::optional<QString> srcPath{};
+
+    for (const QString &file : filePaths) {
+        if (Utils::mimeTypeForFile(file).name() == CppTools::Constants::CPP_SOURCE_MIMETYPE) {
+            srcPath = file;
+            break;
+        }
+    }
+
+    if (srcPath) {
+        CMakeProjectManager::Internal::CMakeSpecificSettings *settings
+            = CMakeProjectManager::Internal::CMakeProjectPlugin::projectTypeSpecificSettings();
+        switch (settings->afterAddFileSetting()) {
+        case CMakeProjectManager::Internal::ASK_USER: {
+            bool checkValue{false};
+            QDialogButtonBox::StandardButton reply = Utils::CheckableMessageBox::question(
+                nullptr,
+                QMessageBox::tr("Copy to Clipboard?"),
+                QMessageBox::tr("Files are not automatically added to the "
+                                "CMakeLists.txt file of the CMake project."
+                                "\nCopy the path to the source files to the clipboard?"),
+                "Remember My Choice",
+                &checkValue,
+                QDialogButtonBox::Yes | QDialogButtonBox::No,
+                QDialogButtonBox::Yes);
+            if (checkValue) {
+                if (QDialogButtonBox::Yes == reply)
+                    settings->setAfterAddFileSetting(
+                        CMakeProjectManager::Internal::AfterAddFileAction::COPY_FILE_PATH);
+                else if (QDialogButtonBox::No == reply)
+                    settings->setAfterAddFileSetting(
+                        CMakeProjectManager::Internal::AfterAddFileAction::NEVER_COPY_FILE_PATH);
+
+                settings->toSettings(Core::ICore::settings());
+            }
+
+            if (QDialogButtonBox::Yes == reply) {
+                copySourcePathToClipboard(srcPath, node);
+            }
+            break;
+        }
+
+        case CMakeProjectManager::Internal::COPY_FILE_PATH: {
+            copySourcePathToClipboard(srcPath, node);
+            break;
+        }
+
+        case CMakeProjectManager::Internal::NEVER_COPY_FILE_PATH:
+            break;
+        }
+    }
+}
+
+} // namespace
 
 namespace CMakeProjectManager {
 namespace Internal {
@@ -96,8 +170,8 @@ CMakeBuildSystem::CMakeBuildSystem(CMakeBuildConfiguration *bc)
         if (type == FileType::Unknown) {
             if (mimeType.isValid()) {
                 const QString mt = mimeType.name();
-                if (mt == CMakeProjectManager::Constants::CMAKEPROJECTMIMETYPE
-                    || mt == CMakeProjectManager::Constants::CMAKEMIMETYPE)
+                if (mt == CMakeProjectManager::Constants::CMAKE_PROJECT_MIMETYPE
+                    || mt == CMakeProjectManager::Constants::CMAKE_MIMETYPE)
                     type = FileType::Project;
             }
         }
@@ -124,99 +198,10 @@ CMakeBuildSystem::CMakeBuildSystem(CMakeBuildConfiguration *bc)
         cmakeBuildConfiguration()->clearError(CMakeBuildConfiguration::ForceEnabledChanged::True);
     });
 
-    // Kit changed:
-    connect(KitManager::instance(), &KitManager::kitUpdated, this, [this](Kit *k) {
-        if (k != kit())
-            return; // not for us...
-        // Build configuration has not changed, but Kit settings might have:
-        // reparse and check the configuration, independent of whether the reader has changed
-        qCDebug(cmakeBuildSystemLog) << "Requesting parse due to kit being updated";
-        m_buildDirManager.setParametersAndRequestParse(BuildDirParameters(cmakeBuildConfiguration()),
-                                                       BuildDirManager::REPARSE_CHECK_CONFIGURATION);
-    });
-
-    // Became active/inactive:
-    connect(project(), &Project::activeTargetChanged, this, [this](Target *t) {
-        if (t == target()) {
-            // Build configuration has switched:
-            // * Check configuration if reader changes due to it not existing yet:-)
-            // * run cmake without configuration arguments if the reader stays
-            qCDebug(cmakeBuildSystemLog) << "Requesting parse due to active target changed";
-            m_buildDirManager
-                .setParametersAndRequestParse(BuildDirParameters(cmakeBuildConfiguration()),
-                                              BuildDirManager::REPARSE_CHECK_CONFIGURATION);
-        } else {
-            m_buildDirManager.stopParsingAndClearState();
-        }
-    });
-    connect(target(), &Target::activeBuildConfigurationChanged, this, [this](BuildConfiguration *bc) {
-        if (cmakeBuildConfiguration()->isActive()) {
-            if (cmakeBuildConfiguration() == bc) {
-                // Build configuration has switched:
-                // * Check configuration if reader changes due to it not existing yet:-)
-                // * run cmake without configuration arguments if the reader stays
-                qCDebug(cmakeBuildSystemLog) << "Requesting parse due to active BC changed";
-                m_buildDirManager
-                    .setParametersAndRequestParse(BuildDirParameters(cmakeBuildConfiguration()),
-                                                  BuildDirManager::REPARSE_CHECK_CONFIGURATION);
-            } else {
-                m_buildDirManager.stopParsingAndClearState();
-            }
-        }
-    });
-
-    // BuildConfiguration changed:
-    connect(cmakeBuildConfiguration(), &CMakeBuildConfiguration::environmentChanged, this, [this]() {
-        if (cmakeBuildConfiguration()->isActive()) {
-            // The environment on our BC has changed:
-            // * Error out if the reader updates, cannot happen since all BCs share a target/kit.
-            // * run cmake without configuration arguments if the reader stays
-            qCDebug(cmakeBuildSystemLog) << "Requesting parse due to environment change";
-            m_buildDirManager
-                .setParametersAndRequestParse(BuildDirParameters(cmakeBuildConfiguration()),
-                                              BuildDirManager::REPARSE_CHECK_CONFIGURATION);
-        }
-    });
-    connect(cmakeBuildConfiguration(), &CMakeBuildConfiguration::buildDirectoryChanged, this, [this]() {
-        if (cmakeBuildConfiguration()->isActive()) {
-            // The build directory of our BC has changed:
-            // * Error out if the reader updates, cannot happen since all BCs share a target/kit.
-            // * run cmake without configuration arguments if the reader stays
-            //   If no configuration exists, then the arguments will get added automatically by
-            //   the reader.
-            qCDebug(cmakeBuildSystemLog) << "Requesting parse due to build directory change";
-            m_buildDirManager
-                .setParametersAndRequestParse(BuildDirParameters(cmakeBuildConfiguration()),
-                                              BuildDirManager::REPARSE_CHECK_CONFIGURATION);
-        }
-    });
-    connect(cmakeBuildConfiguration(), &CMakeBuildConfiguration::configurationForCMakeChanged, this, [this]() {
-        if (cmakeBuildConfiguration()->isActive()) {
-            // The CMake configuration has changed on our BC:
-            // * Error out if the reader updates, cannot happen since all BCs share a target/kit.
-            // * run cmake with configuration arguments if the reader stays
-            qCDebug(cmakeBuildSystemLog) << "Requesting parse due to cmake configuration change";
-            m_buildDirManager
-                .setParametersAndRequestParse(BuildDirParameters(cmakeBuildConfiguration()),
-                                              BuildDirManager::REPARSE_FORCE_CONFIGURATION);
-        }
-    });
-
-    connect(project(), &Project::projectFileIsDirty, this, [this]() {
-        if (cmakeBuildConfiguration()->isActive() && !isParsing()) {
-            const auto cmake = CMakeKitAspect::cmakeTool(cmakeBuildConfiguration()->target()->kit());
-            if (cmake && cmake->isAutoRun()) {
-                qCDebug(cmakeBuildSystemLog) << "Requesting parse due to dirty project file";
-                m_buildDirManager.setParametersAndRequestParse(BuildDirParameters(
-                                                                   cmakeBuildConfiguration()),
-                                                               BuildDirManager::REPARSE_DEFAULT);
-            }
-        }
-    });
-
-    qCDebug(cmakeBuildSystemLog) << "Requesting parse due to initial CMake BuildSystem setup";
-    m_buildDirManager.setParametersAndRequestParse(BuildDirParameters(cmakeBuildConfiguration()),
-                                                   BuildDirManager::REPARSE_CHECK_CONFIGURATION);
+    connect(SessionManager::instance(),
+            &SessionManager::projectAdded,
+            this,
+            &CMakeBuildSystem::wireUpConnections);
 }
 
 CMakeBuildSystem::~CMakeBuildSystem()
@@ -266,6 +251,81 @@ void CMakeBuildSystem::triggerParsing()
     }
 
     m_buildDirManager.parse();
+}
+
+bool CMakeBuildSystem::supportsAction(Node *context, ProjectAction action, const Node *node) const
+{
+#if 0
+    if (dynamic_cast<CMakeTargetNode *>(context))
+        return action == ProjectAction::AddNewFile;
+
+    if (dynamic_cast<CMakeListsNode *>(context))
+        return action == ProjectAction::AddNewFile;
+#else
+    switch (action) {
+        case ProjectExplorer::AddNewFile:
+        case ProjectExplorer::EraseFile:
+        case ProjectExplorer::Rename:
+            return true;
+        default:
+            break;
+    }
+#endif
+    return BuildSystem::supportsAction(context, action, node);
+}
+
+bool CMakeBuildSystem::addFiles(Node *context, const QStringList &filePaths, QStringList *notAdded)
+{
+#if 0
+    if (auto n = dynamic_cast<CMakeProjectNode *>(context)) {
+        noAutoAdditionNotify(filePaths, n);
+        return true; // Return always true as autoadd is not supported!
+    }
+
+    if (auto n = dynamic_cast<CMakeTargetNode *>(context)) {
+        noAutoAdditionNotify(filePaths, n);
+        return true; // Return always true as autoadd is not supported!
+    }
+#else
+    bool handled = false;
+    if (auto n = dynamic_cast<CMakeProjectNode *>(context)) {
+        noAutoAdditionNotify(filePaths, n);
+        handled = true;
+    } else if (auto n = dynamic_cast<CMakeTargetNode *>(context)) {
+        noAutoAdditionNotify(filePaths, n);
+        handled = true;
+    }
+
+    if (addFilesPriv(filePaths))
+        handled = true;
+    
+    if (handled)
+        return true;
+#endif
+
+    return BuildSystem::addFiles(context, filePaths, notAdded);
+}
+
+bool CMakeBuildSystem::deleteFiles(Node *context, const QStringList &filePaths)
+{
+    if (eraseFilesPriv(filePaths))
+        return true;
+    
+    return BuildSystem::deleteFiles(context, filePaths);
+}
+
+bool CMakeBuildSystem::canRenameFile(Node *context, const QString &filePath, const QString &newFilePath)
+{
+    // TBD: filter out rename ability
+    return true;
+}
+
+bool CMakeBuildSystem::renameFile(Node *context, const QString &filePath, const QString &newFilePath)
+{
+    if (renameFilePriv(filePath, newFilePath))
+        return true;
+    
+    return BuildSystem::renameFile(context, filePath, newFilePath);
 }
 
 QStringList CMakeBuildSystem::filesGeneratedFrom(const QString &sourceFile) const
@@ -671,6 +731,115 @@ void CMakeBuildSystem::handleParsingFailed(const QString &msg)
     // ignore errorMessage here, we already got one.
 
     handleParsingError();
+}
+
+void CMakeBuildSystem::wireUpConnections(const Project *p)
+{
+    if (p != project())
+        return; // That's not us...
+
+    disconnect(SessionManager::instance(), nullptr, this, nullptr);
+
+    // At this point the entire project will be fully configured, so let's connect everything and
+    // trigger an initial parser run
+
+    // Kit changed:
+    connect(KitManager::instance(), &KitManager::kitUpdated, this, [this](Kit *k) {
+        if (k != kit())
+            return; // not for us...
+        // Build configuration has not changed, but Kit settings might have:
+        // reparse and check the configuration, independent of whether the reader has changed
+        qCDebug(cmakeBuildSystemLog) << "Requesting parse due to kit being updated";
+        m_buildDirManager.setParametersAndRequestParse(BuildDirParameters(cmakeBuildConfiguration()),
+                                                       BuildDirManager::REPARSE_CHECK_CONFIGURATION);
+    });
+
+    // Became active/inactive:
+    connect(project(), &Project::activeTargetChanged, this, [this](Target *t) {
+        if (t == target()) {
+            // Build configuration has switched:
+            // * Check configuration if reader changes due to it not existing yet:-)
+            // * run cmake without configuration arguments if the reader stays
+            qCDebug(cmakeBuildSystemLog) << "Requesting parse due to active target changed";
+            m_buildDirManager
+                .setParametersAndRequestParse(BuildDirParameters(cmakeBuildConfiguration()),
+                                              BuildDirManager::REPARSE_CHECK_CONFIGURATION);
+        } else {
+            m_buildDirManager.stopParsingAndClearState();
+        }
+    });
+    connect(target(), &Target::activeBuildConfigurationChanged, this, [this](BuildConfiguration *bc) {
+        if (cmakeBuildConfiguration()->isActive()) {
+            if (cmakeBuildConfiguration() == bc) {
+                // Build configuration has switched:
+                // * Check configuration if reader changes due to it not existing yet:-)
+                // * run cmake without configuration arguments if the reader stays
+                qCDebug(cmakeBuildSystemLog) << "Requesting parse due to active BC changed";
+                m_buildDirManager
+                    .setParametersAndRequestParse(BuildDirParameters(cmakeBuildConfiguration()),
+                                                  BuildDirManager::REPARSE_CHECK_CONFIGURATION);
+            } else {
+                m_buildDirManager.stopParsingAndClearState();
+            }
+        }
+    });
+
+    // BuildConfiguration changed:
+    connect(cmakeBuildConfiguration(), &CMakeBuildConfiguration::environmentChanged, this, [this]() {
+        if (cmakeBuildConfiguration()->isActive()) {
+            // The environment on our BC has changed:
+            // * Error out if the reader updates, cannot happen since all BCs share a target/kit.
+            // * run cmake without configuration arguments if the reader stays
+            qCDebug(cmakeBuildSystemLog) << "Requesting parse due to environment change";
+            m_buildDirManager
+                .setParametersAndRequestParse(BuildDirParameters(cmakeBuildConfiguration()),
+                                              BuildDirManager::REPARSE_CHECK_CONFIGURATION);
+        }
+    });
+    connect(cmakeBuildConfiguration(), &CMakeBuildConfiguration::buildDirectoryChanged, this, [this]() {
+        if (cmakeBuildConfiguration()->isActive()) {
+            // The build directory of our BC has changed:
+            // * Error out if the reader updates, cannot happen since all BCs share a target/kit.
+            // * run cmake without configuration arguments if the reader stays
+            //   If no configuration exists, then the arguments will get added automatically by
+            //   the reader.
+            qCDebug(cmakeBuildSystemLog) << "Requesting parse due to build directory change";
+            m_buildDirManager
+                .setParametersAndRequestParse(BuildDirParameters(cmakeBuildConfiguration()),
+                                              BuildDirManager::REPARSE_CHECK_CONFIGURATION);
+        }
+    });
+    connect(cmakeBuildConfiguration(),
+            &CMakeBuildConfiguration::configurationForCMakeChanged,
+            this,
+            [this]() {
+                if (cmakeBuildConfiguration()->isActive()) {
+                    // The CMake configuration has changed on our BC:
+                    // * Error out if the reader updates, cannot happen since all BCs share a target/kit.
+                    // * run cmake with configuration arguments if the reader stays
+                    qCDebug(cmakeBuildSystemLog)
+                        << "Requesting parse due to cmake configuration change";
+                    m_buildDirManager
+                        .setParametersAndRequestParse(BuildDirParameters(cmakeBuildConfiguration()),
+                                                      BuildDirManager::REPARSE_FORCE_CONFIGURATION);
+                }
+            });
+
+    connect(project(), &Project::projectFileIsDirty, this, [this]() {
+        if (cmakeBuildConfiguration()->isActive() && !isParsing()) {
+            const auto cmake = CMakeKitAspect::cmakeTool(cmakeBuildConfiguration()->target()->kit());
+            if (cmake && cmake->isAutoRun()) {
+                qCDebug(cmakeBuildSystemLog) << "Requesting parse due to dirty project file";
+                m_buildDirManager.setParametersAndRequestParse(BuildDirParameters(
+                                                                   cmakeBuildConfiguration()),
+                                                               BuildDirManager::REPARSE_DEFAULT);
+            }
+        }
+    });
+
+    // Force initial parsing run:
+    m_buildDirManager.setParametersAndRequestParse(BuildDirParameters(cmakeBuildConfiguration()),
+                                                   BuildDirManager::REPARSE_CHECK_CONFIGURATION);
 }
 
 CMakeBuildConfiguration *CMakeBuildSystem::cmakeBuildConfiguration() const

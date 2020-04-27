@@ -26,16 +26,23 @@
 #pragma once
 
 #include "builddirreader.h"
+#include "cmakeconfigitem.h"
 #include "servermode.h"
-#include "cmakeparser.h"
+
+#include <projectexplorer/ioutputparser.h>
 
 #include <QList>
+#include <QSet>
 
 #include <memory>
 
 namespace ProjectExplorer { class ProjectNode; }
+namespace Utils { class OutputFormatter; }
 
 namespace CMakeProjectManager {
+
+class CMakeParser;
+
 namespace Internal {
 
 class ServerModeReader : public BuildDirReader
@@ -180,7 +187,8 @@ protected:
     QList<Target *> m_targets;
     QList<FileGroup *> m_fileGroups;
 
-    CMakeParser m_parser;
+    CMakeParser *m_cmakeParser = nullptr;
+    Utils::OutputFormatter m_parser;
 
 #if defined(WITH_TESTS)
     friend class CMakeProjectPlugin;

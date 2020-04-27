@@ -27,12 +27,13 @@
 
 #include "builddirparameters.h"
 
-#include <projectexplorer/ioutputparser.h>
-
+#include <utils/outputformatter.h>
 #include <utils/qtcprocess.h>
 
 #include <QElapsedTimer>
 #include <QFutureInterface>
+#include <QObject>
+#include <QStringList>
 #include <QTimer>
 
 #include <memory>
@@ -70,7 +71,7 @@ private:
     void checkForCancelled();
 
     std::unique_ptr<Utils::QtcProcess> m_process;
-    std::unique_ptr<ProjectExplorer::IOutputParser> m_parser;
+    Utils::OutputFormatter m_parser;
     std::unique_ptr<QFutureInterface<void>> m_future;
     bool m_processWasCanceled = false;
     QTimer m_cancelTimer;

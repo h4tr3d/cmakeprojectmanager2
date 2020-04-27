@@ -25,31 +25,28 @@
 
 #include "cmakeprojectplugin.h"
 
-#include "cmakeeditor.h"
+#include "cmakebuildconfiguration.h"
 #include "cmakebuildstep.h"
+#include "cmakebuildsystem.h"
+#include "cmakeeditor.h"
+#include "cmakekitinformation.h"
+#include "cmakelocatorfilter.h"
 #include "cmakeproject.h"
 #include "cmakeprojectconstants.h"
 #include "cmakeprojectmanager.h"
 #include "cmakeprojectnodes.h"
-#include "cmakebuildconfiguration.h"
-#include "cmakeprojectconstants.h"
-#include "cmakelocatorfilter.h"
 #include "cmakesettingspage.h"
-#include "cmaketoolmanager.h"
-#include "cmakekitinformation.h"
 #include "cmakespecificsettings.h"
+#include "cmakespecificsettingspage.h"
+#include "cmaketoolmanager.h"
 
 #include <coreplugin/actionmanager/actioncontainer.h>
 #include <coreplugin/actionmanager/actionmanager.h>
 #include <coreplugin/fileiconprovider.h>
 #include <coreplugin/icore.h>
-
-#include <projectexplorer/kitmanager.h>
+#include <projectexplorer/projectexplorerconstants.h>
 #include <projectexplorer/projectmanager.h>
 #include <projectexplorer/projecttree.h>
-#include <projectexplorer/runcontrol.h>
-#include <projectexplorer/target.h>
-
 #include <texteditor/snippets/snippetprovider.h>
 
 #include <utils/parameteraction.h>
@@ -105,19 +102,20 @@ bool CMakeProjectPlugin::initialize(const QStringList & /*arguments*/, QString *
     d = new CMakeProjectPluginPrivate;
     projectTypeSpecificSettings()->fromSettings(ICore::settings());
 
-    const Context projectContext{CMakeProjectManager::Constants::CMAKEPROJECT_ID};
+    const Context projectContext{CMakeProjectManager::Constants::CMAKE_PROJECT_ID};
 
-    FileIconProvider::registerIconOverlayForSuffix(Constants::FILEOVERLAY_CMAKE, "cmake");
-    FileIconProvider::registerIconOverlayForFilename(Constants::FILEOVERLAY_CMAKE,
+    FileIconProvider::registerIconOverlayForSuffix(Constants::FILE_OVERLAY_CMAKE, "cmake");
+    FileIconProvider::registerIconOverlayForFilename(Constants::FILE_OVERLAY_CMAKE,
                                                      "CMakeLists.txt");
 
     TextEditor::SnippetProvider::registerGroup(Constants::CMAKE_SNIPPETS_GROUP_ID,
                                                tr("CMake", "SnippetProvider"));
-    ProjectManager::registerProjectType<CMakeProject>(Constants::CMAKEPROJECTMIMETYPE);
+    ProjectManager::registerProjectType<CMakeProject>(Constants::CMAKE_PROJECT_MIMETYPE);
 
     //register actions
     Command *command = ActionManager::registerAction(&d->buildTargetContextAction,
-                         Constants::BUILD_TARGET_CONTEXTMENU, projectContext);
+                                                     Constants::BUILD_TARGET_CONTEXT_MENU,
+                                                     projectContext);
     command->setAttribute(Command::CA_Hide);
     command->setAttribute(Command::CA_UpdateText);
     command->setDescription(d->buildTargetContextAction.text());

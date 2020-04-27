@@ -24,38 +24,40 @@
 ****************************************************************************/
 
 #include "cmakekitinformation.h"
+
 #include "cmakeprojectconstants.h"
 #include "cmakeprojectplugin.h"
 #include "cmakespecificsettings.h"
 #include "cmaketool.h"
 #include "cmaketoolmanager.h"
 
-#include <app/app_version.h>
 #include <coreplugin/icore.h>
 #include <coreplugin/variablechooser.h>
+#include <projectexplorer/kitinformation.h>
+#include <projectexplorer/projectexplorer.h>
+#include <projectexplorer/projectexplorersettings.h>
 #include <projectexplorer/task.h>
 #include <projectexplorer/toolchain.h>
-#include <projectexplorer/kit.h>
-#include <projectexplorer/kitinformation.h>
 #include <qtsupport/baseqtversion.h>
 #include <qtsupport/qtkitinformation.h>
 #include <projectexplorer/projectexplorerconstants.h>
+
+#include <app/app_version.h>
+
 #include <utils/algorithm.h>
 #include <utils/elidinglabel.h>
 #include <utils/environment.h>
+#include <utils/macroexpander.h>
 #include <utils/qtcassert.h>
 
 #include <QComboBox>
 #include <QDialog>
 #include <QDialogButtonBox>
-#include <QFileInfo>
 #include <QGridLayout>
-#include <QLabel>
 #include <QLineEdit>
 #include <QPlainTextEdit>
 #include <QPointer>
 #include <QPushButton>
-#include <QVariant>
 
 using namespace ProjectExplorer;
 
@@ -195,8 +197,7 @@ private:
 
     void manageCMakeTools()
     {
-        Core::ICore::showOptionsDialog(Constants::CMAKE_SETTINGSPAGE_ID,
-                                       buttonWidget());
+        Core::ICore::showOptionsDialog(Constants::CMAKE_SETTINGS_PAGE_ID, buttonWidget());
     }
 
     bool m_removingItem = false;
@@ -253,9 +254,11 @@ Tasks CMakeKitAspect::validate(const Kit *k) const
     CMakeTool *tool = CMakeKitAspect::cmakeTool(k);
     if (tool) {
         CMakeTool::Version version = tool->version();
-        if (version.major < 3) {
-            result << BuildSystemTask(Task::Warning, tr("CMake version %1 is unsupported. Please update to "
-                                         "version 3.0 or later.").arg(QString::fromUtf8(version.fullVersion)));
+        if (version.major < 3 || (version.major == 3 && version.minor < 7)) {
+            result << BuildSystemTask(Task::Warning,
+                                      tr("CMake version %1 is unsupported. Please update to "
+                                         "version 3.7 or later.")
+                                          .arg(QString::fromUtf8(version.fullVersion)));
         }
     }
     return result;
@@ -657,6 +660,21 @@ QVariant CMakeGeneratorKitAspect::defaultValue(const Kit *k) const
                                   return g.matches("NMake Makefiles")
                                          || g.matches("NMake Makefiles JOM");
                               });
+            if (ProjectExplorerPlugin::projectExplorerSettings().useJom) {
+                it = std::find_if(known.constBegin(),
+                                  known.constEnd(),
+                                  [](const CMakeTool::Generator &g) {
+                                      return g.matches("NMake Makefiles JOM");
+                                  });
+            }
+
+            if (it == known.constEnd()) {
+                it = std::find_if(known.constBegin(),
+                                  known.constEnd(),
+                                  [](const CMakeTool::Generator &g) {
+                                      return g.matches("NMake Makefiles");
+                                  });
+            }
         }
     } else {
         // Unix-oid OSes:
@@ -703,7 +721,7 @@ Tasks CMakeGeneratorKitAspect::validate(const Kit *k) const
             addWarning(tr("The selected CMake binary has no server-mode and the CMake "
                           "generator does not generate a CodeBlocks file. "
                           "%1 will not be able to parse CMake projects.")
-                       .arg(Core::Constants::IDE_DISPLAY_NAME));
+                           .arg(Core::Constants::IDE_DISPLAY_NAME));
         }
     }
 
@@ -782,6 +800,16 @@ KitAspect::ItemList CMakeGeneratorKitAspect::toUserOutput(const Kit *k) const
 KitAspectWidget *CMakeGeneratorKitAspect::createConfigWidget(Kit *k) const
 {
     return new CMakeGeneratorKitAspectWidget(k, this);
+}
+
+void CMakeGeneratorKitAspect::addToEnvironment(const Kit *k, Utils::Environment &env) const
+{
+    GeneratorInfo info = generatorInfo(k);
+    if (info.generator == "NMake Makefiles JOM") {
+        if (env.searchInPath("jom.exe").exists())
+            return;
+        env.appendOrSetPath(QCoreApplication::applicationDirPath());
+    }
 }
 
 // --------------------------------------------------------------------
