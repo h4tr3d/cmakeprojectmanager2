@@ -663,16 +663,16 @@ QVariant CMakeGeneratorKitAspect::defaultValue(const Kit *k) const
             if (ProjectExplorerPlugin::projectExplorerSettings().useJom) {
                 it = std::find_if(known.constBegin(),
                                   known.constEnd(),
-                                  [extraGenerator](const CMakeTool::Generator &g) {
-                                      return g.matches("NMake Makefiles JOM", extraGenerator);
+                                  [](const CMakeTool::Generator &g) {
+                                      return g.matches("NMake Makefiles JOM");
                                   });
             }
 
             if (it == known.constEnd()) {
                 it = std::find_if(known.constBegin(),
                                   known.constEnd(),
-                                  [extraGenerator](const CMakeTool::Generator &g) {
-                                      return g.matches("NMake Makefiles", extraGenerator);
+                                  [](const CMakeTool::Generator &g) {
+                                      return g.matches("NMake Makefiles");
                                   });
             }
         }
