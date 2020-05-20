@@ -11,9 +11,7 @@ include($$QTCREATOR_SOURCES/src/qtcreatorplugin.pri)
 # For the highlighter:
 INCLUDEPATH += $$QTCREATOR_SOURCES/src/plugins/texteditor
 
-HEADERS = builddirmanager.h \
-    builddirparameters.h \
-    builddirreader.h \
+HEADERS = builddirparameters.h \
     cmakebuildstep.h \
     cmakebuildsystem.h \
     cmakebuildtarget.h \
@@ -47,15 +45,11 @@ HEADERS = builddirmanager.h \
     fileapiparser.h \
     fileapireader.h \
     projecttreehelper.h \
-    servermode.h \
-    servermodereader.h \
     compat.h \
     simpleservermodereader.h \
     simplefileapireader.h
 
-SOURCES = builddirmanager.cpp \
-    builddirparameters.cpp \
-    builddirreader.cpp \
+SOURCES = builddirparameters.cpp \
     cmakebuildstep.cpp \
     cmakebuildsystem.cpp \
     cmakeconfigitem.cpp \
@@ -86,8 +80,6 @@ SOURCES = builddirmanager.cpp \
     fileapiparser.cpp \
     fileapireader.cpp \
     projecttreehelper.cpp \
-    servermode.cpp \
-    servermodereader.cpp \
     compat.cpp \
     simpleservermodereader.cpp \
     simplefileapireader.cpp

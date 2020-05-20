@@ -25,15 +25,18 @@
 
 #pragma once
 
-#include "builddirreader.h"
-#include "fileapiparser.h"
+#include "cmakebuildtarget.h"
 #include "cmakeprocess.h"
+#include "cmakeprojectnodes.h"
 
+#include <projectexplorer/rawprojectpart.h>
+
+#include <utils/filesystemwatcher.h>
 #include <utils/optional.h>
 
 #include <QFuture>
-
-#include <memory>
+#include <QObject>
+#include <QDateTime>
 
 namespace ProjectExplorer {
 class ProjectNode;
@@ -44,7 +47,7 @@ namespace Internal {
 
 class FileApiQtcData;
 
-class FileApiReader : public BuildDirReader
+class FileApiReader : public QObject
 {
     Q_OBJECT
 
@@ -52,27 +55,35 @@ public:
     FileApiReader();
     ~FileApiReader() override;
 
-    void setParameters(const BuildDirParameters &p) final;
+    void setParameters(const BuildDirParameters &p);
 
-    bool isCompatible(const BuildDirParameters &p) final;
-    void resetData() final;
-    void parse(bool forceCMakeRun, bool forceConfiguration) final;
-    void stop() final;
+    void resetData();
+    void parse(bool forceCMakeRun, bool forceConfiguration);
+    void stop();
 
-    bool isParsing() const final;
+    bool isParsing() const;
 
-    QSet<Utils::FilePath> projectFilesToWatch() const final;
-    QList<CMakeBuildTarget> takeBuildTargets(QString &errorMessage) final;
-    CMakeConfig takeParsedConfiguration(QString &errorMessage) final;
+    QSet<Utils::FilePath> projectFilesToWatch() const;
+    QList<CMakeBuildTarget> takeBuildTargets(QString &errorMessage);
+    CMakeConfig takeParsedConfiguration(QString &errorMessage);
+    virtual
     std::unique_ptr<CMakeProjectNode> generateProjectTree(
-        const QList<const ProjectExplorer::FileNode *> &allFiles, QString &errorMessage) override;
-    ProjectExplorer::RawProjectParts createRawProjectParts(QString &errorMessage) final;
+        const QList<const ProjectExplorer::FileNode *> &allFiles, QString &errorMessage);
+    ProjectExplorer::RawProjectParts createRawProjectParts(QString &errorMessage);
+
+signals:
+    void configurationStarted() const;
+    void dataAvailable() const;
+    void dirty() const;
+    void errorOccurred(const QString &message) const;
 
 protected:
     void startState();
     virtual void endState(const QFileInfo &replyFi);
     void startCMakeState(const QStringList &configurationArguments);
     void cmakeFinishedState(int code, QProcess::ExitStatus status);
+
+    void replyDirectoryHasChanged(const QString &directory) const;
 
     std::unique_ptr<CMakeProcess> m_cmakeProcess;
 
@@ -88,8 +99,11 @@ protected:
 
     // Update related:
     bool m_isParsing = false;
+    BuildDirParameters m_parameters;
 
-    std::unique_ptr<FileApiParser> m_fileApi;
+    // Notification on changes outside of creator:
+    Utils::FileSystemWatcher m_watcher;
+    QDateTime m_lastReplyTimestamp;
 };
 
 } // namespace Internal

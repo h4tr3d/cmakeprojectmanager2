@@ -3,9 +3,7 @@ add_qtc_plugin(CMakeProjectManager
   PLUGIN_DEPENDS Core CppTools ProjectExplorer TextEditor QtSupport
   PLUGIN_RECOMMENDS Designer
   SOURCES
-    builddirmanager.cpp builddirmanager.h
     builddirparameters.cpp builddirparameters.h
-    builddirreader.cpp builddirreader.h
     cmake_global.h
     cmakeautocompleter.cpp cmakeautocompleter.h
     cmakebuildconfiguration.cpp cmakebuildconfiguration.h
@@ -40,6 +38,4 @@ add_qtc_plugin(CMakeProjectManager
     fileapiparser.cpp fileapiparser.h
     fileapireader.cpp fileapireader.h
     projecttreehelper.cpp projecttreehelper.h
-    servermode.cpp servermode.h
-    servermodereader.cpp servermodereader.h
 )

@@ -25,9 +25,16 @@
 
 #pragma once
 
-#include "builddirmanager.h"
+#include "builddirparameters.h"
+#include "cmakebuildtarget.h"
+#include "cmakeprojectnodes.h"
+#include "fileapireader.h"
+#include "utils/macroexpander.h"
 
 #include <projectexplorer/buildsystem.h>
+
+#include <utils/fileutils.h>
+#include <utils/temporarydirectory.h>
 
 namespace ProjectExplorer { class ExtraCompiler; }
 
@@ -63,45 +70,69 @@ public:
     
     QStringList filesGeneratedFrom(const QString &sourceFile) const final;
 
+    // Actions:
     void runCMake();
     void runCMakeAndScanProjectTree();
 
-    // Context menu actions:
     bool deleteFiles(ProjectExplorer::Node *context,
                      const QStringList &filePaths) final;
 
     bool canRenameFile(ProjectExplorer::Node *context, const QString &filePath, const QString &newFilePath) final;
     bool renameFile(ProjectExplorer::Node *context, const QString &filePath, const QString &newFilePath) final;
                   
-    void buildCMakeTarget(const QString &buildTarget);
-
-    // Treescanner states:
-    void handleTreeScanningFinished();
 
     bool persistCMakeState();
     void clearCMakeCache();
 
-    // Parser states:
-    void handleParsingSuccess();
-    void handleParsingError();
+    // Context menu actions:
+    void buildCMakeTarget(const QString &buildTarget);
 
-    CMakeBuildConfiguration *cmakeBuildConfiguration() const;
-
+    // Queries:
     const QList<ProjectExplorer::BuildTargetInfo> appTargets() const;
     QStringList buildTargetTitles() const;
     const QList<CMakeBuildTarget> &buildTargets() const;
     ProjectExplorer::DeploymentData deploymentData() const;
+
+    CMakeBuildConfiguration *cmakeBuildConfiguration() const;
+
+    // Generic CMake helper functions:
+    static CMakeConfig parseCMakeCacheDotTxt(const Utils::FilePath &cacheFile,
+                                             QString *errorMessage);
 
 private:
     bool addFilesPriv(const QStringList &filePaths);
     bool eraseFilesPriv(const QStringList &filePaths);
     bool renameFilePriv(const QString &filePath, const QString &newFilePath);
 
-    std::unique_ptr<CMakeProjectNode> generateProjectTree(
-        const QList<const ProjectExplorer::FileNode *> &allFiles);
+    // Actually ask for parsing:
+    enum ReparseParameters {
+        REPARSE_DEFAULT = 0,                    // Nothing special:-)
+        REPARSE_FORCE_CMAKE_RUN = (1 << 0),     // Force cmake to run
+        REPARSE_FORCE_CONFIGURATION = (1 << 1), // Force configuration arguments to cmake
+        REPARSE_CHECK_CONFIGURATION
+        = (1 << 2), // Check for on-disk config and QtC config diff // FIXME: Remove this!
+        REPARSE_SCAN = (1 << 3),   // Run filesystem scan
+        REPARSE_URGENT = (1 << 4), // Do not delay the parser run by 1s
+    };
+    QString reparseParametersString(int reparseFlags);
+    void setParametersAndRequestParse(const BuildDirParameters &parameters,
+                                      const int reparseParameters);
+
+    void writeConfigurationIntoBuildDirectory(const Utils::MacroExpander *expander);
+
+    // State handling:
+    // Parser states:
+    void handleParsingSuccess();
+    void handleParsingError();
+
+    // Treescanner states:
+    void handleTreeScanningFinished();
 
     // Combining Treescanner and Parser states:
     void combineScanAndParse();
+
+    std::unique_ptr<CMakeProjectNode> generateProjectTree(
+        const QList<const ProjectExplorer::FileNode *> &allFiles);
 
     void checkAndReportError(QString &errorMessage);
 
@@ -114,7 +145,12 @@ private:
 
     void wireUpConnections(const ProjectExplorer::Project *p);
 
-    BuildDirManager m_buildDirManager;
+    Utils::FilePath workDirectory(const BuildDirParameters &parameters);
+    void stopParsingAndClearState();
+    void becameDirty();
+
+    void updateReparseParameters(const int parameters);
+    int takeReparseParameters();
 
     ProjectExplorer::TreeScanner m_treeScanner;
     QHash<QString, bool> m_mimeBinaryCache;
@@ -129,6 +165,17 @@ private:
     CppTools::CppProjectUpdater *m_cppCodeModelUpdater = nullptr;
     QList<ProjectExplorer::ExtraCompiler *> m_extraCompilers;
     QList<CMakeBuildTarget> m_buildTargets;
+
+    bool checkConfiguration();
+    bool hasConfigChanged();
+
+    // Parsing state:
+    BuildDirParameters m_parameters;
+    int m_reparseParameters;
+    mutable std::unordered_map<Utils::FilePath, std::unique_ptr<Utils::TemporaryDirectory>>
+        m_buildDirToTempDir;
+    FileApiReader m_reader;
+    mutable bool m_isHandlingError = false;
 };
 
 } // namespace Internal
