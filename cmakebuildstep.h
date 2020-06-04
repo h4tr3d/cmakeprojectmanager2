@@ -47,10 +47,12 @@ public:
 
     CMakeBuildConfiguration *cmakeBuildConfiguration() const;
 
-    QString buildTarget() const;
+    QStringList buildTargets() const;
     bool buildsBuildTarget(const QString &target) const;
-    void setBuildTarget(const QString &target);
+    void setBuildTargets(const QStringList &target);
 
+    QString cmakeArguments() const;
+    void setCMakeArguments(const QString &list);
     QString toolArguments() const;
     void setToolArguments(const QString &list);
 
@@ -67,7 +69,7 @@ public:
     static QStringList specialTargets();
 
 signals:
-    void targetToBuildChanged();
+    void targetsToBuildChanged();
     void buildTargetsChanged();
 
 protected:
@@ -77,7 +79,7 @@ protected:
     bool fromMap(const QVariantMap &map) override;
 
     // For parsing [ 76%]
-    void stdOutput(const QString &line) override;
+    void stdOutput(const QString &output) override;
 
 private:
     void ctor(ProjectExplorer::BuildStepList *bsl);
@@ -92,14 +94,15 @@ private:
     void runImpl();
     void handleProjectWasParsed(bool success);
 
-    void handleBuildTargetChanges(bool success);
+    void handleBuildTargetsChanges(bool success);
 
     QMetaObject::Connection m_runTrigger;
 
     QRegExp m_percentProgress;
     QRegExp m_ninjaProgress;
     QString m_ninjaProgressString;
-    QString m_buildTarget;
+    QStringList m_buildTargets;
+    QString m_cmakeArguments;
     QString m_toolArguments;
     bool m_useNinja = false;
     bool m_waiting = false;
