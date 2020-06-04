@@ -29,6 +29,7 @@
 #include "cmakebuildtarget.h"
 #include "cmakeprojectnodes.h"
 #include "fileapireader.h"
+#include "simplefileapireader.h"
 #include "utils/macroexpander.h"
 
 #include <projectexplorer/buildsystem.h>
@@ -174,7 +175,11 @@ private:
     int m_reparseParameters;
     mutable std::unordered_map<Utils::FilePath, std::unique_ptr<Utils::TemporaryDirectory>>
         m_buildDirToTempDir;
+#if 0
     FileApiReader m_reader;
+#else
+    SimpleFileApiReader m_reader;
+#endif
     mutable bool m_isHandlingError = false;
 };
 
