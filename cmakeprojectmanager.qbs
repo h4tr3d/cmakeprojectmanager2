@@ -88,7 +88,7 @@ QtcPlugin {
         "projecttreehelper.h",
         "compat.cpp",
         "compat.h",
-        "simpleservermodereader.cpp",
-        "simpleservermodereader.h"
+        "simplefileapireader.cpp",
+        "simplefileapireader.h"
     ]
 }
