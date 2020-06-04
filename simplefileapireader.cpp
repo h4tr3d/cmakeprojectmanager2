@@ -4,6 +4,7 @@
 #include "cmakeprojectconstants.h"
 #include "cmakeprojectmanager.h"
 #include "fileapidataextractor.h"
+#include "fileapiparser.h"
 #include "projecttreehelper.h"
 
 #include <coreplugin/editormanager/editormanager.h>
