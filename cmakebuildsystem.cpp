@@ -237,7 +237,7 @@ void CMakeBuildSystem::triggerParsing()
     if (m_allFiles.isEmpty())
         updateReparseParameters(REPARSE_SCAN);
 
-    m_waitingForScan = (m_reparseParameters | REPARSE_SCAN) != 0;
+    m_waitingForScan = (m_reparseParameters & REPARSE_SCAN) != 0;
     m_waitingForParse = true;
     m_combinedScanAndParseResult = true;
 
