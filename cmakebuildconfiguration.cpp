@@ -41,11 +41,13 @@
 #include <projectexplorer/projectexplorer.h>
 #include <projectexplorer/projectmacroexpander.h>
 #include <projectexplorer/target.h>
+
 #include <qtsupport/baseqtversion.h>
 #include <qtsupport/qtbuildaspects.h>
 #include <qtsupport/qtkitinformation.h>
 
 #include <utils/qtcassert.h>
+#include <utils/stringutils.h>
 
 #include <QDir>
 #include <QLoggingCategory>
@@ -96,7 +98,7 @@ static QStringList defaultInitialCMakeArguments(const Kit *k, const QString buil
 // CMakeBuildConfiguration:
 // -----------------------------------------------------------------------------
 
-CMakeBuildConfiguration::CMakeBuildConfiguration(Target *target, Core::Id id)
+CMakeBuildConfiguration::CMakeBuildConfiguration(Target *target, Utils::Id id)
     : BuildConfiguration(target, id)
 {
     m_buildSystem = new CMakeBuildSystem(this);
@@ -105,7 +107,7 @@ CMakeBuildConfiguration::CMakeBuildConfiguration(Target *target, Core::Id id)
     const auto buildDirAspect = aspect<BuildDirectoryAspect>();
     buildDirAspect->setFileDialogOnly(true);
     buildDirAspect->setValueAcceptor(
-        [this](const QString &oldDir, const QString &newDir) -> Utils::optional<QString> {
+        [](const QString &oldDir, const QString &newDir) -> Utils::optional<QString> {
             if (oldDir.isEmpty())
                 return newDir;
 
@@ -119,8 +121,9 @@ CMakeBuildConfiguration::CMakeBuildConfiguration(Target *target, Core::Id id)
                     == QMessageBox::Ok) {
                     return newDir;
                 }
+                return Utils::nullopt;
             }
-            return Utils::nullopt;
+            return newDir;
         });
 
     addAspect<InitialCMakeArgumentsAspect>();
@@ -161,7 +164,7 @@ CMakeBuildConfiguration::CMakeBuildConfiguration(Target *target, Core::Id id)
             initialArgs.append(QString::fromLatin1("-DANDROID_ABI:STRING=%1").arg(preferredAbi));
 
             QtSupport::BaseQtVersion *qt = QtSupport::QtKitAspect::qtVersion(k);
-            if (qt->qtVersion() >= QtSupport::QtVersionNumber{5, 14, 0}) {
+            if (qt && qt->qtVersion() >= QtSupport::QtVersionNumber{5, 14, 0}) {
                 auto sdkLocation = bs->data(Android::Constants::SdkLocation).value<FilePath>();
                 initialArgs.append(
                     QString::fromLatin1("-DANDROID_SDK:PATH=%1").arg(sdkLocation.toString()));
@@ -283,13 +286,7 @@ QStringList CMakeBuildConfiguration::extraCMakeArguments() const
 
 QStringList CMakeBuildConfiguration::initialCMakeArguments() const
 {
-    return aspect<InitialCMakeArgumentsAspect>()->value().split('\n',
-#if QT_VERSION < QT_VERSION_CHECK(5, 14, 0)
-                                                                QString::SkipEmptyParts
-#else
-                                                                Qt::SkipEmptyParts
-#endif
-                                                                );
+    return aspect<InitialCMakeArgumentsAspect>()->value().split('\n', Utils::SkipEmptyParts);
 }
 
 void CMakeBuildConfiguration::setExtraCMakeArguments(const QStringList &args)
@@ -490,7 +487,7 @@ void CMakeBuildConfiguration::runCMakeWithExtraArguments()
 InitialCMakeArgumentsAspect::InitialCMakeArgumentsAspect()
 {
     setSettingsKey("CMake.Initial.Parameters");
-    setLabelText(tr("Initial CMake Parameters:"));
+    setLabelText(tr("Initial CMake parameters:"));
     setDisplayStyle(TextEditDisplay);
 }
 
