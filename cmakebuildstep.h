@@ -31,32 +31,24 @@
 
 namespace Utils { class CommandLine; }
 
-namespace ProjectExplorer { class RunConfiguration; }
+namespace ProjectExplorer {
+class RunConfiguration;
+class StringAspect;
+} // ProjectExplorer
 
 namespace CMakeProjectManager {
 namespace Internal {
 
-class CMakeBuildConfiguration;
-class CMakeBuildStepFactory;
-
 class CMakeBuildStep : public ProjectExplorer::AbstractProcessStep
 {
     Q_OBJECT
-    friend class CMakeBuildStepFactory;
 
 public:
     CMakeBuildStep(ProjectExplorer::BuildStepList *bsl, Utils::Id id);
 
-    CMakeBuildConfiguration *cmakeBuildConfiguration() const;
-
     QStringList buildTargets() const;
     bool buildsBuildTarget(const QString &target) const;
     void setBuildTargets(const QStringList &target);
-
-    QString cmakeArguments() const;
-    void setCMakeArguments(const QString &list);
-    QString toolArguments() const;
-    void setToolArguments(const QString &list);
 
     Utils::CommandLine cmakeCommand(ProjectExplorer::RunConfiguration *rc) const;
 
@@ -80,8 +72,6 @@ protected:
     bool fromMap(const QVariantMap &map) override;
 
 private:
-    void ctor(ProjectExplorer::BuildStepList *bsl);
-
     bool init() override;
     void setupOutputFormatter(Utils::OutputFormatter *formatter) override;
     void doRun() override;
@@ -96,9 +86,10 @@ private:
 
     QMetaObject::Connection m_runTrigger;
 
+    friend class CMakeBuildStepConfigWidget;
     QStringList m_buildTargets;
-    QString m_cmakeArguments;
-    QString m_toolArguments;
+    ProjectExplorer::StringAspect *m_cmakeArguments = nullptr;
+    ProjectExplorer::StringAspect *m_toolArguments = nullptr;
     bool m_waiting = false;
 };
 

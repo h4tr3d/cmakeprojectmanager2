@@ -166,7 +166,7 @@ CMakeBuildConfiguration::CMakeBuildConfiguration(Target *target, Utils::Id id)
             initialArgs.append(QString::fromLatin1("-DANDROID_ABI:STRING=%1").arg(preferredAbi));
 
             QtSupport::BaseQtVersion *qt = QtSupport::QtKitAspect::qtVersion(k);
-            if (qt && qt->qtVersion() >= QtSupport::QtVersionNumber{5, 14, 0}) {
+            if (qt && qt->supportsMultipleQtAbis()) {
                 auto sdkLocation = bs->data(Android::Constants::SdkLocation).value<FilePath>();
                 initialArgs.append(
                     QString::fromLatin1("-DANDROID_SDK:PATH=%1").arg(sdkLocation.toString()));
@@ -228,8 +228,7 @@ bool CMakeBuildConfiguration::fromMap(const QVariantMap &map)
         }
     }();
     if (initialCMakeArguments().isEmpty()) {
-        QStringList initialArgs = defaultInitialCMakeArguments(target()->kit(),
-                                                               buildTypeName)
+        QStringList initialArgs = defaultInitialCMakeArguments(kit(), buildTypeName)
                                   + Utils::transform(conf, [this](const CMakeConfigItem &i) {
                                         return i.toArgument(macroExpander());
                                     });
