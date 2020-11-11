@@ -49,6 +49,7 @@
 #include <projectexplorer/taskhub.h>
 #include <qmljs/qmljsmodelmanagerinterface.h>
 #include <qtsupport/qtcppkitinfo.h>
+#include <qtsupport/qtkitinformation.h>
 
 #include <app/app_version.h>
 
@@ -61,9 +62,13 @@
 #include <QDir>
 #include <QGuiApplication>
 #include <QHash>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QLoggingCategory>
 #include <QPushButton>
 #include <QTimer>
+#include <QRegularExpression>
 
 using namespace ProjectExplorer;
 using namespace Utils;
@@ -695,11 +700,11 @@ void CMakeBuildSystem::clearCMakeCache()
         Utils::FileUtils::removeRecursively(cmakeFiles);
 }
 
-std::unique_ptr<CMakeProjectNode>
-    CMakeBuildSystem::generateProjectTree(const QList<const FileNode *> &allFiles)
+std::unique_ptr<CMakeProjectNode> CMakeBuildSystem::generateProjectTree(
+    const QList<const FileNode *> &allFiles, bool includeHeaderNodes)
 {
     QString errorMessage;
-    auto root = m_reader.generateProjectTree(allFiles, errorMessage);
+    auto root = m_reader.generateProjectTree(allFiles, errorMessage, includeHeaderNodes);
     checkAndReportError(errorMessage);
     return root;
 }
@@ -713,14 +718,19 @@ void CMakeBuildSystem::combineScanAndParse()
         if (m_combinedScanAndParseResult) {
             updateProjectData();
             m_currentGuard.markAsSuccess();
+        } else {
+            updateFallbackProjectData();
         }
     }
 
     m_reader.resetData();
 
     m_currentGuard = {};
+    m_testNames.clear();
 
     emitBuildSystemUpdated();
+
+    QTimer::singleShot(0, this, &CMakeBuildSystem::runCTest);
 }
 
 void CMakeBuildSystem::checkAndReportError(QString &errorMessage)
@@ -740,16 +750,6 @@ void CMakeBuildSystem::updateProjectData()
     cmakeBuildConfiguration()->project()->setExtraProjectFiles(m_reader.projectFilesToWatch());
 
     CMakeConfig patchedConfig = cmakeBuildConfiguration()->configurationFromCMake();
-    {
-        CMakeConfigItem settingFileItem;
-        settingFileItem.key = "ANDROID_DEPLOYMENT_SETTINGS_FILE";
-        settingFileItem.value = cmakeBuildConfiguration()
-                                    ->buildDirectory()
-                                    .pathAppended("android_deployment_settings.json")
-                                    .toString()
-                                    .toUtf8();
-        patchedConfig.append(settingFileItem);
-    }
     {
         QSet<QString> res;
         QStringList apps;
@@ -778,11 +778,35 @@ void CMakeBuildSystem::updateProjectData()
 
     Project *p = project();
     {
-        auto newRoot = generateProjectTree(m_allFiles);
+        auto newRoot = generateProjectTree(m_allFiles, true);
         if (newRoot) {
             setRootProjectNode(std::move(newRoot));
-            if (p->rootProjectNode())
-                p->setDisplayName(p->rootProjectNode()->displayName());
+            CMakeConfigItem settingFileItem;
+            settingFileItem.key = "ANDROID_DEPLOYMENT_SETTINGS_FILE";
+
+            const FilePath buildDir = cmakeBuildConfiguration()->buildDirectory();
+            if (p->rootProjectNode()) {
+                const QString nodeName = p->rootProjectNode()->displayName();
+                p->setDisplayName(nodeName);
+
+                const Kit *k = kit();
+                if (DeviceTypeKitAspect::deviceTypeId(k) == Android::Constants::ANDROID_DEVICE_TYPE) {
+                    const QtSupport::BaseQtVersion *qt = QtSupport::QtKitAspect::qtVersion(k);
+                    if (qt && qt->qtVersion() >= QtSupport::QtVersionNumber{6, 0, 0}) {
+                        const QLatin1String jsonFile("android-%1-deployment-settings.json");
+                        settingFileItem.value = buildDir.pathAppended(jsonFile.arg(nodeName))
+                                                    .toString()
+                                                    .toUtf8();
+                    }
+                }
+            }
+
+            if (settingFileItem.value.isEmpty()) {
+                settingFileItem.value = buildDir.pathAppended("android_deployment_settings.json")
+                                            .toString()
+                                            .toUtf8();
+            }
+            patchedConfig.append(settingFileItem);
 
             for (const CMakeBuildTarget &bt : m_buildTargets) {
                 const QString buildKey = bt.title;
@@ -814,10 +838,15 @@ void CMakeBuildSystem::updateProjectData()
         for (RawProjectPart &rpp : rpps) {
             rpp.setQtVersion(
                 kitInfo.projectPartQtVersion); // TODO: Check if project actually uses Qt.
-            if (kitInfo.cxxToolChain)
-                rpp.setFlagsForCxx({kitInfo.cxxToolChain, rpp.flagsForCxx.commandLineFlags});
-            if (kitInfo.cToolChain)
-                rpp.setFlagsForC({kitInfo.cToolChain, rpp.flagsForC.commandLineFlags});
+            const QString includeFileBaseDir = buildConfiguration()->buildDirectory().toString();
+            if (kitInfo.cxxToolChain) {
+                rpp.setFlagsForCxx({kitInfo.cxxToolChain, rpp.flagsForCxx.commandLineFlags,
+                                    includeFileBaseDir});
+            }
+            if (kitInfo.cToolChain) {
+                rpp.setFlagsForC({kitInfo.cToolChain, rpp.flagsForC.commandLineFlags,
+                                  includeFileBaseDir});
+            }
         }
 
         m_cppCodeModelUpdater->update({p, kitInfo, cmakeBuildConfiguration()->environment(), rpps});
@@ -825,10 +854,21 @@ void CMakeBuildSystem::updateProjectData()
     {
         updateQmlJSCodeModel();
     }
-
     emit cmakeBuildConfiguration()->buildTypeChanged();
 
     qCDebug(cmakeBuildSystemLog) << "All CMake project data up to date.";
+}
+
+void CMakeBuildSystem::updateFallbackProjectData()
+{
+    qCDebug(cmakeBuildSystemLog) << "Updating fallback CMake project data";
+
+    QTC_ASSERT(m_treeScanner.isFinished() && !m_reader.isParsing(), return );
+
+    auto newRoot = generateProjectTree(m_allFiles, false);
+    setRootProjectNode(std::move(newRoot));
+
+    qCDebug(cmakeBuildSystemLog) << "All fallback CMake project data up to date.";
 }
 
 void CMakeBuildSystem::handleParsingSucceeded()
@@ -861,6 +901,8 @@ void CMakeBuildSystem::handleParsingSucceeded()
         checkAndReportError(errorMessage);
     }
 
+    m_ctestPath = m_reader.ctestPath();
+
     setApplicationTargets(appTargets());
     setDeploymentData(deploymentData());
 
@@ -880,6 +922,8 @@ void CMakeBuildSystem::handleParsingFailed(const QString &msg)
         ci.inCMakeCache = true;
     cmakeBuildConfiguration()->setConfigurationFromCMake(cmakeConfig);
     // ignore errorMessage here, we already got one.
+
+    m_ctestPath.clear();
 
     QTC_CHECK(m_waitingForParse);
     m_waitingForParse = false;
@@ -1017,6 +1061,49 @@ int CMakeBuildSystem::takeReparseParameters()
     return result;
 }
 
+void CMakeBuildSystem::runCTest()
+{
+    if (!cmakeBuildConfiguration()->error().isEmpty() || m_ctestPath.isEmpty()) {
+        qCDebug(cmakeBuildSystemLog) << "Cancel ctest run after failed cmake run";
+        emit testInformationUpdated();
+        return;
+    }
+    qCDebug(cmakeBuildSystemLog) << "Requesting ctest run after cmake run";
+
+    CommandLine cmd{m_ctestPath, {"-N", "--show-only=json-v1"}};
+    SynchronousProcess ctest;
+    ctest.setTimeoutS(1);
+    ctest.setEnvironment(cmakeBuildConfiguration()->environment().toStringList());
+    ctest.setWorkingDirectory(cmakeBuildConfiguration()->buildDirectory().toString());
+
+    const SynchronousProcessResponse response = ctest.run(cmd);
+    if (response.result == SynchronousProcessResponse::Finished) {
+        const QJsonDocument json = QJsonDocument::fromJson(response.allRawOutput());
+        if (!json.isEmpty() && json.isObject()) {
+            const QJsonObject jsonObj = json.object();
+            const QJsonObject btGraph = jsonObj.value("backtraceGraph").toObject();
+            const QJsonArray cmakelists = btGraph.value("files").toArray();
+            const QJsonArray nodes = btGraph.value("nodes").toArray();
+            const QJsonArray tests = jsonObj.value("tests").toArray();
+            for (const QJsonValue &testVal : tests) {
+                const QJsonObject test = testVal.toObject();
+                QTC_ASSERT(!test.isEmpty(), continue);
+                const int bt = test.value("backtrace").toInt(-1);
+                QTC_ASSERT(bt != -1, continue);
+                const QJsonObject btRef = nodes.at(bt).toObject();
+                int file = btRef.value("file").toInt(-1);
+                int line = btRef.value("line").toInt(-1);
+                QTC_ASSERT(file != -1 && line != -1, continue);
+                m_testNames.append({test.value("name").toString(),
+                                    FilePath::fromString(cmakelists.at(file).toString()),
+                                    line
+                                   });
+            }
+        }
+    }
+    emit testInformationUpdated();
+}
+
 CMakeBuildConfiguration *CMakeBuildSystem::cmakeBuildConfiguration() const
 {
     return static_cast<CMakeBuildConfiguration *>(BuildSystem::buildConfiguration());
@@ -1087,6 +1174,26 @@ CMakeConfig CMakeBuildSystem::parseCMakeCacheDotTxt(const Utils::FilePath &cache
     if (!errorMessage->isEmpty())
         return {};
     return result;
+}
+
+const QList<TestCaseInfo> CMakeBuildSystem::testcasesInfo() const
+{
+    return m_testNames;
+}
+
+CommandLine CMakeBuildSystem::commandLineForTests(const QList<QString> &tests,
+                                                  const QStringList &options) const
+{
+    QStringList args = options;
+    auto current = Utils::transform<QSet<QString>>(m_testNames, &TestCaseInfo::name);
+    if (tests.isEmpty() || current == Utils::toSet(tests))
+        return {m_ctestPath, args};
+
+    const QString regex = Utils::transform(tests, [](const QString &current) {
+        return QRegularExpression::escape(current);
+    }).join('|');
+    args << "-R" << QString('(' + regex + ')');
+    return {m_ctestPath, args};
 }
 
 DeploymentData CMakeBuildSystem::deploymentData() const

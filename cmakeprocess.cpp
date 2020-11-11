@@ -179,7 +179,7 @@ void CMakeProcess::processStandardError()
 
     static QString rest;
     rest = lineSplit(rest, m_process->readAllStandardError(), [this](const QString &s) {
-        m_parser.appendMessage(s, Utils::StdErrFormat);
+        m_parser.appendMessage(s + '\n', Utils::StdErrFormat);
         Core::MessageManager::write(s);
     });
 }
@@ -203,6 +203,7 @@ void CMakeProcess::handleProcessFinished(int code, QProcess::ExitStatus status)
     } else if (code != 0) {
         msg = tr("CMake process exited with exit code %1.").arg(code);
     }
+    m_lastExitCode = code;
 
     if (!msg.isEmpty()) {
         Core::MessageManager::write(msg);

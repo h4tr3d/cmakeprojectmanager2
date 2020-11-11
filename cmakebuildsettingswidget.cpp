@@ -44,6 +44,7 @@
 #include <utils/headerviewstretcher.h>
 #include <utils/infolabel.h>
 #include <utils/itemviews.h>
+#include <utils/layoutbuilder.h>
 #include <utils/progressindicator.h>
 #include <utils/qtcassert.h>
 
@@ -54,6 +55,7 @@
 #include <QMenu>
 
 using namespace ProjectExplorer;
+using namespace Utils;
 
 namespace CMakeProjectManager {
 namespace Internal {
@@ -100,14 +102,14 @@ CMakeBuildSettingsWidget::CMakeBuildSettingsWidget(CMakeBuildConfiguration *bc) 
 
     int row = 0;
     auto buildDirAspect = bc->buildDirectoryAspect();
-    connect(buildDirAspect, &ProjectConfigurationAspect::changed, this, [this]() {
+    connect(buildDirAspect, &BaseAspect::changed, this, [this]() {
         m_configModel->flush(); // clear out config cache...;
     });
     auto initialCMakeAspect = bc->aspect<InitialCMakeArgumentsAspect>();
     auto aspectWidget = new QWidget;
     LayoutBuilder aspectWidgetBuilder(aspectWidget);
     buildDirAspect->addToLayout(aspectWidgetBuilder);
-    aspectWidgetBuilder.startNewRow();
+    aspectWidgetBuilder.finishRow();
     initialCMakeAspect->addToLayout(aspectWidgetBuilder);
     mainLayout->addWidget(aspectWidget, row, 0, 1, -1);
     ++row;
@@ -213,7 +215,7 @@ CMakeBuildSettingsWidget::CMakeBuildSettingsWidget(CMakeBuildConfiguration *bc) 
     m_resetButton->setToolTip(tr("Reset all unapplied changes."));
     m_resetButton->setEnabled(false);
     m_clearSelectionButton = new QPushButton(tr("Clear Selection"));
-    m_clearSelectionButton->setToolTip(tr("Clear selection"));
+    m_clearSelectionButton->setToolTip(tr("Clear selection."));
     m_clearSelectionButton->setEnabled(false);
     buttonLayout->addWidget(m_clearSelectionButton);
     buttonLayout->addWidget(m_resetButton);

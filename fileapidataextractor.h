@@ -31,6 +31,7 @@
 #include <projectexplorer/rawprojectpart.h>
 
 #include <utils/fileutils.h>
+#include <utils/optional.h>
 
 #include <QList>
 #include <QSet>
@@ -53,12 +54,17 @@ public:
     ProjectExplorer::RawProjectParts projectParts;
     std::unique_ptr<CMakeProjectNode> rootProjectNode;
     QSet<Utils::FilePath> knownHeaders;
+    QString ctestPath;
 };
 
 FileApiQtcData extractData(FileApiData &data,
                            const Utils::FilePath &sourceDirectory,
                            const Utils::FilePath &buildDirectory,
                            bool plain = false);
+FileApiQtcData generateFallbackData(const Utils::FilePath &topCmakeFile,
+                                    const Utils::FilePath &sourceDirectory,
+                                    const Utils::FilePath &buildDirectory,
+                                    QString errorMessage);
 
 } // namespace Internal
 } // namespace CMakeProjectManager

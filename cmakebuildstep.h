@@ -26,18 +26,33 @@
 #pragma once
 
 #include <projectexplorer/abstractprocessstep.h>
+#include <utils/treemodel.h>
 
-#include <QRegularExpression>
-
-namespace Utils { class CommandLine; }
-
-namespace ProjectExplorer {
-class RunConfiguration;
+namespace Utils {
+class CommandLine;
 class StringAspect;
-} // ProjectExplorer
+} // Utils
 
 namespace CMakeProjectManager {
 namespace Internal {
+
+class CMakeBuildStep;
+
+class CMakeTargetItem : public Utils::TreeItem
+{
+public:
+    CMakeTargetItem() = default;
+    CMakeTargetItem(const QString &target, CMakeBuildStep *step, bool special);
+
+private:
+    QVariant data(int column, int role) const final;
+    bool setData(int column, const QVariant &data, int role) final;
+    Qt::ItemFlags flags(int column) const final;
+
+    QString m_target;
+    CMakeBuildStep *m_step = nullptr;
+    bool m_special = false;
+};
 
 class CMakeBuildStep : public ProjectExplorer::AbstractProcessStep
 {
@@ -47,12 +62,10 @@ public:
     CMakeBuildStep(ProjectExplorer::BuildStepList *bsl, Utils::Id id);
 
     QStringList buildTargets() const;
-    bool buildsBuildTarget(const QString &target) const;
     void setBuildTargets(const QStringList &target);
 
-    Utils::CommandLine cmakeCommand(ProjectExplorer::RunConfiguration *rc) const;
-
-    QStringList knownBuildTargets();
+    bool buildsBuildTarget(const QString &target) const;
+    void setBuildsBuildTarget(const QString &target, bool on);
 
     QVariantMap toMap() const override;
 
@@ -62,20 +75,21 @@ public:
     static QString testTarget();
     static QStringList specialTargets();
 
+    QString activeRunConfigTarget() const;
+
 signals:
-    void targetsToBuildChanged();
     void buildTargetsChanged();
 
-protected:
-    void processFinished(int exitCode, QProcess::ExitStatus status) override;
+private:
+    Utils::CommandLine cmakeCommand() const;
 
+    void processFinished(int exitCode, QProcess::ExitStatus status) override;
     bool fromMap(const QVariantMap &map) override;
 
-private:
     bool init() override;
     void setupOutputFormatter(Utils::OutputFormatter *formatter) override;
     void doRun() override;
-    ProjectExplorer::BuildStepConfigWidget *createConfigWidget() override;
+    QWidget *createConfigWidget() override;
 
     QString defaultBuildTarget() const;
 
@@ -83,14 +97,18 @@ private:
     void handleProjectWasParsed(bool success);
 
     void handleBuildTargetsChanges(bool success);
+    void recreateBuildTargetsModel();
+    void updateBuildTargetsModel();
 
     QMetaObject::Connection m_runTrigger;
 
     friend class CMakeBuildStepConfigWidget;
-    QStringList m_buildTargets;
-    ProjectExplorer::StringAspect *m_cmakeArguments = nullptr;
-    ProjectExplorer::StringAspect *m_toolArguments = nullptr;
+    QStringList m_buildTargets; // Convention: Empty string member signifies "Current executable"
+    Utils::StringAspect *m_cmakeArguments = nullptr;
+    Utils::StringAspect *m_toolArguments = nullptr;
     bool m_waiting = false;
+
+    Utils::TreeModel<Utils::TreeItem, CMakeTargetItem> m_buildTargetModel;
 };
 
 class CMakeBuildStepFactory : public ProjectExplorer::BuildStepFactory
