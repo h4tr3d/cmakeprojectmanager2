@@ -83,7 +83,7 @@ void SimpleFileApiReader::endState(const QFileInfo &replyFi)
 }
 
 std::unique_ptr<CMakeProjectNode> SimpleFileApiReader::generateProjectTree(
-    const QList<const FileNode *> &allFiles, QString &errorMessage)
+    const QList<const FileNode *> &allFiles, QString &errorMessage, bool includeHeaderNodes)
 {
     Q_UNUSED(errorMessage)
 

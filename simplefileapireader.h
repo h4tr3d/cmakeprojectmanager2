@@ -14,7 +14,9 @@ class SimpleFileApiReader : public FileApiReader
 
 public:
     std::unique_ptr<CMakeProjectNode> generateProjectTree(
-        const QList<const ProjectExplorer::FileNode *> &allFiles, QString &errorMessage) final;
+        const QList<const ProjectExplorer::FileNode *> &allFiles,
+        QString &errorMessage,
+        bool includeHeaderNodes) final;
 
 protected:
     void endState(const QFileInfo &replyFi) final;
