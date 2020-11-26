@@ -74,7 +74,7 @@ static Utils::Id defaultCMakeToolId()
 
 static const char TOOL_ID[] = "CMakeProjectManager.CMakeKitInformation";
 
-class CMakeKitAspectWidget : public KitAspectWidget
+class CMakeKitAspectWidget final : public KitAspectWidget
 {
     Q_DECLARE_TR_FUNCTIONS(CMakeProjectManager::Internal::CMakeKitAspect)
 public:
@@ -255,10 +255,7 @@ Tasks CMakeKitAspect::validate(const Kit *k) const
     if (tool) {
         CMakeTool::Version version = tool->version();
         if (version.major < 3 || (version.major == 3 && version.minor < 14)) {
-            result << BuildSystemTask(Task::Warning,
-                                      tr("CMake version %1 is unsupported. Please update to "
-                                         "version 3.14 (with file-api) or later.")
-                                          .arg(QString::fromUtf8(version.fullVersion)));
+            result << BuildSystemTask(Task::Warning, msgUnsupportedVersion(version.fullVersion));
         }
     }
     return result;
@@ -305,6 +302,13 @@ QSet<Utils::Id> CMakeKitAspect::availableFeatures(const Kit *k) const
     return {};
 }
 
+QString CMakeKitAspect::msgUnsupportedVersion(const QByteArray &versionString)
+{
+    return tr("CMake version %1 is unsupported. Please update to "
+              "version 3.14 (with file-api) or later.")
+        .arg(QString::fromUtf8(versionString));
+}
+
 // --------------------------------------------------------------------
 // CMakeGeneratorKitAspect:
 // --------------------------------------------------------------------
@@ -316,7 +320,7 @@ static const char EXTRA_GENERATOR_KEY[] = "ExtraGenerator";
 static const char PLATFORM_KEY[] = "Platform";
 static const char TOOLSET_KEY[] = "Toolset";
 
-class CMakeGeneratorKitAspectWidget : public KitAspectWidget
+class CMakeGeneratorKitAspectWidget final : public KitAspectWidget
 {
     Q_DECLARE_TR_FUNCTIONS(CMakeProjectManager::Internal::CMakeGeneratorKitAspect)
 public:
@@ -426,7 +430,7 @@ private:
 
         auto updateDialog = [&generatorList, generatorCombo, extraGeneratorCombo,
                 platformEdit, toolsetEdit](const QString &name) {
-            auto it = std::find_if(generatorList.constBegin(), generatorList.constEnd(),
+            const auto it = std::find_if(generatorList.constBegin(), generatorList.constEnd(),
                                    [name](const CMakeTool::Generator &g) { return g.name == name; });
             QTC_ASSERT(it != generatorList.constEnd(), return);
             generatorCombo->setCurrentText(name);
@@ -822,7 +826,7 @@ static const char CMAKE_CXX_TOOLCHAIN_KEY[] = "CMAKE_CXX_COMPILER";
 static const char CMAKE_QMAKE_KEY[] = "QT_QMAKE_EXECUTABLE";
 static const char CMAKE_PREFIX_PATH_KEY[] = "CMAKE_PREFIX_PATH";
 
-class CMakeConfigurationKitAspectWidget : public KitAspectWidget
+class CMakeConfigurationKitAspectWidget final : public KitAspectWidget
 {
     Q_DECLARE_TR_FUNCTIONS(CMakeProjectManager::Internal::CMakeConfigurationKitAspect)
 public:
