@@ -71,11 +71,13 @@ void CMakeTargetLocatorFilter::prepareSearch(const QString &entry)
 
         const QList<CMakeBuildTarget> buildTargets = bs->buildTargets();
         for (const CMakeBuildTarget &target : buildTargets) {
+            if (target.targetType == UtilityType && !CMakeBuildStep::specialTargets().contains(target.title))
+                continue;
             const int index = target.title.indexOf(entry);
             if (index >= 0) {
                 const FilePath path = target.backtrace.isEmpty() ? cmakeProject->projectFilePath()
-                                                                 : target.backtrace.first().path;
-                const int line = target.backtrace.isEmpty() ? -1 : target.backtrace.first().line;
+                                                                 : target.backtrace.last().path;
+                const int line = target.backtrace.isEmpty() ? -1 : target.backtrace.last().line;
 
                 QVariantMap extraData;
                 extraData.insert("project", cmakeProject->projectFilePath().toString());

@@ -759,6 +759,8 @@ FileApiQtcData generateFallbackData(const FilePath &topCmakeFile,
                                     const FilePath &buildDirectory,
                                     QString errorMessage)
 {
+    Q_UNUSED(buildDirectory)
+
     FileApiQtcData result;
 
     result.rootProjectNode.reset(new CMakeProjectNode{sourceDirectory});
