@@ -74,6 +74,9 @@ public:
         bool includeHeaderNodes);
     ProjectExplorer::RawProjectParts createRawProjectParts(QString &errorMessage);
 
+    bool isMultiConfig() const;
+    bool usesAllCapsTargets() const;
+
 signals:
     void configurationStarted() const;
     void dataAvailable() const;
@@ -98,6 +101,8 @@ protected:
     std::unique_ptr<CMakeProjectNode> m_rootProjectNode;
     QSet<Utils::FilePath> m_knownHeaders;
     QString m_ctestPath;
+    bool m_isMultiConfig = false;
+    bool m_usesAllCapsTargets = false;
     int m_lastCMakeExitCode = 0;
 
     Utils::optional<QFuture<FileApiQtcData *>> m_future;

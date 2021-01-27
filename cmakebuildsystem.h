@@ -105,6 +105,9 @@ public:
     static CMakeConfig parseCMakeCacheDotTxt(const Utils::FilePath &cacheFile,
                                              QString *errorMessage);
 
+    bool isMultiConfig() const;
+    bool usesAllCapsTargets() const;
+
 private:
     bool addFilesPriv(const QStringList &filePaths);
     bool eraseFilesPriv(const QStringList &filePaths);

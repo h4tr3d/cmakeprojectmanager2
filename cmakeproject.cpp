@@ -25,6 +25,8 @@
 
 #include "cmakeproject.h"
 
+#include "cmakebuildconfiguration.h"
+#include "cmakebuildsystem.h"
 #include "cmakebuildstep.h"
 #include "cmakekitinformation.h"
 #include "cmakeprojectconstants.h"
@@ -123,7 +125,25 @@ MakeInstallCommand CMakeProject::makeInstallCommand(const Target *target,
                 cmd.command = tool->cmakeExecutable();
         }
     }
-    cmd.arguments << "--build" << "." << "--target" << "install";
+
+    QString installTarget = "install";
+    QStringList config;
+
+    auto bs = qobject_cast<CMakeBuildSystem*>(target->buildSystem());
+    auto bc = qobject_cast<CMakeBuildConfiguration*>(target->activeBuildConfiguration());
+    if (bs && bc) {
+        if (bs->usesAllCapsTargets())
+            installTarget = "INSTALL";
+        if (bs->isMultiConfig())
+            config << "--config" << bc->cmakeBuildType();
+    }
+
+    QString buildDirectory = ".";
+    if (bc)
+        buildDirectory = bc->buildDirectory().toString();
+
+    cmd.arguments << "--build" << buildDirectory << "--target" << installTarget << config;
+
     cmd.environment.set("DESTDIR", QDir::toNativeSeparators(installRoot));
     return cmd;
 }

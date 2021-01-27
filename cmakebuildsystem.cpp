@@ -884,7 +884,7 @@ void CMakeBuildSystem::handleParsingSucceeded()
 
     QString errorMessage;
     {
-        m_buildTargets = Utils::transform(CMakeBuildStep::specialTargets(), [this](const QString &t) {
+        m_buildTargets = Utils::transform(CMakeBuildStep::specialTargets(m_reader.usesAllCapsTargets()), [this](const QString &t) {
             CMakeBuildTarget result;
             result.title = t;
             result.workingDirectory = m_parameters.workDirectory;
@@ -1085,11 +1085,15 @@ void CMakeBuildSystem::runCTest()
     }
     qCDebug(cmakeBuildSystemLog) << "Requesting ctest run after cmake run";
 
+    BuildDirParameters parameters(cmakeBuildConfiguration());
+    QTC_ASSERT(parameters.isValid(), return);
+
+    FilePath workingDirectory = workDirectory(parameters);
     CommandLine cmd{m_ctestPath, {"-N", "--show-only=json-v1"}};
     SynchronousProcess ctest;
     ctest.setTimeoutS(1);
     ctest.setEnvironment(cmakeBuildConfiguration()->environment().toStringList());
-    ctest.setWorkingDirectory(cmakeBuildConfiguration()->buildDirectory().toString());
+    ctest.setWorkingDirectory(workingDirectory.toString());
 
     const SynchronousProcessResponse response = ctest.run(cmd);
     if (response.result == SynchronousProcessResponse::Finished) {
@@ -1189,6 +1193,16 @@ CMakeConfig CMakeBuildSystem::parseCMakeCacheDotTxt(const Utils::FilePath &cache
     if (!errorMessage->isEmpty())
         return {};
     return result;
+}
+
+bool CMakeBuildSystem::isMultiConfig() const
+{
+    return m_reader.isMultiConfig();
+}
+
+bool CMakeBuildSystem::usesAllCapsTargets() const
+{
+    return m_reader.usesAllCapsTargets();
 }
 
 const QList<TestCaseInfo> CMakeBuildSystem::testcasesInfo() const
