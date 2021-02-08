@@ -43,6 +43,7 @@
 #include <cpptools/cpptoolsconstants.h>
 #include <cpptools/generatedcodemodelsupport.h>
 #include <projectexplorer/kitinformation.h>
+#include <projectexplorer/projectexplorer.h>
 #include <projectexplorer/projectexplorerconstants.h>
 #include <projectexplorer/session.h>
 #include <projectexplorer/target.h>
@@ -504,7 +505,8 @@ void CMakeBuildSystem::runCMakeWithExtraArguments()
 void CMakeBuildSystem::buildCMakeTarget(const QString &buildTarget)
 {
     QTC_ASSERT(!buildTarget.isEmpty(), return);
-    cmakeBuildConfiguration()->buildTarget(buildTarget);
+    if (ProjectExplorerPlugin::saveModifiedFiles())
+        cmakeBuildConfiguration()->buildTarget(buildTarget);
 }
 
 bool CMakeBuildSystem::addFilesPriv(const QStringList &filePaths)

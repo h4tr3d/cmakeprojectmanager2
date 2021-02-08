@@ -79,6 +79,7 @@ public:
 private:
     QString m_tooltip;
     Utils::FilePath m_buildDirectory;
+    Utils::FilePath m_artifact;
     CMakeConfig m_config;
 };
 
