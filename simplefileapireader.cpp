@@ -45,17 +45,24 @@ void SimpleFileApiReader::endState(const QFileInfo &replyFi)
 
     const FilePath sourceDirectory = m_parameters.sourceDirectory;
     const FilePath buildDirectory = m_parameters.workDirectory;
+    const FilePath topCmakeFile = m_cmakeFiles.size() == 1 ? *m_cmakeFiles.begin() : FilePath{};
+    const QString cmakeBuildType = m_parameters.cmakeBuildType;
+
+    m_lastReplyTimestamp = replyFi.lastModified();
 
     m_future = runAsync(ProjectExplorerPlugin::sharedThreadPool(),
-                        [replyFi, sourceDirectory, buildDirectory]() {
+                        [replyFi, sourceDirectory, buildDirectory, topCmakeFile, cmakeBuildType]() {
                             auto result = std::make_unique<FileApiQtcData>();
-                            FileApiData data = FileApiParser::parseData(replyFi,
-                                                                        result->errorMessage);
+                            FileApiData data = FileApiParser::parseData(replyFi, cmakeBuildType, result->errorMessage);
                             if (!result->errorMessage.isEmpty()) {
                                 qWarning() << result->errorMessage;
-                                return result.release();
+                                *result = generateFallbackData(topCmakeFile,
+                                                               sourceDirectory,
+                                                               buildDirectory,
+                                                               result->errorMessage);
+                            } else {
+                                *result = extractData(data, sourceDirectory, buildDirectory, true);
                             }
-                            *result = extractData(data, sourceDirectory, buildDirectory, true);
                             if (!result->errorMessage.isEmpty()) {
                                 qWarning() << result->errorMessage;
                             }
@@ -73,6 +80,9 @@ void SimpleFileApiReader::endState(const QFileInfo &replyFi)
         m_projectParts = std::move(value->projectParts);
         m_rootProjectNode = std::move(value->rootProjectNode);
         m_knownHeaders = std::move(value->knownHeaders);
+        m_ctestPath = std::move(value->ctestPath);
+        m_isMultiConfig = std::move(value->isMultiConfig);
+        m_usesAllCapsTargets = std::move(value->usesAllCapsTargets);
 
         if (value->errorMessage.isEmpty()) {
             emit this->dataAvailable();
@@ -80,6 +90,7 @@ void SimpleFileApiReader::endState(const QFileInfo &replyFi)
             emit this->errorOccurred(value->errorMessage);
         }
     });
+
 }
 
 std::unique_ptr<CMakeProjectNode> SimpleFileApiReader::generateProjectTree(
