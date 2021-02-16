@@ -118,9 +118,6 @@ public:
         , m_changed(changed)
     {
         updateErrorFlags();
-        m_tooltip = tr("Version: %1<br>Supports fileApi: %2")
-                        .arg(QString::fromUtf8(item->version().fullVersion))
-                        .arg(item->hasFileApi() ? tr("yes") : tr("no"));
     }
 
     CMakeToolTreeItem(const QString &name,
@@ -146,6 +143,15 @@ public:
         m_pathExists = fi.exists();
         m_pathIsFile = fi.isFile();
         m_pathIsExecutable = fi.isExecutable();
+
+        CMakeTool cmake(m_autodetected ? CMakeTool::AutoDetection
+                                       : CMakeTool::ManualDetection, m_id);
+        cmake.setFilePath(m_executable);
+        m_isSupported = cmake.hasFileApi();
+
+        m_tooltip = tr("Version: %1<br>Supports fileApi: %2")
+                        .arg(QString::fromUtf8(cmake.version().fullVersion))
+                        .arg(cmake.hasFileApi() ? tr("yes") : tr("no"));
     }
 
     CMakeToolTreeItem() = default;
@@ -193,7 +199,7 @@ public:
             } else if (!m_isSupported) {
                 error = QCoreApplication::translate(
                     "CMakeProjectManager::Internal::CMakeToolTreeItem",
-                    "CMake executable does not provided required IDE integration features.");
+                    "CMake executable does not provide required IDE integration features.");
             }
             if (result.isEmpty() || error.isEmpty())
                 return QString("%1%2").arg(result).arg(error);
