@@ -90,6 +90,7 @@ protected:
     void cmakeFinishedState(int code, QProcess::ExitStatus status);
 
     void replyDirectoryHasChanged(const QString &directory) const;
+    void makeBackupConfiguration(bool store);
 
     std::unique_ptr<CMakeProcess> m_cmakeProcess;
 

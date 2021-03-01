@@ -757,7 +757,7 @@ void CMakeBuildSystem::updateProjectData()
     {
         QSet<QString> res;
         QStringList apps;
-        for (const auto &target : m_buildTargets) {
+        for (const auto &target : qAsConst(m_buildTargets)) {
             if (target.targetType == CMakeProjectManager::DynamicLibraryType) {
                 res.insert(target.executable.parentDir().toString());
                 apps.push_back(target.executable.toUserOutput());
@@ -785,34 +785,14 @@ void CMakeBuildSystem::updateProjectData()
         auto newRoot = generateProjectTree(m_allFiles, true);
         if (newRoot) {
             setRootProjectNode(std::move(newRoot));
-            CMakeConfigItem settingFileItem;
-            settingFileItem.key = Android::Constants::ANDROID_DEPLOYMENT_SETTINGS_FILE;
 
             const FilePath buildDir = cmakeBuildConfiguration()->buildDirectory();
             if (p->rootProjectNode()) {
                 const QString nodeName = p->rootProjectNode()->displayName();
                 p->setDisplayName(nodeName);
-
-                const Kit *k = kit();
-                if (DeviceTypeKitAspect::deviceTypeId(k) == Android::Constants::ANDROID_DEVICE_TYPE) {
-                    const QtSupport::BaseQtVersion *qt = QtSupport::QtKitAspect::qtVersion(k);
-                    if (qt && qt->qtVersion() >= QtSupport::QtVersionNumber{6, 0, 0}) {
-                        const QLatin1String jsonFile("android-%1-deployment-settings.json");
-                        settingFileItem.value = buildDir.pathAppended(jsonFile.arg(nodeName))
-                                                    .toString()
-                                                    .toUtf8();
-                    }
-                }
             }
 
-            if (settingFileItem.value.isEmpty()) {
-                settingFileItem.value = buildDir.pathAppended("android_deployment_settings.json")
-                                            .toString()
-                                            .toUtf8();
-            }
-            patchedConfig.append(settingFileItem);
-
-            for (const CMakeBuildTarget &bt : m_buildTargets) {
+            for (const CMakeBuildTarget &bt : qAsConst(m_buildTargets)) {
                 const QString buildKey = bt.title;
                 if (ProjectNode *node = p->findNodeForBuildKey(buildKey)) {
                     if (auto targetNode = dynamic_cast<CMakeTargetNode *>(node))
@@ -875,6 +855,24 @@ void CMakeBuildSystem::updateFallbackProjectData()
     qCDebug(cmakeBuildSystemLog) << "All fallback CMake project data up to date.";
 }
 
+void CMakeBuildSystem::updateCMakeConfiguration(QString &errorMessage)
+{
+    CMakeConfig cmakeConfig = m_reader.takeParsedConfiguration(errorMessage);
+    for (auto &ci : cmakeConfig)
+        ci.inCMakeCache = true;
+    if (!errorMessage.isEmpty()) {
+        const CMakeConfig changes = cmakeBuildConfiguration()->configurationChanges();
+        for (const auto &ci : changes) {
+            const bool haveConfigItem = Utils::contains(cmakeConfig, [ci](const CMakeConfigItem& i) {
+                return i.key == ci.key;
+            });
+            if (!haveConfigItem)
+                cmakeConfig.append(ci);
+        }
+    }
+    cmakeBuildConfiguration()->setConfigurationFromCMake(cmakeConfig);
+}
+
 void CMakeBuildSystem::handleParsingSucceeded()
 {
     if (!cmakeBuildConfiguration()->isActive()) {
@@ -898,10 +896,7 @@ void CMakeBuildSystem::handleParsingSucceeded()
     }
 
     {
-        CMakeConfig cmakeConfig = m_reader.takeParsedConfiguration(errorMessage);
-        for (auto &ci : cmakeConfig)
-            ci.inCMakeCache = true;
-        cmakeBuildConfiguration()->setConfigurationFromCMake(cmakeConfig);
+        updateCMakeConfiguration(errorMessage);
         checkAndReportError(errorMessage);
     }
 
@@ -921,10 +916,7 @@ void CMakeBuildSystem::handleParsingFailed(const QString &msg)
     cmakeBuildConfiguration()->setError(msg);
 
     QString errorMessage;
-    CMakeConfig cmakeConfig = m_reader.takeParsedConfiguration(errorMessage);
-    for (auto &ci : cmakeConfig)
-        ci.inCMakeCache = true;
-    cmakeBuildConfiguration()->setConfigurationFromCMake(cmakeConfig);
+    updateCMakeConfiguration(errorMessage);
     // ignore errorMessage here, we already got one.
 
     m_ctestPath.clear();

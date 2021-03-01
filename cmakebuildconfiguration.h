@@ -25,6 +25,7 @@
 
 #pragma once
 
+#include "cmake_global.h"
 #include "cmakeconfigitem.h"
 #include "configmodel.h"
 
@@ -38,19 +39,22 @@ namespace Internal {
 
 class CMakeBuildSystem;
 class CMakeBuildSettingsWidget;
+class CMakeProjectImporter;
 
-class CMakeBuildConfiguration final : public ProjectExplorer::BuildConfiguration
+} // namespace Internal
+
+class CMAKE_EXPORT CMakeBuildConfiguration : public ProjectExplorer::BuildConfiguration
 {
     Q_OBJECT
 
-    friend class ProjectExplorer::BuildConfigurationFactory;
-    CMakeBuildConfiguration(ProjectExplorer::Target *target, Utils::Id id);
-    ~CMakeBuildConfiguration() final;
-
 public:
-    CMakeConfig configurationFromCMake() const;
+    CMakeBuildConfiguration(ProjectExplorer::Target *target, Utils::Id id);
+    ~CMakeBuildConfiguration() override;
 
-    QStringList extraCMakeArguments() const;
+    CMakeConfig configurationFromCMake() const;
+    CMakeConfig configurationChanges() const;
+
+    QStringList configurationChangesArguments() const;
 
     QStringList initialCMakeArguments() const;
 
@@ -76,6 +80,10 @@ public:
 signals:
     void errorOccurred(const QString &message);
     void warningOccurred(const QString &message);
+    void signingFlagsChanged();
+
+protected:
+    bool fromMap(const QVariantMap &map) override;
 
 private:
     QVariantMap toMap() const override;
@@ -83,14 +91,14 @@ private:
 
     ProjectExplorer::NamedWidget *createConfigWidget() override;
 
-    bool fromMap(const QVariantMap &map) override;
+    virtual CMakeConfig signingFlags() const;
 
     enum ForceEnabledChanged { False, True };
     void clearError(ForceEnabledChanged fec = ForceEnabledChanged::False);
 
     void setConfigurationFromCMake(const CMakeConfig &config);
+    void setConfigurationChanges(const CMakeConfig &config);
 
-    void setExtraCMakeArguments(const QStringList &args);
     void setInitialCMakeArguments(const QStringList &args);
 
     void setError(const QString &message);
@@ -101,17 +109,17 @@ private:
     QString m_warning;
 
     CMakeConfig m_configurationFromCMake;
-    CMakeBuildSystem *m_buildSystem = nullptr;
+    CMakeConfig m_configurationChanges;
+    Internal::CMakeBuildSystem *m_buildSystem = nullptr;
 
     QStringList m_extraCMakeArguments;
 
-    friend class CMakeBuildSettingsWidget;
-    friend class CMakeBuildSystem;
+    friend class Internal::CMakeBuildSettingsWidget;
+    friend class Internal::CMakeBuildSystem;
 };
 
-class CMakeProjectImporter;
-
-class CMakeBuildConfigurationFactory final : public ProjectExplorer::BuildConfigurationFactory
+class CMAKE_EXPORT CMakeBuildConfigurationFactory
+    : public ProjectExplorer::BuildConfigurationFactory
 {
 public:
     CMakeBuildConfigurationFactory();
@@ -128,8 +136,10 @@ public:
 private:
     static ProjectExplorer::BuildInfo createBuildInfo(BuildType buildType);
 
-    friend class CMakeProjectImporter;
+    friend class Internal::CMakeProjectImporter;
 };
+
+namespace Internal {
 
 class InitialCMakeArgumentsAspect final : public Utils::StringAspect
 {
@@ -154,7 +164,6 @@ class BuildTypeAspect final : public Utils::StringAspect
 public:
     BuildTypeAspect();
 };
-
 
 } // namespace Internal
 } // namespace CMakeProjectManager

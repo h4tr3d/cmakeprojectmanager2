@@ -44,9 +44,10 @@ class CppProjectUpdater;
 } // namespace CppTools
 
 namespace CMakeProjectManager {
-namespace Internal {
 
 class CMakeBuildConfiguration;
+
+namespace Internal {
 
 // --------------------------------------------------------------------
 // CMakeBuildSystem:
@@ -144,6 +145,8 @@ private:
     std::unique_ptr<CMakeProjectNode> generateProjectTree(
         const QList<const ProjectExplorer::FileNode *> &allFiles, bool includeHeadersNode);
     void checkAndReportError(QString &errorMessage);
+
+    void updateCMakeConfiguration(QString &errorMessage);
 
     void updateProjectData();
     void updateFallbackProjectData();
