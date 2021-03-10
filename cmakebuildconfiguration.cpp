@@ -68,8 +68,10 @@
 #include <utils/stringutils.h>
 #include <utils/variablechooser.h>
 
+#include <QApplication>
 #include <QBoxLayout>
 #include <QCheckBox>
+#include <QClipboard>
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QDir>
@@ -517,15 +519,14 @@ void CMakeBuildSettingsWidget::updateButtonState()
                     break;
                 case CMakeProjectManager::ConfigModel::DataItem::UNKNOWN:
                 default:
-                    ni.type = CMakeConfigItem::INTERNAL;
+                    ni.type = CMakeConfigItem::UNINITIALIZED;
                     break;
                 }
                 return ni;
             });
 
     m_resetButton->setEnabled(m_configModel->hasChanges() && !isParsing);
-    m_reconfigureButton->setEnabled((!configChanges.isEmpty() || m_configModel->hasCMakeChanges())
-                                    && !isParsing);
+    m_reconfigureButton->setEnabled(!configChanges.isEmpty() && !isParsing);
     m_buildConfiguration->setConfigurationChanges(configChanges);
 }
 
@@ -706,6 +707,23 @@ bool CMakeBuildSettingsWidget::eventFilter(QObject *target, QEvent *event)
         menu->addAction(action);
     if ((action = createForceAction(ConfigModel::DataItem::STRING, idx)))
         menu->addAction(action);
+
+    auto copy = new QAction(tr("Copy"), this);
+    menu->addAction(copy);
+    connect(copy, &QAction::triggered, this, [this] {
+        const QModelIndexList selectedIndexes = m_configView->selectionModel()->selectedIndexes();
+
+        const QModelIndexList validIndexes = Utils::filtered(selectedIndexes, [](const QModelIndex &index) {
+            return index.isValid() && index.flags().testFlag(Qt::ItemIsSelectable);
+        });
+
+        const QStringList variableList = Utils::transform(validIndexes, [this](const QModelIndex &index) {
+            return ConfigModel::dataItemFromIndex(index)
+                    .toCMakeConfigItem().toArgument(m_buildConfiguration->macroExpander());
+        });
+
+        QApplication::clipboard()->setText(variableList.join('\n'), QClipboard::Clipboard);
+    });
 
     menu->move(e->globalPos());
     menu->show();

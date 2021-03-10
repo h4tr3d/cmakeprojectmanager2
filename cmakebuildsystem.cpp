@@ -39,6 +39,7 @@
 #include <android/androidconstants.h>
 #include <coreplugin/icore.h>
 #include <coreplugin/progressmanager/progressmanager.h>
+#include <coreplugin/reaper.h>
 #include <cpptools/cppprojectupdater.h>
 #include <cpptools/cpptoolsconstants.h>
 #include <cpptools/generatedcodemodelsupport.h>
@@ -56,8 +57,10 @@
 
 #include <utils/checkablemessagebox.h>
 #include <utils/fileutils.h>
+#include <utils/macroexpander.h>
 #include <utils/mimetypes/mimetype.h>
 #include <utils/qtcassert.h>
+#include <utils/runextensions.h>
 
 #include <QClipboard>
 #include <QDir>
@@ -207,6 +210,7 @@ CMakeBuildSystem::CMakeBuildSystem(CMakeBuildConfiguration *bc)
 
 CMakeBuildSystem::~CMakeBuildSystem()
 {
+    m_futureSynchronizer.waitForFinished();
     if (!m_treeScanner.isFinished()) {
         auto future = m_treeScanner.future();
         future.cancel();
@@ -284,9 +288,8 @@ void CMakeBuildSystem::triggerParsing()
     }
 
     if ((0 == (reparseParameters & REPARSE_FORCE_EXTRA_CONFIGURATION))
-        && !m_parameters.extraCMakeArguments.isEmpty()) {
-        if (mustApplyExtraArguments())
-            reparseParameters |= REPARSE_FORCE_CMAKE_RUN | REPARSE_FORCE_EXTRA_CONFIGURATION;
+        && mustApplyExtraArguments(m_parameters)) {
+        reparseParameters |= REPARSE_FORCE_CMAKE_RUN | REPARSE_FORCE_EXTRA_CONFIGURATION;
     }
 
     qCDebug(cmakeBuildSystemLog) << "Asking reader to parse";
@@ -422,6 +425,27 @@ QString CMakeBuildSystem::reparseParametersString(int reparseFlags)
     return result.trimmed();
 }
 
+void CMakeBuildSystem::writeConfigurationIntoBuildDirectory()
+{
+    const Utils::MacroExpander *expander = cmakeBuildConfiguration()->macroExpander();
+    const FilePath buildDir = workDirectory(m_parameters);
+    QTC_ASSERT(buildDir.exists(), return );
+
+    const FilePath settingsFile = buildDir.pathAppended("qtcsettings.cmake");
+
+    QByteArray contents;
+    contents.append("# This file is managed by Qt Creator, do not edit!\n\n");
+    contents.append(
+        transform(cmakeBuildConfiguration()->configurationChanges(),
+                  [expander](const CMakeConfigItem &item) { return item.toCMakeSetLine(expander); })
+            .join('\n')
+            .toUtf8());
+
+    QFile file(settingsFile.toString());
+    QTC_ASSERT(file.open(QFile::WriteOnly | QFile::Truncate), return );
+    file.write(contents);
+}
+
 void CMakeBuildSystem::setParametersAndRequestParse(const BuildDirParameters &parameters,
                                                     const int reparseParameters)
 {
@@ -455,6 +479,8 @@ void CMakeBuildSystem::setParametersAndRequestParse(const BuildDirParameters &pa
 
     m_reader.setParameters(m_parameters);
 
+    writeConfigurationIntoBuildDirectory();
+
     if (reparseParameters & REPARSE_URGENT) {
         qCDebug(cmakeBuildSystemLog) << "calling requestReparse";
         requestParse();
@@ -464,15 +490,15 @@ void CMakeBuildSystem::setParametersAndRequestParse(const BuildDirParameters &pa
     }
 }
 
-bool CMakeBuildSystem::mustApplyExtraArguments() const
+bool CMakeBuildSystem::mustApplyExtraArguments(const BuildDirParameters &parameters) const
 {
-    if (m_parameters.extraCMakeArguments.isEmpty())
+    if (parameters.extraCMakeArguments.isEmpty())
         return false;
 
     auto answer = QMessageBox::question(Core::ICore::mainWindow(),
                                         tr("Apply configuration changes?"),
                                         tr("Run CMake with \"%1\"?")
-                                            .arg(m_parameters.extraCMakeArguments.join(" ")),
+                                            .arg(parameters.extraCMakeArguments.join(" ")),
                                         QMessageBox::Apply | QMessageBox::Discard,
                                         QMessageBox::Apply);
     return answer == QMessageBox::Apply;
@@ -661,12 +687,10 @@ bool CMakeBuildSystem::persistCMakeState()
     qCDebug(cmakeBuildSystemLog) << "Checking whether build system needs to be persisted:"
                                  << "workdir:" << parameters.workDirectory
                                  << "buildDir:" << parameters.buildDirectory
-                                 << "Has extraargs:" << !parameters.extraCMakeArguments.isEmpty()
-                                 << "must apply extra Args:"
-                                 << mustApplyExtraArguments();
+                                 << "Has extraargs:" << !parameters.extraCMakeArguments.isEmpty();
 
     if (parameters.workDirectory == parameters.buildDirectory
-        && !parameters.extraCMakeArguments.isEmpty() && mustApplyExtraArguments()) {
+        && mustApplyExtraArguments(parameters)) {
         reparseFlags = REPARSE_FORCE_EXTRA_CONFIGURATION;
         qCDebug(cmakeBuildSystemLog) << "   -> must run CMake with extra arguments.";
     }
@@ -734,7 +758,7 @@ void CMakeBuildSystem::combineScanAndParse()
 
     emitBuildSystemUpdated();
 
-    QTimer::singleShot(0, this, &CMakeBuildSystem::runCTest);
+    runCTest();
 }
 
 void CMakeBuildSystem::checkAndReportError(QString &errorMessage)
@@ -1079,42 +1103,62 @@ void CMakeBuildSystem::runCTest()
     }
     qCDebug(cmakeBuildSystemLog) << "Requesting ctest run after cmake run";
 
-    BuildDirParameters parameters(cmakeBuildConfiguration());
+    const BuildDirParameters parameters(cmakeBuildConfiguration());
     QTC_ASSERT(parameters.isValid(), return);
 
-    FilePath workingDirectory = workDirectory(parameters);
-    CommandLine cmd{m_ctestPath, {"-N", "--show-only=json-v1"}};
-    SynchronousProcess ctest;
-    ctest.setTimeoutS(1);
-    ctest.setEnvironment(cmakeBuildConfiguration()->environment().toStringList());
-    ctest.setWorkingDirectory(workingDirectory.toString());
+    const CommandLine cmd { m_ctestPath, { "-N", "--show-only=json-v1" } };
+    const QString workingDirectory = workDirectory(parameters).toString();
+    const QStringList environment = cmakeBuildConfiguration()->environment().toStringList();
 
-    const SynchronousProcessResponse response = ctest.run(cmd);
-    if (response.result == SynchronousProcessResponse::Finished) {
-        const QJsonDocument json = QJsonDocument::fromJson(response.allRawOutput());
-        if (!json.isEmpty() && json.isObject()) {
-            const QJsonObject jsonObj = json.object();
-            const QJsonObject btGraph = jsonObj.value("backtraceGraph").toObject();
-            const QJsonArray cmakelists = btGraph.value("files").toArray();
-            const QJsonArray nodes = btGraph.value("nodes").toArray();
-            const QJsonArray tests = jsonObj.value("tests").toArray();
-            for (const QJsonValue &testVal : tests) {
-                const QJsonObject test = testVal.toObject();
-                QTC_ASSERT(!test.isEmpty(), continue);
-                const int bt = test.value("backtrace").toInt(-1);
-                QTC_ASSERT(bt != -1, continue);
-                const QJsonObject btRef = nodes.at(bt).toObject();
-                int file = btRef.value("file").toInt(-1);
-                int line = btRef.value("line").toInt(-1);
-                QTC_ASSERT(file != -1 && line != -1, continue);
-                m_testNames.append({test.value("name").toString(),
-                                    FilePath::fromString(cmakelists.at(file).toString()),
-                                    line
-                                   });
+    auto future = Utils::runAsync([cmd, workingDirectory, environment]
+                                  (QFutureInterface<QByteArray> &futureInterface) {
+        QProcess process;
+        process.setEnvironment(environment);
+        process.setWorkingDirectory(workingDirectory);
+        process.start(cmd.executable().toString(), cmd.splitArguments(), QIODevice::ReadOnly);
+
+        if (!process.waitForStarted(1000) || !process.waitForFinished(1000)) {
+            if (process.state() == QProcess::NotRunning)
+                return;
+            process.terminate();
+            if (process.waitForFinished(1000))
+                return;
+            process.kill();
+            process.waitForFinished(1000);
+            return;
+        }
+        if (process.exitCode() || process.exitStatus() != QProcess::NormalExit)
+            return;
+        futureInterface.reportResult(process.readAllStandardOutput());
+    });
+
+    Utils::onFinished(future, this, [this](const QFuture<QByteArray> &future) {
+        if (future.resultCount()) {
+            const QJsonDocument json = QJsonDocument::fromJson(future.result());
+            if (!json.isEmpty() && json.isObject()) {
+                const QJsonObject jsonObj = json.object();
+                const QJsonObject btGraph = jsonObj.value("backtraceGraph").toObject();
+                const QJsonArray cmakelists = btGraph.value("files").toArray();
+                const QJsonArray nodes = btGraph.value("nodes").toArray();
+                const QJsonArray tests = jsonObj.value("tests").toArray();
+                for (const QJsonValue &testVal : tests) {
+                    const QJsonObject test = testVal.toObject();
+                    QTC_ASSERT(!test.isEmpty(), continue);
+                    const int bt = test.value("backtrace").toInt(-1);
+                    QTC_ASSERT(bt != -1, continue);
+                    const QJsonObject btRef = nodes.at(bt).toObject();
+                    int file = btRef.value("file").toInt(-1);
+                    int line = btRef.value("line").toInt(-1);
+                    QTC_ASSERT(file != -1 && line != -1, continue);
+                    m_testNames.append({ test.value("name").toString(),
+                                         FilePath::fromString(cmakelists.at(file).toString()), line });
+                }
             }
         }
-    }
-    emit testInformationUpdated();
+        emit testInformationUpdated();
+    });
+
+    m_futureSynchronizer.addFuture(future);
 }
 
 CMakeBuildConfiguration *CMakeBuildSystem::cmakeBuildConfiguration() const
