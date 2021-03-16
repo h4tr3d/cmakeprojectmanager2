@@ -497,8 +497,9 @@ bool CMakeBuildSystem::mustApplyExtraArguments(const BuildDirParameters &paramet
 
     auto answer = QMessageBox::question(Core::ICore::mainWindow(),
                                         tr("Apply configuration changes?"),
-                                        tr("Run CMake with \"%1\"?")
-                                            .arg(parameters.extraCMakeArguments.join(" ")),
+                                        "<p>" + tr("Run CMake with configuration changes?")
+                                            + "</p><pre>"
+                                            + parameters.extraCMakeArguments.join("\n") + "</pre>",
                                         QMessageBox::Apply | QMessageBox::Discard,
                                         QMessageBox::Apply);
     return answer == QMessageBox::Apply;
@@ -1367,11 +1368,15 @@ void CMakeBuildSystem::updateQmlJSCodeModel()
 
     projectInfo.importPaths.clear();
 
+    auto addImports = [&projectInfo](const QString &imports) {
+        foreach (const QString &import, CMakeConfigItem::cmakeSplitValue(imports))
+            projectInfo.importPaths.maybeInsert(FilePath::fromString(import), QmlJS::Dialect::Qml);
+    };
+
     const CMakeConfig &cm = cmakeBuildConfiguration()->configurationFromCMake();
     const QString cmakeImports = QString::fromUtf8(CMakeConfigItem::valueOf("QML_IMPORT_PATH", cm));
-
-    foreach (const QString &cmakeImport, CMakeConfigItem::cmakeSplitValue(cmakeImports))
-        projectInfo.importPaths.maybeInsert(FilePath::fromString(cmakeImport), QmlJS::Dialect::Qml);
+    addImports(cmakeImports);
+    addImports(kit()->value(QtSupport::KitQmlImportPath::id()).toString());
 
     project()->setProjectLanguage(ProjectExplorer::Constants::QMLJS_LANGUAGE_ID,
                                   !projectInfo.sourceFiles.isEmpty());
