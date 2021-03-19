@@ -40,6 +40,7 @@
 #include <ios/iosconstants.h>
 
 #include <coreplugin/find/itemviewfind.h>
+#include <coreplugin/icore.h>
 
 #include <projectexplorer/buildaspects.h>
 #include <projectexplorer/buildinfo.h>
@@ -58,6 +59,7 @@
 
 #include <utils/algorithm.h>
 #include <utils/categorysortfiltermodel.h>
+#include <utils/checkablemessagebox.h>
 #include <utils/detailswidget.h>
 #include <utils/headerviewstretcher.h>
 #include <utils/infolabel.h>
@@ -178,6 +180,34 @@ CMakeBuildSettingsWidget::CMakeBuildSettingsWidget(CMakeBuildConfiguration *bc) 
         m_configModel->flush(); // clear out config cache...;
     });
 
+    auto clearCMakeConfiguration = new QPushButton(tr("Re-configure with Initial Parameters"));
+    connect(clearCMakeConfiguration, &QPushButton::clicked, this, [bc]() {
+        auto *settings = CMakeProjectPlugin::projectTypeSpecificSettings();
+        bool doNotAsk{!settings->askBeforeReConfigureInitialParams()};
+        if (!doNotAsk) {
+            QDialogButtonBox::StandardButton reply = Utils::CheckableMessageBox::question(
+                nullptr,
+                tr("Re-configure with Initial Parameters"),
+                tr("Clear CMake configuration and configure with initial parameters?"),
+                tr("Do not ask again"),
+                &doNotAsk,
+                QDialogButtonBox::Yes | QDialogButtonBox::No,
+                QDialogButtonBox::Yes);
+
+            settings->setAskBeforeReConfigureInitialParams(!doNotAsk);
+            settings->toSettings(Core::ICore::settings());
+
+            if (reply != QDialogButtonBox::Yes) {
+                return;
+            }
+        }
+
+        auto cbc = static_cast<CMakeBuildSystem*>(bc->buildSystem());
+        cbc->clearCMakeCache();
+        if (ProjectExplorerPlugin::saveModifiedFiles())
+            cbc->runCMake();
+    });
+    
     auto buildTypeAspect = bc->aspect<BuildTypeAspect>();
     connect(buildTypeAspect, &BaseAspect::changed, this, [this, buildTypeAspect]() {
         if (!m_buildConfiguration->isMultiConfig()) {
@@ -309,6 +339,7 @@ CMakeBuildSettingsWidget::CMakeBuildSettingsWidget(CMakeBuildConfiguration *bc) 
             buildDirAspect, Break(),
             bc->aspect<InitialCMakeArgumentsAspect>(), Break(),
             bc->aspect<BuildTypeAspect>(), Break(),
+            QString(), clearCMakeConfiguration,
             qmlDebugAspect
         },
         Space(10),
