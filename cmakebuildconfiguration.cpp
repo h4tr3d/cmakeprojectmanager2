@@ -460,7 +460,8 @@ CMakeBuildSettingsWidget::CMakeBuildSettingsWidget(CMakeBuildConfiguration *bc) 
             this, &CMakeBuildSettingsWidget::updateFromKit);
     connect(m_buildConfiguration, &CMakeBuildConfiguration::enabledChanged,
             this, [this]() {
-        setError(m_buildConfiguration->disabledReason());
+        if (m_buildConfiguration->isEnabled())
+            setError(QString());
     });
 
     updateSelection();
