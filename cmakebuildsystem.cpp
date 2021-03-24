@@ -864,7 +864,22 @@ void CMakeBuildSystem::updateProjectData()
         const bool mergedHeaderPathsAndQmlImportPaths = kit()->value(
                     QtSupport::KitHasMergedHeaderPathsWithQmlImportPaths::id(), false).toBool();
         QStringList extraHeaderPaths;
+        QList<QByteArray> moduleMappings;
         for (const RawProjectPart &rpp : qAsConst(rpps)) {
+            FilePath moduleMapFile = cmakeBuildConfiguration()->buildDirectory()
+                    .pathAppended("/qml_module_mappings/" + rpp.buildSystemTarget);
+            if (moduleMapFile.exists()) {
+                QFile mmf(moduleMapFile.toString());
+                if (mmf.open(QFile::ReadOnly)) {
+                    QByteArray content = mmf.readAll();
+                    auto lines = content.split('\n');
+                    for (const auto &line : lines) {
+                        if (!line.isEmpty())
+                            moduleMappings.append(line.simplified());
+                    }
+                }
+            }
+
             if (mergedHeaderPathsAndQmlImportPaths) {
                 for (const auto &headerPath : rpp.headerPaths) {
                     if (headerPath.type == HeaderPathType::User)
@@ -872,7 +887,7 @@ void CMakeBuildSystem::updateProjectData()
                 }
             }
         }
-        updateQmlJSCodeModel(extraHeaderPaths);
+        updateQmlJSCodeModel(extraHeaderPaths, moduleMappings);
     }
     emit cmakeBuildConfiguration()->buildTypeChanged();
 
@@ -1010,12 +1025,20 @@ void CMakeBuildSystem::wireUpConnections()
                 // No CMakeCache? Run with initial arguments!
                 qCDebug(cmakeBuildSystemLog) << "Requesting parse due to build directory change";
                 const BuildDirParameters parameters(cmakeBuildConfiguration());
-                const bool hasCMakeCache = QFile::exists(
-                    (parameters.buildDirectory / "CMakeCache.txt").toString());
+                const FilePath cmakeCacheTxt = parameters.buildDirectory.pathAppended("CMakeCache.txt");
+                const bool hasCMakeCache = QFile::exists(cmakeCacheTxt.toString());
                 const auto options = ReparseParameters(
                     hasCMakeCache
                         ? REPARSE_DEFAULT
                         : (REPARSE_FORCE_INITIAL_CONFIGURATION | REPARSE_FORCE_CMAKE_RUN));
+                if (hasCMakeCache) {
+                    QString errorMessage;
+                    const CMakeConfig config = CMakeBuildSystem::parseCMakeCacheDotTxt(cmakeCacheTxt, &errorMessage);
+                    if (!config.isEmpty() && errorMessage.isEmpty()) {
+                        QByteArray cmakeBuildTypeName = CMakeConfigItem::valueOf("CMAKE_BUILD_TYPE", config);
+                        cmakeBuildConfiguration()->setCMakeBuildType(QString::fromUtf8(cmakeBuildTypeName), true);
+                    }
+                }
                 setParametersAndRequestParse(BuildDirParameters(cmakeBuildConfiguration()), options);
             });
 
@@ -1366,8 +1389,10 @@ QList<ProjectExplorer::ExtraCompiler *> CMakeBuildSystem::findExtraCompilers()
     return extraCompilers;
 }
 
-void CMakeBuildSystem::updateQmlJSCodeModel(const QStringList &extraHeaderPaths)
+void CMakeBuildSystem::updateQmlJSCodeModel(const QStringList &extraHeaderPaths,
+                                            const QList<QByteArray> &moduleMappings)
 {
+    qDebug()<<"cmake: module mappings:"<<moduleMappings;
     QmlJS::ModelManagerInterface *modelManager = QmlJS::ModelManagerInterface::instance();
 
     if (!modelManager)
@@ -1392,6 +1417,24 @@ void CMakeBuildSystem::updateQmlJSCodeModel(const QStringList &extraHeaderPaths)
     for (const QString &extraHeaderPath : extraHeaderPaths)
         projectInfo.importPaths.maybeInsert(FilePath::fromString(extraHeaderPath),
                                             QmlJS::Dialect::Qml);
+
+    for (const QByteArray &mm : moduleMappings) {
+        auto kvPair = mm.split('=');
+        if (kvPair.size() != 2)
+            continue;
+        QString from = QString::fromUtf8(kvPair.at(0).trimmed());
+        QString to = QString::fromUtf8(kvPair.at(1).trimmed());
+        if (!from.isEmpty() && !to.isEmpty() && from != to) {
+            // The QML code-model does not support sub-projects, so if there are multiple mappings for a single module,
+            // choose the shortest one.
+            if (projectInfo.moduleMappings.contains(from)) {
+                if (to.size() < projectInfo.moduleMappings.value(from).size())
+                    projectInfo.moduleMappings.insert(from, to);
+            } else {
+                projectInfo.moduleMappings.insert(from, to);
+            }
+        }
+    }
 
     project()->setProjectLanguage(ProjectExplorer::Constants::QMLJS_LANGUAGE_ID,
                                   !projectInfo.sourceFiles.isEmpty());
