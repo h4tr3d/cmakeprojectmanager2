@@ -183,9 +183,9 @@ CMakeBuildSettingsWidget::CMakeBuildSettingsWidget(CMakeBuildConfiguration *bc) 
         if (!m_buildConfiguration->isMultiConfig()) {
             CMakeConfig config;
             config << CMakeConfigItem("CMAKE_BUILD_TYPE", buildTypeAspect->value().toUtf8());
- 
-             m_configModel->setBatchEditConfiguration(config);
-         }
+
+            m_configModel->setBatchEditConfiguration(config);
+        }
     });
 
     auto qmlDebugAspect = bc->aspect<QtSupport::QmlDebuggingAspect>();
