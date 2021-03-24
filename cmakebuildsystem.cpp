@@ -565,9 +565,7 @@ bool CMakeBuildSystem::addFilesPriv(const QStringList &filePaths)
 
 
     // Real adding occurs after function exit.
-    QTimer::singleShot(200, this, [this]() {
-        this->updateProjectData();
-    });
+    updateProjectDataPriv();
 
     return true;
 }
@@ -613,9 +611,7 @@ bool CMakeBuildSystem::eraseFilesPriv(const QStringList &filePaths)
     }
 
     // Real deleting occurs after function exit.
-    QTimer::singleShot(200, this, [this]() {
-        this->updateProjectData();
-    });
+    updateProjectDataPriv();
 
     return true;
 }
@@ -655,12 +651,18 @@ bool CMakeBuildSystem::renameFilePriv(const QString &filePath, const QString &ne
         m_allFiles.insert(it, toAdd);
     }
 
-    QTimer::singleShot(200, this, [this]() {
-        this->updateProjectData();
-    });
+    updateProjectDataPriv();
 
     return true;
 }
+
+void CMakeBuildSystem::updateProjectDataPriv()
+{
+    QTimer::singleShot(200, this, [this]() {
+        updateProjectData();
+    });
+}
+    
 
 void CMakeBuildSystem::handleTreeScanningFinished()
 {

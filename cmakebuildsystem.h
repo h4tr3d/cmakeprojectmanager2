@@ -114,6 +114,7 @@ private:
     bool addFilesPriv(const QStringList &filePaths);
     bool eraseFilesPriv(const QStringList &filePaths);
     bool renameFilePriv(const QString &filePath, const QString &newFilePath);
+    void updateProjectDataPriv();
 
     // Actually ask for parsing:
     enum ReparseParameters {

@@ -46,7 +46,7 @@ void SimpleFileApiReader::endState(const QFileInfo &replyFi)
     const FilePath sourceDirectory = m_parameters.sourceDirectory;
     const FilePath buildDirectory = m_parameters.workDirectory;
     const FilePath topCmakeFile = m_cmakeFiles.size() == 1 ? *m_cmakeFiles.begin() : FilePath{};
-    const QString cmakeBuildType = m_parameters.cmakeBuildType;
+    const QString cmakeBuildType = m_parameters.cmakeBuildType == "Build" ? "" : m_parameters.cmakeBuildType;
 
     m_lastReplyTimestamp = replyFi.lastModified();
 
@@ -94,7 +94,7 @@ void SimpleFileApiReader::endState(const QFileInfo &replyFi)
 }
 
 std::unique_ptr<CMakeProjectNode> SimpleFileApiReader::generateProjectTree(
-    const QList<const FileNode *> &allFiles, QString &errorMessage, bool includeHeaderNodes)
+    const QList<const FileNode *> &allFiles, QString &errorMessage, bool /*includeHeaderNodes*/)
 {
     Q_UNUSED(errorMessage)
 
@@ -106,10 +106,15 @@ std::unique_ptr<CMakeProjectNode> SimpleFileApiReader::generateProjectTree(
         m_filesCache.clear();
 
         // Files already added:
+        qCDebug(cmakeFileApiMode) << "SimpleFileApiReader: fill cache:";
         m_rootProjectNode->forEachGenericNode([&alreadyListed,this] (const Node *node) { 
             alreadyListed.insert(node->filePath());
             auto fn = dynamic_cast<const FileNode*>(node);
-            m_filesCache.push_back(std::make_tuple(node->filePath(), fn ? fn->fileType() : Node::fileTypeForFileName(node->filePath()), node->isGenerated()));
+            // Cache only files
+            if (fn) {
+                m_filesCache.push_back(std::make_tuple(node->filePath(), fn->fileType(), node->isGenerated()));
+                qCDebug(cmakeFileApiMode) << "  cache:" << node->filePath();
+            }
         });
     } else {
         // Restore from cache
@@ -152,6 +157,15 @@ std::unique_ptr<CMakeProjectNode> SimpleFileApiReader::generateProjectTree(
 
     return std::move(m_rootProjectNode);
 }
+
+RawProjectParts SimpleFileApiReader::createRawProjectParts(QString &errorMessage)
+{
+    Q_UNUSED(errorMessage)
+
+    // Keep for the future calls
+    return m_projectParts;
+}
+
 
 } // namespace Internal
 } // namespace CMakeProjectManager

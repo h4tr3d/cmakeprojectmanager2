@@ -72,6 +72,7 @@ public:
         const QList<const ProjectExplorer::FileNode *> &allFiles,
         QString &errorMessage,
         bool includeHeaderNodes);
+    virtual
     ProjectExplorer::RawProjectParts createRawProjectParts(QString &errorMessage);
 
     bool isMultiConfig() const;

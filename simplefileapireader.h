@@ -17,6 +17,7 @@ public:
         const QList<const ProjectExplorer::FileNode *> &allFiles,
         QString &errorMessage,
         bool includeHeaderNodes) final;
+    ProjectExplorer::RawProjectParts createRawProjectParts(QString &errorMessage) final;
 
 protected:
     void endState(const QFileInfo &replyFi) final;
