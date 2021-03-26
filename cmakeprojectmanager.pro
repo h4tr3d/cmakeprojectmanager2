@@ -44,7 +44,6 @@ HEADERS = builddirparameters.h \
     fileapiparser.h \
     fileapireader.h \
     projecttreehelper.h \
-    compat.h \
     simplefileapireader.h
 
 SOURCES = builddirparameters.cpp \
@@ -77,7 +76,6 @@ SOURCES = builddirparameters.cpp \
     fileapiparser.cpp \
     fileapireader.cpp \
     projecttreehelper.cpp \
-    compat.cpp \
     simplefileapireader.cpp
 
 RESOURCES += cmakeproject.qrc

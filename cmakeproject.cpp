@@ -33,7 +33,6 @@
 #include "cmakeprojectimporter.h"
 #include "cmakeprojectnodes.h"
 #include "cmaketool.h"
-#include "compat.h"
 
 #include <coreplugin/icore.h>
 #include <coreplugin/icontext.h>

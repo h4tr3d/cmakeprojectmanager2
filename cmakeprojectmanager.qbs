@@ -84,8 +84,6 @@ QtcPlugin {
         "fileapireader.h",
         "projecttreehelper.cpp",
         "projecttreehelper.h",
-        "compat.cpp",
-        "compat.h",
         "simplefileapireader.cpp",
         "simplefileapireader.h"
     ]
