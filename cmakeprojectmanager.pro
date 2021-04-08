@@ -37,7 +37,6 @@ HEADERS = builddirparameters.h \
     cmakeindenter.h \
     cmakeautocompleter.h \
     cmakespecificsettings.h \
-    cmakespecificsettingspage.h \
     configmodel.h \
     configmodelitemdelegate.h \
     fileapidataextractor.h \
@@ -69,7 +68,6 @@ SOURCES = builddirparameters.cpp \
     cmakeindenter.cpp \
     cmakeautocompleter.cpp \
     cmakespecificsettings.cpp \
-    cmakespecificsettingspage.cpp \
     configmodel.cpp \
     configmodelitemdelegate.cpp \
     fileapidataextractor.cpp \
@@ -80,8 +78,6 @@ SOURCES = builddirparameters.cpp \
 
 RESOURCES += cmakeproject.qrc
 
-FORMS += \
-    cmakespecificsettingspage.ui
 
 OTHER_FILES += README.txt
 

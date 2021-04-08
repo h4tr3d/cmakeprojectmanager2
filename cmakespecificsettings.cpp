@@ -25,35 +25,71 @@
 
 #include "cmakespecificsettings.h"
 
+#include <projectexplorer/projectexplorerconstants.h>
+
+#include <utils/layoutbuilder.h>
+
+using namespace Utils;
+
 namespace CMakeProjectManager {
 namespace Internal {
 
-namespace {
-static const char SETTINGS_KEY[] = "CMakeSpecificSettings";
-static const char AFTER_ADD_FILE_ACTION_KEY[] = "ProjectPopupSetting";
-static const char NINJA_PATH[] = "NinjaPath";
-static const char PACKAGE_MANAGER_AUTO_SETUP[] = "PackageManagerAutoSetup";
-}
-
-void CMakeSpecificSettings::fromSettings(QSettings *settings)
+CMakeSpecificSettings::CMakeSpecificSettings()
 {
-    const QString rootKey = QString(SETTINGS_KEY) + '/';
-    m_afterAddFileToProjectSetting = static_cast<AfterAddFileAction>(
-                              settings->value(rootKey + AFTER_ADD_FILE_ACTION_KEY,
-                                              static_cast<int>(AfterAddFileAction::ASK_USER)).toInt());
+    setSettingsGroup("CMakeSpecificSettings");
+    setAutoApply(false);
 
-    m_ninjaPath = Utils::FilePath::fromUserInput(
-        settings->value(rootKey + NINJA_PATH, QString()).toString());
+    registerAspect(&afterAddFileSetting);
+    afterAddFileSetting.setSettingsKey("ProjectPopupSetting");
+    afterAddFileSetting.setDefaultValue(AfterAddFileAction::AskUser);
+    afterAddFileSetting.addOption(tr("Ask about copying file paths"));
+    afterAddFileSetting.addOption(tr("Do not copy file paths"));
+    afterAddFileSetting.addOption(tr("Copy file paths"));
+    afterAddFileSetting.setToolTip(tr("Determines whether file paths are copied "
+        "to the clipboard for pasting to the CMakeLists.txt file when you "
+        "add new files to CMake projects."));
 
-    m_packageManagerAutoSetup = settings->value(rootKey + PACKAGE_MANAGER_AUTO_SETUP, true).toBool();
+    registerAspect(&ninjaPath);
+    ninjaPath.setSettingsKey("NinjaPath");
+
+    registerAspect(&packageManagerAutoSetup);
+    packageManagerAutoSetup.setSettingsKey("PackageManagerAutoSetup");
+    packageManagerAutoSetup.setDefaultValue(true);
+    packageManagerAutoSetup.setLabelText(tr("Package manager auto setup"));
+    packageManagerAutoSetup.setToolTip(tr("Add the CMAKE_PROJECT_INCLUDE_BEFORE variable "
+        "pointing to a CMake script that will install dependencies from the conanfile.txt, "
+        "conanfile.py, or vcpkg.json file from the project source directory."));
+
+    registerAspect(&askBeforeReConfigureInitialParams);
+    askBeforeReConfigureInitialParams.setSettingsKey("AskReConfigureInitialParams");
+    askBeforeReConfigureInitialParams.setDefaultValue(true);
+    askBeforeReConfigureInitialParams.setLabelText(tr("Ask before re-configuring with "
+        "initial parameters"));
 }
 
-void CMakeSpecificSettings::toSettings(QSettings *settings) const
+// CMakeSpecificSettingsPage
+
+CMakeSpecificSettingsPage::CMakeSpecificSettingsPage(CMakeSpecificSettings *settings)
 {
-    settings->beginGroup(QString(SETTINGS_KEY));
-    settings->setValue(QString(AFTER_ADD_FILE_ACTION_KEY), static_cast<int>(m_afterAddFileToProjectSetting));
-    settings->setValue(QString(PACKAGE_MANAGER_AUTO_SETUP), m_packageManagerAutoSetup);
-    settings->endGroup();
+    setId("CMakeSpecificSettings");
+    setDisplayName(CMakeSpecificSettings::tr("CMake"));
+    setCategory(ProjectExplorer::Constants::BUILD_AND_RUN_SETTINGS_CATEGORY);
+    setSettings(settings);
+
+    setLayouter([settings](QWidget *widget) {
+        CMakeSpecificSettings &s = *settings;
+        using namespace Layouting;
+        Column {
+            Group {
+                Title(CMakeSpecificSettings::tr("Adding Files")),
+                s.afterAddFileSetting
+            },
+            s.packageManagerAutoSetup,
+            s.askBeforeReConfigureInitialParams,
+            Stretch(),
+        }.attachTo(widget);
+    });
 }
-}
-}
+
+} // Internal
+} // CMakeProjectManager

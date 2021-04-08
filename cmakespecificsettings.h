@@ -25,39 +25,37 @@
 
 #pragma once
 
-#include <utils/fileutils.h>
+#include <coreplugin/dialogs/ioptionspage.h>
 
-#include <QSettings>
+#include <utils/aspects.h>
 
 namespace CMakeProjectManager {
 namespace Internal {
 
 enum AfterAddFileAction : int {
-    ASK_USER,
-    COPY_FILE_PATH,
-    NEVER_COPY_FILE_PATH
+    AskUser,
+    CopyFilePath,
+    NeverCopyFilePath
 };
 
-class CMakeSpecificSettings
+class CMakeSpecificSettings final : public Utils::AspectContainer
+{
+    Q_DECLARE_TR_FUNCTIONS(CMakeProjectManager::Internal::CMakeSpecificSettings)
+
+public:
+    CMakeSpecificSettings();
+
+    Utils::SelectionAspect afterAddFileSetting;
+    Utils::StringAspect ninjaPath;
+    Utils::BoolAspect packageManagerAutoSetup;
+    Utils::BoolAspect askBeforeReConfigureInitialParams;
+};
+
+class CMakeSpecificSettingsPage final : public Core::IOptionsPage
 {
 public:
-    CMakeSpecificSettings() = default;
-    void fromSettings(QSettings *settings);
-    void toSettings(QSettings *settings) const;
-
-    void setAfterAddFileSetting(AfterAddFileAction settings) { m_afterAddFileToProjectSetting = settings; }
-    AfterAddFileAction afterAddFileSetting() const { return m_afterAddFileToProjectSetting; }
-
-    Utils::FilePath ninjaPath() const { return m_ninjaPath; }
-
-    void setPackageManagerAutoSetup(bool checked) { m_packageManagerAutoSetup = checked; }
-    bool packageManagerAutoSetup() const { return m_packageManagerAutoSetup; }
-
-private:
-    AfterAddFileAction m_afterAddFileToProjectSetting;
-    Utils::FilePath m_ninjaPath;
-    bool m_packageManagerAutoSetup = true;
+    explicit CMakeSpecificSettingsPage(CMakeSpecificSettings *settings);
 };
 
-}
-}
+} // Internal
+} // CMakeProjectManager
