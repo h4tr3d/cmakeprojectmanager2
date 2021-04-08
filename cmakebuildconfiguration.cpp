@@ -212,7 +212,7 @@ CMakeBuildSettingsWidget::CMakeBuildSettingsWidget(CMakeBuildConfiguration *bc) 
         if (ProjectExplorerPlugin::saveModifiedFiles())
             cbc->runCMake();
     });
-    
+
     auto buildTypeAspect = bc->aspect<BuildTypeAspect>();
     connect(buildTypeAspect, &BaseAspect::changed, this, [this, buildTypeAspect]() {
         if (!m_buildConfiguration->isMultiConfig()) {
