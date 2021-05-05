@@ -48,17 +48,14 @@ CMakeInputsNode::CMakeInputsNode(const Utils::FilePath &cmakeLists) :
 {
     setPriority(Node::DefaultPriority - 10); // Bottom most!
     setDisplayName(QCoreApplication::translate("CMakeFilesProjectNode", "CMake Modules"));
-    static const QIcon modulesIcon = Core::FileIconProvider::directoryIcon(
-                ProjectExplorer::Constants::FILEOVERLAY_MODULES);
-    setIcon(modulesIcon);
+    setIcon(DirectoryIcon(ProjectExplorer::Constants::FILEOVERLAY_MODULES));
     setListInProject(false);
 }
 
 CMakeListsNode::CMakeListsNode(const Utils::FilePath &cmakeListPath) :
     ProjectExplorer::ProjectNode(cmakeListPath)
 {
-    static QIcon folderIcon = Core::FileIconProvider::directoryIcon(Constants::FILE_OVERLAY_CMAKE);
-    setIcon(folderIcon);
+    setIcon(DirectoryIcon(Constants::FILE_OVERLAY_CMAKE));
     setListInProject(false);
 }
 
@@ -76,9 +73,7 @@ CMakeProjectNode::CMakeProjectNode(const Utils::FilePath &directory) :
     ProjectExplorer::ProjectNode(directory)
 {
     setPriority(Node::DefaultProjectPriority + 1000);
-    static const QIcon productIcon = Core::FileIconProvider::directoryIcon(
-                ProjectExplorer::Constants::FILEOVERLAY_PRODUCT);
-    setIcon(productIcon);
+    setIcon(DirectoryIcon(ProjectExplorer::Constants::FILEOVERLAY_PRODUCT));
     setListInProject(false);
 }
 
@@ -94,7 +89,7 @@ CMakeTargetNode::CMakeTargetNode(const Utils::FilePath &directory, const QString
 {
     m_target = target;
     setPriority(Node::DefaultProjectPriority + 900);
-    setIcon(QIcon(":/projectexplorer/images/build.png")); // TODO: Use proper icon!
+    setIcon(":/projectexplorer/images/build.png"); // TODO: Use proper icon!
     setListInProject(false);
     setProductType(ProductType::Other);
 }

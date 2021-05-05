@@ -31,22 +31,26 @@
 #include "cmaketool.h"
 #include "cmaketoolmanager.h"
 
+#include <app/app_version.h>
+
 #include <coreplugin/icore.h>
+
 #include <ios/iosconstants.h>
+
 #include <projectexplorer/kitinformation.h>
 #include <projectexplorer/projectexplorer.h>
 #include <projectexplorer/projectexplorerconstants.h>
 #include <projectexplorer/projectexplorersettings.h>
 #include <projectexplorer/task.h>
 #include <projectexplorer/toolchain.h>
+
 #include <qtsupport/baseqtversion.h>
 #include <qtsupport/qtkitinformation.h>
-
-#include <app/app_version.h>
 
 #include <utils/algorithm.h>
 #include <utils/elidinglabel.h>
 #include <utils/environment.h>
+#include <utils/layoutbuilder.h>
 #include <utils/macroexpander.h>
 #include <utils/qtcassert.h>
 #include <utils/variablechooser.h>
@@ -87,8 +91,8 @@ class CMakeKitAspectWidget final : public KitAspectWidget
     Q_DECLARE_TR_FUNCTIONS(CMakeProjectManager::Internal::CMakeKitAspect)
 public:
     CMakeKitAspectWidget(Kit *kit, const KitAspect *ki) : KitAspectWidget(kit, ki),
-        m_comboBox(new QComboBox),
-        m_manageButton(new QPushButton(KitAspectWidget::msgManage()))
+        m_comboBox(createSubWidget<QComboBox>()),
+        m_manageButton(createManageButton(Constants::CMAKE_SETTINGS_PAGE_ID))
     {
         m_comboBox->setSizePolicy(QSizePolicy::Ignored, m_comboBox->sizePolicy().verticalPolicy());
         m_comboBox->setEnabled(false);
@@ -101,10 +105,6 @@ public:
         refresh();
         connect(m_comboBox, QOverload<int>::of(&QComboBox::currentIndexChanged),
                 this, &CMakeKitAspectWidget::currentCMakeToolChanged);
-
-        m_manageButton->setContentsMargins(0, 0, 0, 0);
-        connect(m_manageButton, &QPushButton::clicked,
-                this, &CMakeKitAspectWidget::manageCMakeTools);
 
         CMakeToolManager *cmakeMgr = CMakeToolManager::instance();
         connect(cmakeMgr, &CMakeToolManager::cmakeAdded,
@@ -124,8 +124,13 @@ public:
 private:
     // KitAspectWidget interface
     void makeReadOnly() override { m_comboBox->setEnabled(false); }
-    QWidget *mainWidget() const override { return m_comboBox; }
-    QWidget *buttonWidget() const override { return m_manageButton; }
+
+    void addToLayout(Utils::LayoutBuilder &builder) override
+    {
+        addMutableAction(m_comboBox);
+        builder.addItem(m_comboBox);
+        builder.addItem(m_manageButton);
+    }
 
     void refresh() override
     {
@@ -203,14 +208,9 @@ private:
         CMakeKitAspect::setCMakeTool(m_kit, id);
     }
 
-    void manageCMakeTools()
-    {
-        Core::ICore::showOptionsDialog(Constants::CMAKE_SETTINGS_PAGE_ID, buttonWidget());
-    }
-
     bool m_removingItem = false;
     QComboBox *m_comboBox;
-    QPushButton *m_manageButton;
+    QWidget *m_manageButton;
 };
 
 CMakeKitAspect::CMakeKitAspect()
@@ -334,8 +334,8 @@ class CMakeGeneratorKitAspectWidget final : public KitAspectWidget
 public:
     CMakeGeneratorKitAspectWidget(Kit *kit, const ::KitAspect *ki)
         : KitAspectWidget(kit, ki),
-          m_label(new Utils::ElidingLabel),
-          m_changeButton(new QPushButton)
+          m_label(createSubWidget<Utils::ElidingLabel>()),
+          m_changeButton(createSubWidget<QPushButton>())
     {
         m_label->setToolTip(ki->description());
         m_changeButton->setText(tr("Change..."));
@@ -353,8 +353,13 @@ public:
 private:
     // KitAspectWidget interface
     void makeReadOnly() override { m_changeButton->setEnabled(false); }
-    QWidget *mainWidget() const override { return m_label; }
-    QWidget *buttonWidget() const override { return m_changeButton; }
+
+    void addToLayout(Utils::LayoutBuilder &builder) override
+    {
+        addMutableAction(m_label);
+        builder.addItem(m_label);
+        builder.addItem(m_changeButton);
+    }
 
     void refresh() override
     {
@@ -830,7 +835,8 @@ void CMakeGeneratorKitAspect::addToEnvironment(const Kit *k, Utils::Environment 
     if (info.generator == "NMake Makefiles JOM") {
         if (env.searchInPath("jom.exe").exists())
             return;
-        env.appendOrSetPath(QCoreApplication::applicationDirPath());
+        env.appendOrSetPath(Core::ICore::libexecPath().toUserOutput());
+        env.appendOrSetPath(Core::ICore::libexecPath("jom").toUserOutput());
     }
 }
 
@@ -851,8 +857,8 @@ class CMakeConfigurationKitAspectWidget final : public KitAspectWidget
 public:
     CMakeConfigurationKitAspectWidget(Kit *kit, const KitAspect *ki)
         : KitAspectWidget(kit, ki),
-          m_summaryLabel(new Utils::ElidingLabel),
-          m_manageButton(new QPushButton)
+          m_summaryLabel(createSubWidget<Utils::ElidingLabel>()),
+          m_manageButton(createSubWidget<QPushButton>())
     {
         refresh();
         m_manageButton->setText(tr("Change..."));
@@ -862,8 +868,12 @@ public:
 
 private:
     // KitAspectWidget interface
-    QWidget *mainWidget() const override { return m_summaryLabel; }
-    QWidget *buttonWidget() const override { return m_manageButton; }
+    void addToLayout(Utils::LayoutBuilder &builder) override
+    {
+        addMutableAction(m_summaryLabel);
+        builder.addItem(m_summaryLabel);
+        builder.addItem(m_manageButton);
+    }
 
     void makeReadOnly() override
     {
