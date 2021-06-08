@@ -34,9 +34,8 @@
 #include <projectexplorer/buildsystem.h>
 
 #include <utils/fileutils.h>
+#include <utils/futuresynchronizer.h>
 #include <utils/temporarydirectory.h>
-
-#include <QFutureSynchronizer>
 
 namespace ProjectExplorer { class ExtraCompiler; }
 
@@ -107,6 +106,8 @@ public:
     static CMakeConfig parseCMakeCacheDotTxt(const Utils::FilePath &cacheFile,
                                              QString *errorMessage);
 
+    static bool filteredOutTarget(const CMakeBuildTarget &target);
+
     bool isMultiConfig() const;
     bool usesAllCapsTargets() const;
 
@@ -170,8 +171,6 @@ private:
 
     void runCTest();
 
-    void writeConfigurationIntoBuildDirectory();
-
     ProjectExplorer::TreeScanner m_treeScanner;
     QHash<QString, bool> m_mimeBinaryCache;
     QList<const ProjectExplorer::FileNode *> m_allFiles;
@@ -201,7 +200,7 @@ private:
     // CTest integration
     QString m_ctestPath;
     QList<ProjectExplorer::TestCaseInfo> m_testNames;
-    QFutureSynchronizer<QByteArray> m_futureSynchronizer;
+    Utils::FutureSynchronizer m_futureSynchronizer;
 };
 
 } // namespace Internal

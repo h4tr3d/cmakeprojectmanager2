@@ -71,7 +71,7 @@
 #include <QJsonObject>
 #include <QLoggingCategory>
 #include <QTimer>
-#include <QRegularExpression>
+
 
 using namespace ProjectExplorer;
 using namespace Utils;
@@ -261,11 +261,11 @@ void CMakeBuildSystem::triggerParsing()
     if (m_waitingForScan) {
         qCDebug(cmakeBuildSystemLog) << "Starting TreeScanner";
         QTC_CHECK(m_treeScanner.isFinished());
-        m_treeScanner.asyncScanForFiles(projectDirectory());
-        Core::ProgressManager::addTask(m_treeScanner.future(),
-                                       tr("Scan \"%1\" project tree")
-                                           .arg(project()->displayName()),
-                                       "CMake.Scan.Tree");
+        if (m_treeScanner.asyncScanForFiles(projectDirectory()))
+            Core::ProgressManager::addTask(m_treeScanner.future(),
+                                           tr("Scan \"%1\" project tree")
+                                               .arg(project()->displayName()),
+                                           "CMake.Scan.Tree");
     }
 
     QTC_ASSERT(m_parameters.isValid(), return );
@@ -287,6 +287,10 @@ void CMakeBuildSystem::triggerParsing()
         && mustApplyExtraArguments(m_parameters)) {
         reparseParameters |= REPARSE_FORCE_CMAKE_RUN | REPARSE_FORCE_EXTRA_CONFIGURATION;
     }
+
+    // The code model will be updated after the CMake run. There is no need to have an
+    // active code model updater when the next one will be triggered.
+    m_cppCodeModelUpdater->cancel();
 
     qCDebug(cmakeBuildSystemLog) << "Asking reader to parse";
     m_reader.parse(reparseParameters & REPARSE_FORCE_CMAKE_RUN,
@@ -421,26 +425,6 @@ QString CMakeBuildSystem::reparseParametersString(int reparseFlags)
     return result.trimmed();
 }
 
-void CMakeBuildSystem::writeConfigurationIntoBuildDirectory()
-{
-    const MacroExpander *expander = cmakeBuildConfiguration()->macroExpander();
-    const FilePath buildDir = workDirectory(m_parameters);
-    QTC_ASSERT(buildDir.exists(), return );
-
-    const FilePath settingsFile = buildDir.pathAppended("qtcsettings.cmake");
-
-    QByteArray contents;
-    contents.append("# This file is managed by Qt Creator, do not edit!\n\n");
-    contents.append(
-        transform(cmakeBuildConfiguration()->configurationChanges(),
-                  [expander](const CMakeConfigItem &item) { return item.toCMakeSetLine(expander); })
-            .join('\n')
-            .toUtf8());
-
-    QFile file(settingsFile.toString());
-    QTC_ASSERT(file.open(QFile::WriteOnly | QFile::Truncate), return );
-    file.write(contents);
-}
 
 void CMakeBuildSystem::setParametersAndRequestParse(const BuildDirParameters &parameters,
                                                     const int reparseParameters)
@@ -475,7 +459,6 @@ void CMakeBuildSystem::setParametersAndRequestParse(const BuildDirParameters &pa
 
     m_reader.setParameters(m_parameters);
 
-    writeConfigurationIntoBuildDirectory();
 
     if (reparseParameters & REPARSE_URGENT) {
         qCDebug(cmakeBuildSystemLog) << "calling requestReparse";
@@ -1102,7 +1085,8 @@ FilePath CMakeBuildSystem::workDirectory(const BuildDirParameters &parameters)
 
 void CMakeBuildSystem::stopParsingAndClearState()
 {
-    qCDebug(cmakeBuildSystemLog) << "stopping parsing run!";
+    qCDebug(cmakeBuildSystemLog) << cmakeBuildConfiguration()->displayName()
+                                 << "stopping parsing run!";
     m_reader.stop();
     m_reader.resetData();
 }
@@ -1175,7 +1159,9 @@ void CMakeBuildSystem::runCTest()
                 const QJsonArray cmakelists = btGraph.value("files").toArray();
                 const QJsonArray nodes = btGraph.value("nodes").toArray();
                 const QJsonArray tests = jsonObj.value("tests").toArray();
+                int counter = 0;
                 for (const QJsonValue &testVal : tests) {
+                    ++counter;
                     const QJsonObject test = testVal.toObject();
                     QTC_ASSERT(!test.isEmpty(), continue);
                     const int bt = test.value("backtrace").toInt(-1);
@@ -1184,7 +1170,7 @@ void CMakeBuildSystem::runCTest()
                     int file = btRef.value("file").toInt(-1);
                     int line = btRef.value("line").toInt(-1);
                     QTC_ASSERT(file != -1 && line != -1, continue);
-                    m_testNames.append({ test.value("name").toString(),
+                    m_testNames.append({ test.value("name").toString(), counter,
                                          FilePath::fromString(cmakelists.at(file).toString()), line });
                 }
             }
@@ -1214,7 +1200,7 @@ const QList<BuildTargetInfo> CMakeBuildSystem::appTargets() const
     const bool forAndroid = DeviceTypeKitAspect::deviceTypeId(kit())
                             == Android::Constants::ANDROID_DEVICE_TYPE;
     for (const CMakeBuildTarget &ct : m_buildTargets) {
-        if (ct.targetType == UtilityType)
+        if (CMakeBuildSystem::filteredOutTarget(ct))
             continue;
 
         if (ct.targetType == ExecutableType || (forAndroid && ct.targetType == DynamicLibraryType)) {
@@ -1245,11 +1231,11 @@ const QList<BuildTargetInfo> CMakeBuildSystem::appTargets() const
 
 QStringList CMakeBuildSystem::buildTargetTitles() const
 {
-    auto nonUtilityTargets = filtered(m_buildTargets, [this](const CMakeBuildTarget &target){
-        return target.targetType != UtilityType ||
-               CMakeBuildStep::specialTargets(usesAllCapsTargets()).contains(target.title);
+    auto nonAutogenTargets = filtered(m_buildTargets, [this](const CMakeBuildTarget &target){
+        return !CMakeBuildSystem::filteredOutTarget(target);
+
     });
-    return transform(nonUtilityTargets, &CMakeBuildTarget::title);
+    return transform(nonAutogenTargets, &CMakeBuildTarget::title);
 }
 
 const QList<CMakeBuildTarget> &CMakeBuildSystem::buildTargets() const
@@ -1271,6 +1257,12 @@ CMakeConfig CMakeBuildSystem::parseCMakeCacheDotTxt(const Utils::FilePath &cache
     return result;
 }
 
+bool CMakeBuildSystem::filteredOutTarget(const CMakeBuildTarget &target)
+{
+    return target.title.endsWith("_autogen") ||
+           target.title.endsWith("_autogen_timestamp_deps");
+}
+
 bool CMakeBuildSystem::isMultiConfig() const
 {
     return m_reader.isMultiConfig();
@@ -1290,14 +1282,17 @@ CommandLine CMakeBuildSystem::commandLineForTests(const QList<QString> &tests,
                                                   const QStringList &options) const
 {
     QStringList args = options;
+    const QSet<QString> testsSet = Utils::toSet(tests);
     auto current = Utils::transform<QSet<QString>>(m_testNames, &TestCaseInfo::name);
-    if (tests.isEmpty() || current == Utils::toSet(tests))
+    if (tests.isEmpty() || current == testsSet)
         return {m_ctestPath, args};
 
-    const QString regex = Utils::transform(tests, [](const QString &current) {
-        return QRegularExpression::escape(current);
-    }).join('|');
-    args << "-R" << QString('(' + regex + ')');
+    QString testNumbers("0,0,0"); // start, end, stride
+    for (const TestCaseInfo &info : m_testNames) {
+        if (testsSet.contains(info.name))
+            testNumbers += QString(",%1").arg(info.number);
+    }
+    args << "-I" << testNumbers;
     return {m_ctestPath, args};
 }
 

@@ -192,7 +192,7 @@ CMakeBuildStep::CMakeBuildStep(BuildStepList *bsl, Utils::Id id) :
 
     setEnvironmentModifier([](Environment &env) {
         const QString ninjaProgressString = "[%f/%t "; // ninja: [33/100
-        Environment::setupEnglishOutput(&env);
+        env.setupEnglishOutput();
         if (!env.expandedValueForKey("NINJA_STATUS").startsWith(ninjaProgressString))
             env.set("NINJA_STATUS", ninjaProgressString + "%o/sec] ");
     });
@@ -378,10 +378,10 @@ CommandLine CMakeBuildStep::cmakeCommand() const
 {
     CMakeTool *tool = CMakeKitAspect::cmakeTool(kit());
 
-    Utils::CommandLine cmd(tool ? tool->cmakeExecutable() : Utils::FilePath(), {});
+    CommandLine cmd(tool ? tool->cmakeExecutable() : FilePath(), {});
     QString buildDirectory = ".";
     if (buildConfiguration())
-        buildDirectory = buildConfiguration()->buildDirectory().toString();
+        buildDirectory = buildConfiguration()->buildDirectory().path();
     cmd.addArgs({"--build", buildDirectory});
 
     cmd.addArg("--target");
@@ -537,7 +537,9 @@ void CMakeBuildStep::recreateBuildTargetsModel()
     // Remove the targets that do not exist in the build system
     // This can result when selected targets get renamed
     if (!targetList.empty()) {
-        Utils::erase(m_buildTargets, [targetList](const QString &bt) { return !targetList.contains(bt); });
+        Utils::erase(m_buildTargets, [targetList](const QString &bt) {
+            return !bt.isEmpty() /* "current executable" */ && !targetList.contains(bt);
+        });
         if (m_buildTargets.empty())
             m_buildTargets.push_back(m_allTarget);
     }

@@ -27,13 +27,15 @@
 
 #include "cmakeparser.h"
 
-#include <coreplugin/messagemanager.h>
 #include <coreplugin/progressmanager/progressmanager.h>
 #include <coreplugin/reaper.h>
+#include <projectexplorer/buildsystem.h>
 #include <projectexplorer/projectexplorerconstants.h>
 #include <projectexplorer/taskhub.h>
 
 #include <utils/stringutils.h>
+
+using namespace Utils;
 
 namespace CMakeProjectManager {
 namespace Internal {
@@ -101,21 +103,21 @@ void CMakeProcess::run(const BuildDirParameters &parameters, const QStringList &
 
     m_cancelTimer.start();
 
-    process->setWorkingDirectory(workDirectory.toString());
+    process->setWorkingDirectory(workDirectory);
     process->setEnvironment(parameters.environment);
 
-    connect(process.get(), &QProcess::readyReadStandardOutput,
+    connect(process.get(), &QtcProcess::readyReadStandardOutput,
             this, &CMakeProcess::processStandardOutput);
-    connect(process.get(), &QProcess::readyReadStandardError,
+    connect(process.get(), &QtcProcess::readyReadStandardError,
             this, &CMakeProcess::processStandardError);
-    connect(process.get(), QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
+    connect(process.get(), &QtcProcess::finished,
             this, &CMakeProcess::handleProcessFinished);
 
     Utils::CommandLine commandLine(cmake->cmakeExecutable(), QStringList({"-S", srcDir, QString("-B"), workDirectory.toString()}) + arguments);
 
     TaskHub::clearTasks(ProjectExplorer::Constants::TASK_CATEGORY_BUILDSYSTEM);
 
-    Core::MessageManager::writeFlashing(
+    BuildSystem::startNewBuildSystemOutput(
         tr("Running %1 in %2.").arg(commandLine.toUserOutput()).arg(workDirectory.toUserOutput()));
 
     auto future = std::make_unique<QFutureInterface<void>>();
@@ -166,7 +168,7 @@ void CMakeProcess::processStandardOutput()
 
     static QString rest;
     rest = lineSplit(rest, m_process->readAllStandardOutput(), [](const QString &s) {
-        Core::MessageManager::writeSilently(s);
+        BuildSystem::appendBuildSystemOutput(s);
     });
 }
 
@@ -177,7 +179,7 @@ void CMakeProcess::processStandardError()
     static QString rest;
     rest = lineSplit(rest, m_process->readAllStandardError(), [this](const QString &s) {
         m_parser.appendMessage(s + '\n', Utils::StdErrFormat);
-        Core::MessageManager::writeSilently(s);
+        BuildSystem::appendBuildSystemOutput(s);
     });
 }
 
@@ -203,7 +205,7 @@ void CMakeProcess::handleProcessFinished(int code, QProcess::ExitStatus status)
     m_lastExitCode = code;
 
     if (!msg.isEmpty()) {
-        Core::MessageManager::writeSilently(msg);
+        BuildSystem::appendBuildSystemOutput(msg);
         TaskHub::addTask(BuildSystemTask(Task::Error, msg));
         m_future->reportCanceled();
     } else {
@@ -215,7 +217,7 @@ void CMakeProcess::handleProcessFinished(int code, QProcess::ExitStatus status)
     emit finished(code, status);
 
     const QString elapsedTime = Utils::formatElapsedTime(m_elapsed.elapsed());
-    Core::MessageManager::writeSilently(elapsedTime);
+    BuildSystem::appendBuildSystemOutput(elapsedTime);
 }
 
 void CMakeProcess::checkForCancelled()

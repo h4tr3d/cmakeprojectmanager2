@@ -32,11 +32,8 @@
 #include <utils/fileutils.h>
 #include <utils/id.h>
 #include <utils/optional.h>
-#include <utils/synchronousprocess.h>
 
-QT_FORWARD_DECLARE_CLASS(QProcess)
-
-namespace ProjectExplorer { class Kit; }
+namespace Utils { class SynchronousProcess; }
 
 namespace CMakeProjectManager {
 
@@ -99,7 +96,6 @@ public:
     QList<Generator> supportedGenerators() const;
     TextEditor::Keywords keywords();
     bool hasFileApi() const;
-    QVector<std::pair<QString, int>> supportedFileApiObjects() const;
     Version version() const;
 
     bool isAutoDetected() const;
@@ -116,7 +112,7 @@ public:
 private:
     void readInformation() const;
 
-    Utils::SynchronousProcessResponse run(const QStringList &args, int timeoutS = 1) const;
+    void runCMake(Utils::SynchronousProcess &proc, const QStringList &args, int timeoutS = 1) const;
     void parseFunctionDetailsOutput(const QString &output);
     QStringList parseVariableOutput(const QString &output);
 
