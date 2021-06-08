@@ -51,11 +51,14 @@ void SimpleFileApiReader::endState(const QFileInfo &replyFi)
     m_lastReplyTimestamp = replyFi.lastModified();
 
     m_future = runAsync(ProjectExplorerPlugin::sharedThreadPool(),
-                        [replyFi, sourceDirectory, buildDirectory, topCmakeFile, cmakeBuildType]() {
-                            auto result = std::make_unique<FileApiQtcData>();
-                            FileApiData data = FileApiParser::parseData(replyFi, cmakeBuildType, result->errorMessage);
+                        [replyFi, sourceDirectory, buildDirectory, topCmakeFile, cmakeBuildType](
+                            QFutureInterface<std::shared_ptr<FileApiQtcData>> &fi) {
+                            auto result = std::make_shared<FileApiQtcData>();
+                            FileApiData data = FileApiParser::parseData(fi,
+                                                                        replyFi,
+                                                                        cmakeBuildType,
+                                                                        result->errorMessage);
                             if (!result->errorMessage.isEmpty()) {
-                                qWarning() << result->errorMessage;
                                 *result = generateFallbackData(topCmakeFile,
                                                                sourceDirectory,
                                                                buildDirectory,
@@ -67,29 +70,30 @@ void SimpleFileApiReader::endState(const QFileInfo &replyFi)
                                 qWarning() << result->errorMessage;
                             }
 
-                            return result.release();
+                            fi.reportResult(result);
                         });
-    onFinished(m_future.value(), this, [this](const QFuture<FileApiQtcData *> &f) {
-        std::unique_ptr<FileApiQtcData> value(f.result()); // Adopt the pointer again:-)
+    onResultReady(m_future.value(),
+                  this,
+                  [this, topCmakeFile, sourceDirectory, buildDirectory](
+                      const std::shared_ptr<FileApiQtcData> &value) {
+                      m_isParsing = false;
+                      m_cache = std::move(value->cache);
+                      m_cmakeFiles = std::move(value->cmakeFiles);
+                      m_buildTargets = std::move(value->buildTargets);
+                      m_projectParts = std::move(value->projectParts);
+                      m_rootProjectNode = std::move(value->rootProjectNode);
+                      m_knownHeaders = std::move(value->knownHeaders);
+                      m_ctestPath = std::move(value->ctestPath);
+                      m_isMultiConfig = std::move(value->isMultiConfig);
+                      m_usesAllCapsTargets = std::move(value->usesAllCapsTargets);
 
-        m_future = {};
-        m_isParsing = false;
-        m_cache = std::move(value->cache);
-        m_cmakeFiles = std::move(value->cmakeFiles);
-        m_buildTargets = std::move(value->buildTargets);
-        m_projectParts = std::move(value->projectParts);
-        m_rootProjectNode = std::move(value->rootProjectNode);
-        m_knownHeaders = std::move(value->knownHeaders);
-        m_ctestPath = std::move(value->ctestPath);
-        m_isMultiConfig = std::move(value->isMultiConfig);
-        m_usesAllCapsTargets = std::move(value->usesAllCapsTargets);
-
-        if (value->errorMessage.isEmpty()) {
-            emit this->dataAvailable();
-        } else {
-            emit this->errorOccurred(value->errorMessage);
-        }
-    });
+                      if (value->errorMessage.isEmpty()) {
+                          emit this->dataAvailable();
+                      } else {
+                          emit this->errorOccurred(value->errorMessage);
+                      }
+                      m_future = {};
+                  });
 
 }
 
