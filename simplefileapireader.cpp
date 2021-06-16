@@ -37,25 +37,26 @@ Q_DECLARE_LOGGING_CATEGORY(cmakeFileApiMode);
 // SimpleFileApiReader:
 // --------------------------------------------------------------------
 
-void SimpleFileApiReader::endState(const QFileInfo &replyFi)
+void SimpleFileApiReader::endState(const FilePath &replyFilePath)
 {
     qCDebug(cmakeFileApiMode) << "SimpleFileApiReader: END STATE.";
     QTC_ASSERT(m_isParsing, return );
     QTC_ASSERT(!m_future.has_value(), return );
 
     const FilePath sourceDirectory = m_parameters.sourceDirectory;
-    const FilePath buildDirectory = m_parameters.workDirectory;
+    const FilePath buildDirectory = m_parameters.buildDirectory;
     const FilePath topCmakeFile = m_cmakeFiles.size() == 1 ? *m_cmakeFiles.begin() : FilePath{};
     const QString cmakeBuildType = m_parameters.cmakeBuildType == "Build" ? "" : m_parameters.cmakeBuildType;
 
-    m_lastReplyTimestamp = replyFi.lastModified();
+    QTC_CHECK(!replyFilePath.needsDevice());
+    m_lastReplyTimestamp = replyFilePath.lastModified();
 
     m_future = runAsync(ProjectExplorerPlugin::sharedThreadPool(),
-                        [replyFi, sourceDirectory, buildDirectory, topCmakeFile, cmakeBuildType](
+                        [replyFilePath, sourceDirectory, buildDirectory, topCmakeFile, cmakeBuildType](
                             QFutureInterface<std::shared_ptr<FileApiQtcData>> &fi) {
                             auto result = std::make_shared<FileApiQtcData>();
                             FileApiData data = FileApiParser::parseData(fi,
-                                                                        replyFi,
+                                                                        replyFilePath,
                                                                         cmakeBuildType,
                                                                         result->errorMessage);
                             if (!result->errorMessage.isEmpty()) {
@@ -94,7 +95,6 @@ void SimpleFileApiReader::endState(const QFileInfo &replyFi)
                       }
                       m_future = {};
                   });
-
 }
 
 std::unique_ptr<CMakeProjectNode> SimpleFileApiReader::generateProjectTree(

@@ -20,7 +20,7 @@ public:
     ProjectExplorer::RawProjectParts createRawProjectParts(QString &errorMessage) final;
 
 protected:
-    void endState(const QFileInfo &replyFi) final;
+    void endState(const Utils::FilePath &replyFilePath) final;
 
 private:
     QList<std::tuple<Utils::FilePath, ProjectExplorer::FileType, bool>> m_filesCache;
