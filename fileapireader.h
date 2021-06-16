@@ -88,9 +88,9 @@ signals:
 
 protected:
     void startState();
-    virtual void endState(const QFileInfo &replyFi);
+    virtual void endState(const Utils::FilePath &replyFilePath);
     void startCMakeState(const QStringList &configurationArguments);
-    void cmakeFinishedState(int code, QProcess::ExitStatus status);
+    void cmakeFinishedState();
 
     void replyDirectoryHasChanged(const QString &directory) const;
     void makeBackupConfiguration(bool store);

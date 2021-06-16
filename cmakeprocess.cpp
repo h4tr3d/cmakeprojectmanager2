@@ -86,10 +86,10 @@ void CMakeProcess::run(const BuildDirParameters &parameters, const QStringList &
     CMakeTool *cmake = parameters.cmakeTool();
     QTC_ASSERT(parameters.isValid() && cmake, return);
 
-    const Utils::FilePath workDirectory = parameters.workDirectory;
-    QTC_ASSERT(workDirectory.exists(), return);
+    const Utils::FilePath buildDirectory = parameters.buildDirectory;
+    QTC_ASSERT(buildDirectory.exists(), return);
 
-    const QString srcDir = parameters.sourceDirectory.toString();
+    const QString srcDir = parameters.sourceDirectory.path();
 
     const auto parser = new CMakeParser;
     parser->setSourceDirectory(srcDir);
@@ -103,7 +103,7 @@ void CMakeProcess::run(const BuildDirParameters &parameters, const QStringList &
 
     m_cancelTimer.start();
 
-    process->setWorkingDirectory(workDirectory);
+    process->setWorkingDirectory(buildDirectory);
     process->setEnvironment(parameters.environment);
 
     connect(process.get(), &QtcProcess::readyReadStandardOutput,
@@ -113,12 +113,12 @@ void CMakeProcess::run(const BuildDirParameters &parameters, const QStringList &
     connect(process.get(), &QtcProcess::finished,
             this, &CMakeProcess::handleProcessFinished);
 
-    Utils::CommandLine commandLine(cmake->cmakeExecutable(), QStringList({"-S", srcDir, QString("-B"), workDirectory.toString()}) + arguments);
+    CommandLine commandLine(cmake->cmakeExecutable(), QStringList({"-S", srcDir, "-B", buildDirectory.path()}) + arguments);
 
     TaskHub::clearTasks(ProjectExplorer::Constants::TASK_CATEGORY_BUILDSYSTEM);
 
     BuildSystem::startNewBuildSystemOutput(
-        tr("Running %1 in %2.").arg(commandLine.toUserOutput()).arg(workDirectory.toUserOutput()));
+        tr("Running %1 in %2.").arg(commandLine.toUserOutput()).arg(buildDirectory.toUserOutput()));
 
     auto future = std::make_unique<QFutureInterface<void>>();
     future->setProgressRange(0, 1);
@@ -183,7 +183,7 @@ void CMakeProcess::processStandardError()
     });
 }
 
-void CMakeProcess::handleProcessFinished(int code, QProcess::ExitStatus status)
+void CMakeProcess::handleProcessFinished()
 {
     QTC_ASSERT(m_process && m_future, return);
 
@@ -192,8 +192,9 @@ void CMakeProcess::handleProcessFinished(int code, QProcess::ExitStatus status)
     processStandardOutput();
     processStandardError();
 
+    const int code = m_process->exitCode();
     QString msg;
-    if (status != QProcess::NormalExit) {
+    if (m_process->exitStatus() != QProcess::NormalExit) {
         if (m_processWasCanceled) {
             msg = tr("CMake process was canceled by the user.");
         } else {
@@ -214,7 +215,7 @@ void CMakeProcess::handleProcessFinished(int code, QProcess::ExitStatus status)
 
     m_future->reportFinished();
 
-    emit finished(code, status);
+    emit finished();
 
     const QString elapsedTime = Utils::formatElapsedTime(m_elapsed.elapsed());
     BuildSystem::appendBuildSystemOutput(elapsedTime);

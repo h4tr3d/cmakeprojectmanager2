@@ -372,7 +372,7 @@ CMakeBuildSettingsWidget::CMakeBuildSettingsWidget(CMakeBuildConfiguration *bc) 
         m_configView->expandAll();
     }
 
-    connect(bc->target(), &Target::parsingFinished, this, [this, stretcher] {
+    connect(bc->buildSystem(), &BuildSystem::parsingFinished, this, [this, stretcher] {
         m_configModel->setConfiguration(m_buildConfiguration->configurationFromCMake());
         m_configView->expandAll();
         m_configView->setEnabled(true);
@@ -844,9 +844,7 @@ CMakeBuildConfiguration::CMakeBuildConfiguration(Target *target, Id id)
 {
     m_buildSystem = new CMakeBuildSystem(this);
 
-    buildDirectoryAspect()->setFileDialogOnly(true);
     const auto buildDirAspect = aspect<BuildDirectoryAspect>();
-    buildDirAspect->setFileDialogOnly(true);
     buildDirAspect->setValueAcceptor(
         [](const QString &oldDir, const QString &newDir) -> Utils::optional<QString> {
             if (oldDir.isEmpty())
