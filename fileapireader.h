@@ -30,6 +30,7 @@
 #include "cmakeprojectnodes.h"
 
 #include <projectexplorer/rawprojectpart.h>
+#include <projectexplorer/treescanner.h>
 
 #include <utils/filesystemwatcher.h>
 #include <utils/optional.h>
@@ -71,7 +72,7 @@ public:
     QString ctestPath() const;
     virtual
     std::unique_ptr<CMakeProjectNode> generateProjectTree(
-        const QList<const ProjectExplorer::FileNode *> &allFiles,
+        const ProjectExplorer::TreeScanner::Result &allFiles,
         QString &errorMessage,
         bool includeHeaderNodes);
     virtual

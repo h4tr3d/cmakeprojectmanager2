@@ -50,11 +50,6 @@ namespace CMakeProjectManager {
 
 using namespace Internal;
 
-// QtCreator CMake Generator wishlist:
-// Which make targets we need to build to get all executables
-// What is the actual compiler executable
-// DEFINES
-
 /*!
   \class CMakeProject
 */
@@ -65,7 +60,6 @@ CMakeProject::CMakeProject(const FilePath &fileName)
     setProjectLanguages(Core::Context(ProjectExplorer::Constants::CXX_LANGUAGE_ID));
     setDisplayName(projectDirectory().fileName());
     setCanBuildProducts();
-    setKnowsAllBuildExecutables(false);
     setHasMakeInstallEquivalent(true);
 }
 

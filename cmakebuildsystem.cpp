@@ -215,7 +215,7 @@ CMakeBuildSystem::~CMakeBuildSystem()
 
     delete m_cppCodeModelUpdater;
     qDeleteAll(m_extraCompilers);
-    qDeleteAll(m_allFiles);
+    qDeleteAll(m_allFiles.allFiles);
 }
 
 void CMakeBuildSystem::triggerParsing()
@@ -246,7 +246,7 @@ void CMakeBuildSystem::triggerParsing()
 
     qCDebug(cmakeBuildSystemLog) << "ParseGuard acquired.";
 
-    if (m_allFiles.isEmpty()) {
+    if (m_allFiles.allFiles.isEmpty()) {
         qCDebug(cmakeBuildSystemLog)
             << "No treescanner information available, forcing treescanner run.";
         updateReparseParameters(REPARSE_SCAN);
@@ -647,11 +647,10 @@ void CMakeBuildSystem::handleTreeScanningFinished()
 {
     QTC_CHECK(m_waitingForScan);
 
-    qDeleteAll(m_allFiles);
-    m_allFiles = Utils::transform(m_treeScanner.release(), [](FileNode *fn) -> const FileNode* { 
+    qDeleteAll(m_allFiles.allFiles);
+    m_allFiles = m_treeScanner.release();
+    for (auto fn : m_allFiles.allFiles)
         fn->setEnabled(false);
-        return fn; 
-    });
 
     m_waitingForScan = false;
 
@@ -697,7 +696,7 @@ void CMakeBuildSystem::clearCMakeCache()
 
     stopParsingAndClearState();
 
-    const QList<FilePath> pathsToDelete = {
+    const FilePath pathsToDelete[] = {
         m_parameters.buildDirectory / "CMakeCache.txt",
         m_parameters.buildDirectory / "CMakeCache.txt.prev",
         m_parameters.buildDirectory / "CMakeFiles",
@@ -705,14 +704,13 @@ void CMakeBuildSystem::clearCMakeCache()
         m_parameters.buildDirectory / ".cmake/api/v1/reply.prev"
     };
 
-    for (const FilePath &path : pathsToDelete) {
-        if (path.exists())
-            FileUtils::removeRecursively(path);
-    }
+    for (const FilePath &path : pathsToDelete)
+        path.removeRecursively();
+
 }
 
 std::unique_ptr<CMakeProjectNode> CMakeBuildSystem::generateProjectTree(
-    const QList<const FileNode *> &allFiles, bool includeHeaderNodes)
+    const TreeScanner::Result &allFiles, bool includeHeaderNodes)
 {
     QString errorMessage;
     auto root = m_reader.generateProjectTree(allFiles, errorMessage, includeHeaderNodes);
@@ -793,18 +791,24 @@ void CMakeBuildSystem::updateProjectData()
         if (newRoot) {
             setRootProjectNode(std::move(newRoot));
 
-            const FilePath buildDir = cmakeBuildConfiguration()->buildDirectory();
-            if (p->rootProjectNode()) {
+            if (QTC_GUARD(p->rootProjectNode())) {
+
                 const QString nodeName = p->rootProjectNode()->displayName();
                 p->setDisplayName(nodeName);
-            }
 
-            for (const CMakeBuildTarget &bt : qAsConst(m_buildTargets)) {
-                const QString buildKey = bt.title;
-                if (ProjectNode *node = p->findNodeForBuildKey(buildKey)) {
-                    if (auto targetNode = dynamic_cast<CMakeTargetNode *>(node))
-                        targetNode->setConfig(patchedConfig);
-                }
+
+                // set config on target nodes
+                const QSet<QString> buildKeys = Utils::transform<QSet>(m_buildTargets,
+                                                                       &CMakeBuildTarget::title);
+                p->rootProjectNode()->forEachProjectNode(
+                    [patchedConfig, buildKeys](const ProjectNode *node) {
+                        if (buildKeys.contains(node->buildKey())) {
+                            auto targetNode = const_cast<CMakeTargetNode *>(
+                                dynamic_cast<const CMakeTargetNode *>(node));
+                            if (QTC_GUARD(targetNode))
+                                targetNode->setConfig(patchedConfig);
+                        }
+                    });
             }
         }
     }
@@ -812,8 +816,8 @@ void CMakeBuildSystem::updateProjectData()
     {
         qDeleteAll(m_extraCompilers);
         m_extraCompilers = findExtraCompilers();
-        CppTools::GeneratedCodeModelSupport::update(m_extraCompilers);
-        qCDebug(cmakeBuildSystemLog) << "Extra compilers updated.";
+        qCDebug(cmakeBuildSystemLog) << "Extra compilers created.";
+
     }
 
     QtSupport::CppKitInfo kitInfo(kit());
@@ -840,7 +844,8 @@ void CMakeBuildSystem::updateProjectData()
             }
         }
 
-        m_cppCodeModelUpdater->update({p, kitInfo, cmakeBuildConfiguration()->environment(), rpps});
+        m_cppCodeModelUpdater->update({p, kitInfo, cmakeBuildConfiguration()->environment(), rpps},
+                                      m_extraCompilers);
     }
     {
         const bool mergedHeaderPathsAndQmlImportPaths = kit()->value(
@@ -871,6 +876,8 @@ void CMakeBuildSystem::updateProjectData()
         }
         updateQmlJSCodeModel(extraHeaderPaths, moduleMappings);
     }
+    updateInitialCMakeExpandableVars();
+
     emit cmakeBuildConfiguration()->buildTypeChanged();
 
     qCDebug(cmakeBuildSystemLog) << "All CMake project data up to date.";
@@ -1140,7 +1147,16 @@ void CMakeBuildSystem::runCTest()
                     const int bt = test.value("backtrace").toInt(-1);
                     // we may have no real backtrace due to different registering
                     if (bt != -1) {
-                    const QJsonObject btRef = nodes.at(bt).toObject();
+                        QSet<int> seen;
+                        std::function<QJsonObject(int)> findAncestor = [&](int index){
+                            const QJsonObject node = nodes.at(index).toObject();
+                            const int parent = node.value("parent").toInt(-1);
+                            if (seen.contains(parent) || parent < 0)
+                                return node;
+                            seen << parent;
+                            return findAncestor(parent);
+                        };
+                        const QJsonObject btRef = findAncestor(bt);
                         file = btRef.value("file").toInt(-1);
                         line = btRef.value("line").toInt(-1);
                     }
@@ -1189,6 +1205,7 @@ const QList<BuildTargetInfo> CMakeBuildSystem::appTargets() const
             bti.workingDirectory = ct.workingDirectory;
             bti.buildKey = buildKey;
             bti.usesTerminal = !ct.linksToQtGui;
+            bti.isQtcRunnable = ct.qtcRunnable;
 
             // Workaround for QTCREATORBUG-19354:
             bti.runEnvModifier = [this, buildKey](Environment &env, bool enabled) {
@@ -1207,7 +1224,7 @@ const QList<BuildTargetInfo> CMakeBuildSystem::appTargets() const
 
 QStringList CMakeBuildSystem::buildTargetTitles() const
 {
-    auto nonAutogenTargets = filtered(m_buildTargets, [this](const CMakeBuildTarget &target){
+    auto nonAutogenTargets = filtered(m_buildTargets, [](const CMakeBuildTarget &target){
         return !CMakeBuildSystem::filteredOutTarget(target);
 
     });
@@ -1412,6 +1429,68 @@ void CMakeBuildSystem::updateQmlJSCodeModel(const QStringList &extraHeaderPaths,
     project()->setProjectLanguage(ProjectExplorer::Constants::QMLJS_LANGUAGE_ID,
                                   !projectInfo.sourceFiles.isEmpty());
     modelManager->updateProjectInfo(projectInfo, p);
+}
+
+void CMakeBuildSystem::updateInitialCMakeExpandableVars()
+{
+    const CMakeConfig &cm = cmakeBuildConfiguration()->configurationFromCMake();
+    const CMakeConfig &initialConfig =
+            CMakeConfigItem::itemsFromArguments(cmakeBuildConfiguration()->initialCMakeArguments());
+
+    CMakeConfig config;
+
+    // Replace path values that do not  exist on file system
+    const QByteArrayList singlePathList = {
+        "CMAKE_C_COMPILER",
+        "CMAKE_CXX_COMPILER",
+        "QT_QMAKE_EXECUTABLE",
+        "QT_HOST_PATH",
+        "CMAKE_PROJECT_INCLUDE_BEFORE",
+        "CMAKE_TOOLCHAIN_FILE"
+    };
+    for (const auto &var : singlePathList) {
+        auto it = std::find_if(cm.cbegin(), cm.cend(), [var](const CMakeConfigItem &item) {
+            return item.key == var;
+        });
+
+        if (it != cm.cend()) {
+            const QByteArray initialValue = CMakeConfigItem::expandedValueOf(kit(), var, initialConfig).toUtf8();
+            if (!initialValue.isEmpty()
+                && it->value != initialValue
+                && !FilePath::fromString(QString::fromUtf8(it->value)).exists()) {
+                CMakeConfigItem item(*it);
+                item.value = initialValue;
+
+                config << item;
+            }
+        }
+    }
+
+    // Prepend new values to existing path lists
+    const QByteArrayList multiplePathList = {
+        "CMAKE_PREFIX_PATH",
+        "CMAKE_FIND_ROOT_PATH"
+    };
+    for (const auto &var : multiplePathList) {
+        auto it = std::find_if(cm.cbegin(), cm.cend(), [var](const CMakeConfigItem &item) {
+            return item.key == var;
+        });
+
+        if (it != cm.cend()) {
+            const QByteArray initialValue = CMakeConfigItem::expandedValueOf(kit(), var, initialConfig).toUtf8();
+            if (!initialValue.isEmpty() && !it->value.contains(initialValue)) {
+                CMakeConfigItem item(*it);
+                item.value = initialValue;
+                item.value.append(";");
+                item.value.append(it->value);
+
+                config << item;
+            }
+        }
+    }
+
+    if (!config.isEmpty())
+        emit cmakeBuildConfiguration()->configurationChanged(config);
 }
 
 } // namespace Internal

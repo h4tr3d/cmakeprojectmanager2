@@ -185,7 +185,7 @@ bool CMakeTool::isValid() const
     return m_introspection->m_didRun && !m_introspection->m_fileApis.isEmpty();
 }
 
-void CMakeTool::runCMake(SynchronousProcess &cmake, const QStringList &args, int timeoutS) const
+void CMakeTool::runCMake(QtcProcess &cmake, const QStringList &args, int timeoutS) const
 {
     cmake.setTimeoutS(timeoutS);
     cmake.setDisableUnixTerminal();
@@ -269,7 +269,7 @@ TextEditor::Keywords CMakeTool::keywords()
         return {};
 
     if (m_introspection->m_functions.isEmpty() && m_introspection->m_didRun) {
-        SynchronousProcess proc;
+        QtcProcess proc;
         runCMake(proc, {"--help-command-list"}, 5);
         if (proc.result() == QtcProcess::FinishedWithSuccess)
             m_introspection->m_functions = proc.stdOut().split('\n');
@@ -303,6 +303,18 @@ bool CMakeTool::hasFileApi() const
 CMakeTool::Version CMakeTool::version() const
 {
     return m_introspection ? m_introspection->m_version : CMakeTool::Version();
+}
+
+QString CMakeTool::versionDisplay() const
+{
+    if (!m_introspection)
+        return CMakeToolManager::tr("Version not parseable");
+
+    const Version &version = m_introspection->m_version;
+    if (version.fullVersion.isEmpty())
+        return QString::fromUtf8(version.fullVersion);
+
+    return QString("%1.%2.%3").arg(version.major).arg(version.minor).arg(version.patch);
 }
 
 bool CMakeTool::isAutoDetected() const
@@ -470,7 +482,7 @@ QStringList CMakeTool::parseVariableOutput(const QString &output)
 
 void CMakeTool::fetchFromCapabilities() const
 {
-    SynchronousProcess cmake;
+    QtcProcess cmake;
     runCMake(cmake, {"-E", "capabilities"});
 
     if (cmake.result() == QtcProcess::FinishedWithSuccess) {

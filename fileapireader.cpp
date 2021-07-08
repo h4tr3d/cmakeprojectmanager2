@@ -36,7 +36,6 @@
 #include <utils/algorithm.h>
 #include <utils/runextensions.h>
 
-#include <QDateTime>
 #include <QLoggingCategory>
 
 using namespace ProjectExplorer;
@@ -210,14 +209,16 @@ bool FileApiReader::usesAllCapsTargets() const
 }
 
 std::unique_ptr<CMakeProjectNode> FileApiReader::generateProjectTree(
-    const QList<const FileNode *> &allFiles, QString &errorMessage, bool includeHeaderNodes)
+    const ProjectExplorer::TreeScanner::Result &allFiles,
+    QString &errorMessage,
+    bool includeHeaderNodes)
 {
     Q_UNUSED(errorMessage)
 
     if (includeHeaderNodes) {
-        addHeaderNodes(m_rootProjectNode.get(), m_knownHeaders, allFiles);
+        addHeaderNodes(m_rootProjectNode.get(), m_knownHeaders, allFiles.allFiles);
     }
-    addFileSystemNodes(m_rootProjectNode.get(), allFiles);
+    addFileSystemNodes(m_rootProjectNode.get(), allFiles.folderNode);
     return std::exchange(m_rootProjectNode, {});
 }
 
@@ -309,12 +310,11 @@ void FileApiReader::makeBackupConfiguration(bool store)
 
     if (reply.exists()) {
         if (replyPrev.exists())
-            FileUtils::removeRecursively(replyPrev);
-        QDir dir;
-        if (!dir.rename(reply.toString(), replyPrev.toString()))
+            replyPrev.removeRecursively();
+        QTC_CHECK(!replyPrev.exists());
+        if (!reply.renameFile(replyPrev))
             Core::MessageManager::writeFlashing(tr("Failed to rename %1 to %2.")
                                                 .arg(reply.toString(), replyPrev.toString()));
-
     }
 
     FilePath cmakeCacheTxt = m_parameters.buildDirectory.pathAppended("CMakeCache.txt");
@@ -332,11 +332,7 @@ void FileApiReader::makeBackupConfiguration(bool store)
 void FileApiReader::writeConfigurationIntoBuildDirectory(const QStringList &configurationArguments)
 {
     const FilePath buildDir = m_parameters.buildDirectory;
-    QTC_ASSERT(buildDir.exists(), buildDir.ensureWritableDir());
-    if (!buildDir.exists())
-        buildDir.ensureWritableDir();
-
-    const FilePath settingsFile = buildDir.pathAppended("qtcsettings.cmake");
+    QTC_CHECK(buildDir.ensureWritableDir());
 
     QByteArray contents;
     contents.append("# This file is managed by Qt Creator, do not edit!\n\n");
@@ -348,9 +344,8 @@ void FileApiReader::writeConfigurationIntoBuildDirectory(const QStringList &conf
             .join('\n')
             .toUtf8());
 
-    QFile file(settingsFile.toString());
-    QTC_ASSERT(file.open(QFile::WriteOnly | QFile::Truncate), return );
-    file.write(contents);
+    const FilePath settingsFile = buildDir / "qtcsettings.cmake";
+    QTC_CHECK(settingsFile.writeFileContents(contents));
 }
 
 void FileApiReader::startCMakeState(const QStringList &configurationArguments)

@@ -182,6 +182,7 @@ CMakeBuildSettingsWidget::CMakeBuildSettingsWidget(CMakeBuildConfiguration *bc) 
     container->setWidget(details);
 
     auto buildDirAspect = bc->buildDirectoryAspect();
+    buildDirAspect->setAutoApplyOnEditingFinished(true);
     connect(buildDirAspect, &BaseAspect::changed, this, [this]() {
         m_configModel->flush(); // clear out config cache...;
     });
@@ -343,12 +344,11 @@ CMakeBuildSettingsWidget::CMakeBuildSettingsWidget(CMakeBuildConfiguration *bc) 
     Column {
         Form {
             buildDirAspect,
-            bc->aspect<InitialCMakeArgumentsAspect>(),
             bc->aspect<BuildTypeAspect>(),
-            QString(), clearCMakeConfiguration,
+            bc->aspect<InitialCMakeArgumentsAspect>(),
+            QString(), clearCMakeConfiguration, Break(),
             qmlDebugAspect
         },
-        Space(10),
         m_warningMessageLabel,
         Space(10),
         cmakeConfiguration,
@@ -458,6 +458,9 @@ CMakeBuildSettingsWidget::CMakeBuildSettingsWidget(CMakeBuildConfiguration *bc) 
 
     connect(bc, &CMakeBuildConfiguration::errorOccurred, this, &CMakeBuildSettingsWidget::setError);
     connect(bc, &CMakeBuildConfiguration::warningOccurred, this, &CMakeBuildSettingsWidget::setWarning);
+    connect(bc, &CMakeBuildConfiguration::configurationChanged, this, [this](const CMakeConfig &config) {
+       m_configModel->setBatchEditConfiguration(config);
+    });
 
     updateFromKit();
     connect(m_buildConfiguration->target(), &Target::kitChanged,
@@ -815,7 +818,7 @@ static QStringList defaultInitialCMakeArguments(const Kit *k, const QString buil
 
     // Cross-compilation settings:
     if (!isIos(k)) { // iOS handles this differently
-        const QString sysRoot = SysRootKitAspect::sysRoot(k).toString();
+        const QString sysRoot = SysRootKitAspect::sysRoot(k).path();
         if (!sysRoot.isEmpty()) {
             initialArgs.append(QString::fromLatin1("-DCMAKE_SYSROOT:PATH=%1").arg(sysRoot));
             if (ToolChain *tc = ToolChainKitAspect::cxxToolChain(k)) {
@@ -851,12 +854,14 @@ CMakeBuildConfiguration::CMakeBuildConfiguration(Target *target, Id id)
                 return newDir;
 
             if (QDir(oldDir).exists("CMakeCache.txt") && !QDir(newDir).exists("CMakeCache.txt")) {
-                if (QMessageBox::information(nullptr,
-                                             tr("Changing Build Directory"),
-                                             tr("Change the build directory and start with a "
-                                                "basic CMake configuration?"),
-                                             QMessageBox::Ok,
-                                             QMessageBox::Cancel)
+                if (QMessageBox::information(
+                        Core::ICore::dialogParent(),
+                        tr("Changing Build Directory"),
+                        tr("Change the build directory to \"%1\" and start with a "
+                           "basic CMake configuration?")
+                            .arg(newDir),
+                        QMessageBox::Ok,
+                        QMessageBox::Cancel)
                     == QMessageBox::Ok) {
                     return newDir;
                 }
@@ -901,17 +906,13 @@ CMakeBuildConfiguration::CMakeBuildConfiguration(Target *target, Id id)
         if (DeviceTypeKitAspect::deviceTypeId(k) == Android::Constants::ANDROID_DEVICE_TYPE) {
             buildSteps()->appendStep(Android::Constants::ANDROID_BUILD_APK_ID);
             const auto &bs = buildSteps()->steps().constLast();
-            initialArgs.append(
-                QString::fromLatin1("-DANDROID_NATIVE_API_LEVEL:STRING=%1")
-                    .arg(bs->data(Android::Constants::AndroidNdkPlatform).toString()));
+            initialArgs.append("-DANDROID_NATIVE_API_LEVEL:STRING="
+                   + bs->data(Android::Constants::AndroidNdkPlatform).toString());
             auto ndkLocation = bs->data(Android::Constants::NdkLocation).value<FilePath>();
-            initialArgs.append(
-                QString::fromLatin1("-DANDROID_NDK:PATH=%1").arg(ndkLocation.toString()));
+            initialArgs.append("-DANDROID_NDK:PATH=" + ndkLocation.path());
 
-            initialArgs.append(
-                QString::fromLatin1("-DCMAKE_TOOLCHAIN_FILE:PATH=%1")
-                    .arg(
-                        ndkLocation.pathAppended("build/cmake/android.toolchain.cmake").toString()));
+            initialArgs.append("-DCMAKE_TOOLCHAIN_FILE:PATH="
+                   + ndkLocation.pathAppended("build/cmake/android.toolchain.cmake").path());
 
             auto androidAbis = bs->data(Android::Constants::AndroidABIs).toStringList();
             QString preferredAbi;
@@ -923,23 +924,18 @@ CMakeBuildConfiguration::CMakeBuildConfiguration(Target *target, Id id)
             } else {
                 preferredAbi = androidAbis.first();
             }
-            initialArgs.append(QString::fromLatin1("-DANDROID_ABI:STRING=%1").arg(preferredAbi));
-
-            initialArgs.append(QString::fromLatin1("-DANDROID_STL:STRING=c++_shared"));
-
-            initialArgs.append(
-                QString::fromLatin1("-DCMAKE_FIND_ROOT_PATH:PATH=%{Qt:QT_INSTALL_PREFIX}"));
+            initialArgs.append("-DANDROID_ABI:STRING=" + preferredAbi);
+            initialArgs.append("-DANDROID_STL:STRING=c++_shared");
+            initialArgs.append("-DCMAKE_FIND_ROOT_PATH:PATH=%{Qt:QT_INSTALL_PREFIX}");
 
             QtSupport::BaseQtVersion *qt = QtSupport::QtKitAspect::qtVersion(k);
             auto sdkLocation = bs->data(Android::Constants::SdkLocation).value<FilePath>();
 
             if (qt->qtVersion() >= QtSupport::QtVersionNumber{6, 0, 0}) {
-                initialArgs.append(
-                    QString::fromLatin1("-DQT_HOST_PATH:PATH=%{Qt:QT_HOST_PREFIX}"));
-
-                initialArgs.append(QString("-DANDROID_SDK_ROOT:PATH=%1").arg(sdkLocation.toString()));
+                initialArgs.append("-DQT_HOST_PATH:PATH=%{Qt:QT_HOST_PREFIX}");
+                initialArgs.append("-DANDROID_SDK_ROOT:PATH=" + sdkLocation.path());
             } else {
-                initialArgs.append(QString("-DANDROID_SDK:PATH=%1").arg(sdkLocation.toString()));
+                initialArgs.append("-DANDROID_SDK:PATH=" + sdkLocation.path());
             }
         }
 
@@ -1050,14 +1046,14 @@ FilePath CMakeBuildConfiguration::shadowBuildDirectory(const FilePath &projectFi
 
     const QString projectName = projectFilePath.parentDir().fileName();
     ProjectMacroExpander expander(projectFilePath, projectName, k, bcName, buildType);
-    QDir projectDir = QDir(Project::projectDirectory(projectFilePath).toString());
+    const FilePath projectDir = Project::projectDirectory(projectFilePath);
     QString buildPath = expander.expand(ProjectExplorerPlugin::buildDirectoryTemplate());
     buildPath.replace(" ", "-");
 
     if (CMakeGeneratorKitAspect::isMultiConfigGenerator(k))
         buildPath = buildPath.left(buildPath.lastIndexOf(QString("-%1").arg(bcName)));
 
-    return FilePath::fromUserInput(projectDir.absoluteFilePath(buildPath));
+    return projectDir.resolvePath(buildPath);
 }
 
 void CMakeBuildConfiguration::buildTarget(const QString &buildTarget)

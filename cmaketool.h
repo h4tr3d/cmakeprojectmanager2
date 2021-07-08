@@ -33,7 +33,7 @@
 #include <utils/id.h>
 #include <utils/optional.h>
 
-namespace Utils { class SynchronousProcess; }
+namespace Utils { class QtcProcess; }
 
 namespace CMakeProjectManager {
 
@@ -96,6 +96,7 @@ public:
     TextEditor::Keywords keywords();
     bool hasFileApi() const;
     Version version() const;
+    QString versionDisplay() const;
 
     bool isAutoDetected() const;
     QString displayName() const;
@@ -108,10 +109,13 @@ public:
 
     static Utils::FilePath searchQchFile(const Utils::FilePath &executable);
 
+    QString detectionSource() const { return m_detectionSource; }
+    void setDetectionSource(const QString &source) { m_detectionSource = source; }
+
 private:
     void readInformation() const;
 
-    void runCMake(Utils::SynchronousProcess &proc, const QStringList &args, int timeoutS = 1) const;
+    void runCMake(Utils::QtcProcess &proc, const QStringList &args, int timeoutS = 1) const;
     void parseFunctionDetailsOutput(const QString &output);
     QStringList parseVariableOutput(const QString &output);
 
@@ -125,6 +129,7 @@ private:
 
     bool m_isAutoRun = true;
     bool m_isAutoDetected = false;
+    QString m_detectionSource;
     bool m_autoCreateBuildDirectory = false;
 
     Utils::optional<ReaderType> m_readerType;
