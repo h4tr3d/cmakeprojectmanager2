@@ -98,7 +98,7 @@ void SimpleFileApiReader::endState(const FilePath &replyFilePath)
 }
 
 std::unique_ptr<CMakeProjectNode> SimpleFileApiReader::generateProjectTree(
-    const QList<const FileNode *> &allFiles, QString &errorMessage, bool /*includeHeaderNodes*/)
+    const ProjectExplorer::TreeScanner::Result &allFiles, QString &errorMessage, bool /*includeHeaderNodes*/)
 {
     Q_UNUSED(errorMessage)
 
@@ -146,8 +146,8 @@ std::unique_ptr<CMakeProjectNode> SimpleFileApiReader::generateProjectTree(
         m_rootProjectNode->addNestedNodes(std::move(files), m_parameters.sourceDirectory);
     }
 
-    QList<const FileNode *> added = 
-        Utils::filtered(allFiles, [&alreadyListed](const FileNode *fn) -> bool {
+    QList<FileNode *> added =
+        Utils::filtered(allFiles.allFiles, [&alreadyListed](const FileNode *fn) -> bool {
             const int count = alreadyListed.count();
             alreadyListed.insert(fn->filePath());
             return (alreadyListed.count() != count);
@@ -157,9 +157,10 @@ std::unique_ptr<CMakeProjectNode> SimpleFileApiReader::generateProjectTree(
         return std::unique_ptr<FileNode>(fn->clone());
     });
 
+    // TBD: optimize here with allFiles.folderNode and use just an addNode()
     m_rootProjectNode->addNestedNodes(std::move(addedNodes), m_parameters.sourceDirectory);
 
-    return std::move(m_rootProjectNode);
+    return std::exchange(m_rootProjectNode, {});
 }
 
 RawProjectParts SimpleFileApiReader::createRawProjectParts(QString &errorMessage)

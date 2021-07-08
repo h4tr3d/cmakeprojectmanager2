@@ -80,8 +80,8 @@ public:
     bool deleteFiles(ProjectExplorer::Node *context,
                      const QStringList &filePaths) final;
 
-    bool canRenameFile(ProjectExplorer::Node *context, const QString &filePath, const QString &newFilePath) final;
-    bool renameFile(ProjectExplorer::Node *context, const QString &filePath, const QString &newFilePath) final;
+    bool canRenameFile(ProjectExplorer::Node *context, const Utils::FilePath &filePath, const Utils::FilePath &newFilePath) final;
+    bool renameFile(ProjectExplorer::Node *context, const Utils::FilePath &filePath, const Utils::FilePath &newFilePath) final;
                   
 
     bool persistCMakeState();
@@ -114,7 +114,7 @@ public:
 private:
     bool addFilesPriv(const QStringList &filePaths);
     bool eraseFilesPriv(const QStringList &filePaths);
-    bool renameFilePriv(const QString &filePath, const QString &newFilePath);
+    bool renameFilePriv(const Utils::FilePath &filePath, const Utils::FilePath &newFilePath);
     void updateProjectDataPriv();
 
     // Actually ask for parsing:

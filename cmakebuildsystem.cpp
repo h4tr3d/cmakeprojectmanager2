@@ -359,13 +359,13 @@ bool CMakeBuildSystem::deleteFiles(Node *context, const QStringList &filePaths)
     return BuildSystem::deleteFiles(context, filePaths);
 }
 
-bool CMakeBuildSystem::canRenameFile(Node *context, const QString &filePath, const QString &newFilePath)
+bool CMakeBuildSystem::canRenameFile(Node *context, const FilePath &filePath, const FilePath &newFilePath)
 {
     // TBD: filter out rename ability
     return true;
 }
 
-bool CMakeBuildSystem::renameFile(Node *context, const QString &filePath, const QString &newFilePath)
+bool CMakeBuildSystem::renameFile(Node *context, const FilePath &filePath, const FilePath &newFilePath)
 {
     if (renameFilePriv(filePath, newFilePath))
         return true;
@@ -517,7 +517,7 @@ void CMakeBuildSystem::buildCMakeTarget(const QString &buildTarget)
 
 bool CMakeBuildSystem::addFilesPriv(const QStringList &filePaths)
 {
-    QList<const FileNode *> nodes; // nodes to store in persistent tree
+    QList<FileNode *> nodes; // nodes to store in persistent tree
     for (auto &filePath : filePaths) {
         const auto mimeType = Utils::mimeTypeForFile(filePath);
         auto fn = FilePath::fromString(filePath);
@@ -535,13 +535,14 @@ bool CMakeBuildSystem::addFilesPriv(const QStringList &filePaths)
     // Update tree without full rescan run
     sort(nodes, Node::sortByPath);
 
-    auto oldSize = m_allFiles.size();
-    m_allFiles.append(nodes);
-    std::inplace_merge(m_allFiles.begin(),
-                       m_allFiles.begin() + oldSize,
-                       m_allFiles.end(),
+    auto oldSize = m_allFiles.allFiles.size();
+    m_allFiles.allFiles.append(nodes);
+    std::inplace_merge(m_allFiles.allFiles.begin(),
+                       m_allFiles.allFiles.begin() + oldSize,
+                       m_allFiles.allFiles.end(),
                        Node::sortByPath);
 
+    // TBD: fix allFiles.folderNode
 
     // Real adding occurs after function exit.
     updateProjectDataPriv();
@@ -568,13 +569,14 @@ bool CMakeBuildSystem::eraseFilesPriv(const QStringList &filePaths)
 
     // Inplace change m_allFiles in one pass
 
-    auto it = std::lower_bound(m_allFiles.begin(), m_allFiles.end(), removed[0], Node::sortByPath);
-    QTC_ASSERT(it != m_allFiles.end(), return false);
+    auto it = std::lower_bound(m_allFiles.allFiles.begin(),
+                               m_allFiles.allFiles.end(), removed[0], Node::sortByPath);
+    QTC_ASSERT(it != m_allFiles.allFiles.end(), return false);
 
-    int allIdx = static_cast<int>(std::distance(m_allFiles.begin(), it));
+    int allIdx = static_cast<int>(std::distance(m_allFiles.allFiles.begin(), it));
     int remIdx = 0;
-    while (allIdx < m_allFiles.size() && remIdx < removed.size()) {
-        auto &allNode = m_allFiles[allIdx];
+    while (allIdx < m_allFiles.allFiles.size() && remIdx < removed.size()) {
+        auto &allNode = m_allFiles.allFiles[allIdx];
         auto &removeNode = removed[remIdx];
 
         if (Node::sortByPath(allNode, removeNode)) {
@@ -583,7 +585,7 @@ bool CMakeBuildSystem::eraseFilesPriv(const QStringList &filePaths)
             remIdx++;
         } else {
             delete allNode;
-            m_allFiles.removeAt(allIdx);
+            m_allFiles.allFiles.removeAt(allIdx);
             // We should not increment allIdx here
             remIdx++;
         }
@@ -595,39 +597,37 @@ bool CMakeBuildSystem::eraseFilesPriv(const QStringList &filePaths)
     return true;
 }
 
-bool CMakeBuildSystem::renameFilePriv(const QString &filePath, const QString &newFilePath)
+bool CMakeBuildSystem::renameFilePriv(const Utils::FilePath &filePath, const Utils::FilePath &newFilePath)
 {
-    auto fn = FilePath::fromString(filePath);
-    auto newfn = FilePath::fromString(newFilePath);
     const auto mimeType = Utils::mimeTypeForFile(filePath);
-    auto type = TreeScanner::genericFileType(mimeType, fn);
-    auto node = new FileNode(fn, type);
+    auto type = TreeScanner::genericFileType(mimeType, filePath);
+    auto node = new FileNode(filePath, type);
     node->setIsGenerated(false);
 
     // Update tree without full rescan run
     {
-        auto it = std::lower_bound(m_allFiles.begin(),
-                                   m_allFiles.end(),
+        auto it = std::lower_bound(m_allFiles.allFiles.begin(),
+                                   m_allFiles.allFiles.end(),
                                    node,
                                    Node::sortByPath);
-        if (it == m_allFiles.end())
+        if (it == m_allFiles.allFiles.end())
             return false;
 
         // Update data in scanned files and in the project tree
         delete *it;
-        m_allFiles.removeAt(static_cast<int>(std::distance(m_allFiles.begin(), it)));
+        m_allFiles.allFiles.removeAt(static_cast<int>(std::distance(m_allFiles.allFiles.begin(), it)));
 
         // We add only one new file. Use std::lower_bound to insert item to right place
-        auto toAdd = new FileNode(newfn, node->fileType()); // do not copy parent and other
+        auto toAdd = new FileNode(newFilePath, node->fileType()); // do not copy parent and other
         toAdd->setIsGenerated(false);
         toAdd->setEnabled(false);
 
-        it = std::lower_bound(m_allFiles.begin(),
-                              m_allFiles.end(),
+        it = std::lower_bound(m_allFiles.allFiles.begin(),
+                              m_allFiles.allFiles.end(),
                               toAdd,
                               Node::sortByPath);
 
-        m_allFiles.insert(it, toAdd);
+        m_allFiles.allFiles.insert(it, toAdd);
     }
 
     updateProjectDataPriv();

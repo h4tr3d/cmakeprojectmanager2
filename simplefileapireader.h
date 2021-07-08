@@ -14,7 +14,7 @@ class SimpleFileApiReader : public FileApiReader
 
 public:
     std::unique_ptr<CMakeProjectNode> generateProjectTree(
-        const QList<const ProjectExplorer::FileNode *> &allFiles,
+        const ProjectExplorer::TreeScanner::Result &allFiles,
         QString &errorMessage,
         bool includeHeaderNodes) final;
     ProjectExplorer::RawProjectParts createRawProjectParts(QString &errorMessage) final;
