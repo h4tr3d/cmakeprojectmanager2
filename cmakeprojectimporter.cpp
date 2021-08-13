@@ -65,11 +65,11 @@ struct DirectoryData
 
     // Kit Stuff
     FilePath cmakeBinary;
-    QByteArray generator;
-    QByteArray extraGenerator;
-    QByteArray platform;
-    QByteArray toolset;
-    QByteArray sysroot;
+    QString generator;
+    QString extraGenerator;
+    QString platform;
+    QString toolset;
+    FilePath sysroot;
     QtProjectImporter::QtVersionData qt;
     QVector<ToolChainDescription> toolChains;
 };
@@ -135,20 +135,16 @@ QStringList CMakeProjectImporter::importCandidates()
 static FilePath qmakeFromCMakeCache(const CMakeConfig &config)
 {
     // Qt4 way to define things (more convenient for us, so try this first;-)
-    FilePath qmake
-            = FilePath::fromUtf8(CMakeConfigItem::valueOf(QByteArray("QT_QMAKE_EXECUTABLE"), config));
+    const FilePath qmake = config.filePathValueOf("QT_QMAKE_EXECUTABLE");
     qCDebug(cmInputLog) << "QT_QMAKE_EXECUTABLE=" << qmake.toUserOutput();
     if (!qmake.isEmpty())
         return qmake;
 
     // Check Qt5 settings: oh, the horror!
     const FilePath qtCMakeDir = [config] {
-        FilePath tmp = FilePath::fromUtf8(
-            CMakeConfigItem::valueOf(QByteArray("Qt5Core_DIR"), config));
-        if (tmp.isEmpty()) {
-            tmp = FilePath::fromUtf8(
-                CMakeConfigItem::valueOf(QByteArray("Qt6Core_DIR"), config));
-        }
+        FilePath tmp = config.filePathValueOf("Qt5Core_DIR");
+        if (tmp.isEmpty())
+            tmp = config.filePathValueOf("Qt6Core_DIR");
         return tmp;
     }();
     qCDebug(cmInputLog) << "QtXCore_DIR=" << qtCMakeDir.toUserOutput();
@@ -206,16 +202,11 @@ static FilePath qmakeFromCMakeCache(const CMakeConfig &config)
     cmake.setEnvironment(env);
     cmake.setTimeOutMessageBoxEnabled(false);
 
-    QString cmakeGenerator
-            = QString::fromUtf8(CMakeConfigItem::valueOf(QByteArray("CMAKE_GENERATOR"), config));
-    FilePath cmakeExecutable
-            = FilePath::fromUtf8(CMakeConfigItem::valueOf(QByteArray("CMAKE_COMMAND"), config));
-    FilePath cmakeMakeProgram
-            = FilePath::fromUtf8(CMakeConfigItem::valueOf(QByteArray("CMAKE_MAKE_PROGRAM"), config));
-    FilePath toolchainFile
-            = FilePath::fromUtf8(CMakeConfigItem::valueOf(QByteArray("CMAKE_TOOLCHAIN_FILE"), config));
-    FilePath hostPath
-            = FilePath::fromUtf8(CMakeConfigItem::valueOf(QByteArray("QT_HOST_PATH"), config));
+    QString cmakeGenerator = config.stringValueOf(QByteArray("CMAKE_GENERATOR"));
+    FilePath cmakeExecutable = config.filePathValueOf(QByteArray("CMAKE_COMMAND"));
+    FilePath cmakeMakeProgram = config.filePathValueOf(QByteArray("CMAKE_MAKE_PROGRAM"));
+    FilePath toolchainFile = config.filePathValueOf(QByteArray("CMAKE_TOOLCHAIN_FILE"));
+    FilePath hostPath = config.filePathValueOf(QByteArray("QT_HOST_PATH"));
 
     QStringList args;
     args.push_back("-S");
@@ -275,7 +266,7 @@ static QVector<ToolChainDescription> extractToolChainsFromCache(const CMakeConfi
     }
 
     if (!haveCCxxCompiler) {
-        const QByteArray generator = CMakeConfigItem::valueOf(QByteArray("CMAKE_GENERATOR"), config);
+        const QByteArray generator = config.valueOf("CMAKE_GENERATOR");
         QString cCompilerName;
         QString cxxCompilerName;
         if (generator.contains("Visual Studio")) {
@@ -287,8 +278,7 @@ static QVector<ToolChainDescription> extractToolChainsFromCache(const CMakeConfi
         }
 
         if (!cCompilerName.isEmpty() && !cxxCompilerName.isEmpty()) {
-            const FilePath linker = FilePath::fromUtf8(
-                CMakeConfigItem::valueOf(QByteArray("CMAKE_LINKER"), config));
+            const FilePath linker = config.filePathValueOf("CMAKE_LINKER");
             if (!linker.isEmpty()) {
                 const FilePath compilerPath = linker.parentDir();
                 result.append({compilerPath.pathAppended(cCompilerName),
@@ -320,23 +310,20 @@ QList<void *> CMakeProjectImporter::examineDirectory(const FilePath &importPath,
         return { };
     }
 
-    QByteArrayList buildConfigurationTypes = {CMakeConfigItem::valueOf("CMAKE_BUILD_TYPE", config)};
+    QByteArrayList buildConfigurationTypes = {config.valueOf("CMAKE_BUILD_TYPE")};
     if (buildConfigurationTypes.front().isEmpty()) {
-        QByteArray buildConfigurationTypesString =
-                    CMakeConfigItem::valueOf("CMAKE_CONFIGURATION_TYPES", config);
-        if (!buildConfigurationTypesString.isEmpty()) {
+        QByteArray buildConfigurationTypesString = config.valueOf("CMAKE_CONFIGURATION_TYPES");
+        if (!buildConfigurationTypesString.isEmpty())
             buildConfigurationTypes = buildConfigurationTypesString.split(';');
-        }
     }
 
     QList<void *> result;
     for (auto const &buildType: qAsConst(buildConfigurationTypes)) {
         auto data = std::make_unique<DirectoryData>();
 
-        data->cmakeHomeDirectory = FilePath::fromUserInput(
-                                    QString::fromUtf8(
-                                      CMakeConfigItem::valueOf("CMAKE_HOME_DIRECTORY", config)))
-                                    .canonicalPath();
+        data->cmakeHomeDirectory =
+                FilePath::fromUserInput(config.stringValueOf("CMAKE_HOME_DIRECTORY"))
+                    .canonicalPath();
         const FilePath canonicalProjectDirectory = projectDirectory().canonicalPath();
         if (data->cmakeHomeDirectory != canonicalProjectDirectory) {
             *warningMessage = tr("Unexpected source directory \"%1\", expected \"%2\". "
@@ -350,13 +337,12 @@ QList<void *> CMakeProjectImporter::examineDirectory(const FilePath &importPath,
         data->buildDirectory = importPath;
         data->cmakeBuildType = buildType;
 
-        data->cmakeBinary = FilePath::fromUtf8(CMakeConfigItem::valueOf("CMAKE_COMMAND", config));
-        data->generator = CMakeConfigItem::valueOf("CMAKE_GENERATOR", config);
-        data->extraGenerator = CMakeConfigItem::valueOf("CMAKE_EXTRA_GENERATOR", config);
-        data->platform = CMakeConfigItem::valueOf("CMAKE_GENERATOR_PLATFORM", config);
-        data->toolset = CMakeConfigItem::valueOf("CMAKE_GENERATOR_TOOLSET", config);
-
-        data->sysroot = CMakeConfigItem::valueOf("CMAKE_SYSROOT", config);
+        data->cmakeBinary = config.filePathValueOf("CMAKE_COMMAND");
+        data->generator = config.stringValueOf("CMAKE_GENERATOR");
+        data->extraGenerator = config.stringValueOf("CMAKE_EXTRA_GENERATOR");
+        data->platform = config.stringValueOf("CMAKE_GENERATOR_PLATFORM");
+        data->toolset = config.stringValueOf("CMAKE_GENERATOR_TOOLSET");
+        data->sysroot = config.filePathValueOf("CMAKE_SYSROOT");
 
         // Qt:
         const FilePath qmake = qmakeFromCMakeCache(config);
@@ -380,13 +366,13 @@ bool CMakeProjectImporter::matchKit(void *directoryData, const Kit *k) const
     if (!cm || cm->cmakeExecutable() != data->cmakeBinary)
         return false;
 
-    if (CMakeGeneratorKitAspect::generator(k) != QString::fromUtf8(data->generator)
-            || CMakeGeneratorKitAspect::extraGenerator(k) != QString::fromUtf8(data->extraGenerator)
-            || CMakeGeneratorKitAspect::platform(k) != QString::fromUtf8(data->platform)
-            || CMakeGeneratorKitAspect::toolset(k) != QString::fromUtf8(data->toolset))
+    if (CMakeGeneratorKitAspect::generator(k) != data->generator
+            || CMakeGeneratorKitAspect::extraGenerator(k) != data->extraGenerator
+            || CMakeGeneratorKitAspect::platform(k) != data->platform
+            || CMakeGeneratorKitAspect::toolset(k) != data->toolset)
         return false;
 
-    if (SysRootKitAspect::sysRoot(k) != FilePath::fromUtf8(data->sysroot))
+    if (SysRootKitAspect::sysRoot(k) != data->sysroot)
         return false;
 
     if (data->qt.qt && QtSupport::QtKitAspect::qtVersionId(k) != data->qt.qt->uniqueId())
@@ -421,12 +407,12 @@ Kit *CMakeProjectImporter::createKit(void *directoryData) const
             addTemporaryData(CMakeKitAspect::id(), cmtd.cmakeTool->id().toSetting(), k);
         CMakeKitAspect::setCMakeTool(k, cmtd.cmakeTool->id());
 
-        CMakeGeneratorKitAspect::setGenerator(k, QString::fromUtf8(data->generator));
-        CMakeGeneratorKitAspect::setExtraGenerator(k, QString::fromUtf8(data->extraGenerator));
-        CMakeGeneratorKitAspect::setPlatform(k, QString::fromUtf8(data->platform));
-        CMakeGeneratorKitAspect::setToolset(k, QString::fromUtf8(data->toolset));
+        CMakeGeneratorKitAspect::setGenerator(k, data->generator);
+        CMakeGeneratorKitAspect::setExtraGenerator(k, data->extraGenerator);
+        CMakeGeneratorKitAspect::setPlatform(k, data->platform);
+        CMakeGeneratorKitAspect::setToolset(k, data->toolset);
 
-        SysRootKitAspect::setSysRoot(k, FilePath::fromUtf8(data->sysroot));
+        SysRootKitAspect::setSysRoot(k, data->sysroot);
 
         for (const ToolChainDescription &cmtcd : data->toolChains) {
             const ToolChainData tcd = findOrCreateToolChains(cmtcd);

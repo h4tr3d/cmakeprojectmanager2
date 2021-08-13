@@ -43,6 +43,7 @@
 #include <projectexplorer/projectexplorersettings.h>
 #include <projectexplorer/task.h>
 #include <projectexplorer/toolchain.h>
+#include <projectexplorer/devicesupport/idevice.h>
 
 #include <qtsupport/baseqtversion.h>
 #include <qtsupport/qtkitinformation.h>
@@ -276,9 +277,10 @@ void CMakeKitAspect::setup(Kit *k)
         return;
 
     // Look for a suitable auto-detected one:
-    const QString id = k->autoDetectionSource();
+    const QString kitSource = k->autoDetectionSource();
     for (CMakeTool *tool : CMakeToolManager::cmakeTools()) {
-        if (tool->detectionSource() == id) {
+        const QString toolSource = tool->detectionSource();
+        if (!toolSource.isEmpty() && toolSource == kitSource) {
             setCMakeTool(k, tool->id());
             return;
         }
@@ -994,15 +996,15 @@ void CMakeConfigurationKitAspect::setConfiguration(Kit *k, const CMakeConfig &co
 {
     if (!k)
         return;
-    const QStringList tmp = Utils::transform(config, [](const CMakeConfigItem &i) { return i.toString(); });
+    const QStringList tmp = Utils::transform(config.toList(),
+                                             [](const CMakeConfigItem &i) { return i.toString(); });
     k->setValue(CONFIGURATION_ID, tmp);
 }
 
 QStringList CMakeConfigurationKitAspect::toStringList(const Kit *k)
 {
-    QStringList current
-            = Utils::transform(CMakeConfigurationKitAspect::configuration(k),
-                               [](const CMakeConfigItem &i) { return i.toString(); });
+    QStringList current = Utils::transform(CMakeConfigurationKitAspect::configuration(k).toList(),
+                                           [](const CMakeConfigItem &i) { return i.toString(); });
     current = Utils::filtered(current, [](const QString &s) { return !s.isEmpty(); });
     Utils::sort(current);
     return current;
@@ -1021,7 +1023,7 @@ void CMakeConfigurationKitAspect::fromStringList(Kit *k, const QStringList &in)
 
 QStringList CMakeConfigurationKitAspect::toArgumentsList(const Kit *k)
 {
-    return Utils::transform(CMakeConfigurationKitAspect::configuration(k),
+    return Utils::transform(CMakeConfigurationKitAspect::configuration(k).toList(),
                             [](const CMakeConfigItem &i) { return i.toArgument(nullptr); });
 }
 
@@ -1042,12 +1044,10 @@ CMakeConfig CMakeConfigurationKitAspect::defaultConfiguration(const Kit *k)
 
 QVariant CMakeConfigurationKitAspect::defaultValue(const Kit *k) const
 {
-    Q_UNUSED(k)
-
     // FIXME: Convert preload scripts
     CMakeConfig config = defaultConfiguration(k);
-    const QStringList tmp
-            = Utils::transform(config, [](const CMakeConfigItem &i) { return i.toString(); });
+    const QStringList tmp = Utils::transform(config.toList(),
+                                             [](const CMakeConfigItem &i) { return i.toString(); });
     return tmp;
 }
 
@@ -1094,7 +1094,7 @@ Tasks CMakeConfigurationKitAspect::validate(const Kit *k) const
         if (!version || !version->isValid()) {
             addWarning(tr("CMake configuration has a path to a qmake binary set, "
                           "even though the kit has no valid Qt version."));
-        } else if (qmakePath != version->qmakeCommand() && isQt4) {
+        } else if (qmakePath != version->qmakeFilePath() && isQt4) {
             addWarning(tr("CMake configuration has a path to a qmake binary set "
                           "that does not match the qmake binary path "
                           "configured in the Qt version."));

@@ -32,6 +32,7 @@
 #include <coreplugin/helpmanager.h>
 #include <coreplugin/icore.h>
 
+#include <utils/environment.h>
 #include <utils/pointeralgorithm.h>
 #include <utils/qtcassert.h>
 
@@ -63,6 +64,8 @@ CMakeToolManager::CMakeToolManager()
 {
     QTC_ASSERT(!m_instance, return);
     m_instance = this;
+
+    qRegisterMetaType<QString *>();
 
     d = new CMakeToolManagerPrivate;
     connect(ICore::instance(), &ICore::saveSettingsRequested,
@@ -177,6 +180,25 @@ void CMakeToolManager::updateDocumentation()
     Core::HelpManager::registerDocumentation(docs);
 }
 
+void CMakeToolManager::autoDetectCMakeForDevice(const FilePath &deviceRoot,
+                                                const QString &detectionSource,
+                                                QString *logMessage)
+{
+    QStringList messages{tr("Searching CMake binaries...")};
+    const FilePaths candidates = {deviceRoot.withNewPath("cmake")};
+    const Environment env = deviceRoot.deviceEnvironment();
+    for (const FilePath &candidate : candidates) {
+        const FilePath cmake = candidate.searchOnDevice(env.path());
+        if (!cmake.isEmpty()) {
+            registerCMakeByPath(cmake, detectionSource);
+            messages.append(tr("Found \"%1\"").arg(cmake.toUserOutput()));
+        }
+    }
+    if (logMessage)
+        *logMessage = messages.join('\n');
+}
+
+
 void CMakeToolManager::registerCMakeByPath(const FilePath &cmakePath, const QString &detectionSource)
 {
     const Id id = Id::fromString(cmakePath.toUserOutput());
@@ -187,9 +209,37 @@ void CMakeToolManager::registerCMakeByPath(const FilePath &cmakePath, const QStr
 
     auto newTool = std::make_unique<CMakeTool>(CMakeTool::ManualDetection, id);
     newTool->setFilePath(cmakePath);
-    newTool->setDisplayName(cmakePath.toUserOutput());
     newTool->setDetectionSource(detectionSource);
+    newTool->setDisplayName(cmakePath.toUserOutput());
     registerCMakeTool(std::move(newTool));
+}
+
+void CMakeToolManager::removeDetectedCMake(const QString &detectionSource, QString *logMessage)
+{
+    QStringList logMessages{tr("Removing CMake entries...")};
+    while (true) {
+        auto toRemove = Utils::take(d->m_cmakeTools, Utils::equal(&CMakeTool::detectionSource, detectionSource));
+        if (!toRemove.has_value())
+            break;
+        logMessages.append(tr("Removed \"%1\"").arg((*toRemove)->displayName()));
+        emit m_instance->cmakeRemoved((*toRemove)->id());
+    }
+
+    ensureDefaultCMakeToolIsValid();
+    updateDocumentation();
+    if (logMessage)
+        *logMessage = logMessages.join('\n');
+}
+
+void CMakeToolManager::listDetectedCMake(const QString &detectionSource, QString *logMessage)
+{
+    QTC_ASSERT(logMessage, return);
+    QStringList logMessages{tr("CMake:")};
+    for (const auto &tool : qAsConst(d->m_cmakeTools)) {
+        if (tool->detectionSource() == detectionSource)
+            logMessages.append(tool->displayName());
+    }
+    *logMessage = logMessages.join('\n');
 }
 
 void CMakeToolManager::notifyAboutUpdate(CMakeTool *tool)

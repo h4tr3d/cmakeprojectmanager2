@@ -63,7 +63,13 @@ public:
     static void updateDocumentation();
 
 public slots:
-    void registerCMakeByPath(const Utils::FilePath &cmakePath, const QString &detectionSource);
+    void autoDetectCMakeForDevice(const Utils::FilePath &deviceRoot,
+                                  const QString &detectionSource,
+                                  QString *logMessage);
+    void registerCMakeByPath(const Utils::FilePath &cmakePath,
+                             const QString &detectionSource);
+    void removeDetectedCMake(const QString &detectionSource, QString *logMessage);
+    void listDetectedCMake(const QString &detectionSource, QString *logMessage);
 
 signals:
     void cmakeAdded (const Utils::Id &id);
@@ -81,3 +87,5 @@ private:
 };
 
 } // namespace CMakeProjectManager
+
+Q_DECLARE_METATYPE(QString *)

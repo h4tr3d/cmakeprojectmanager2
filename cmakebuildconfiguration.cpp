@@ -98,6 +98,7 @@ static Q_LOGGING_CATEGORY(cmakeBuildConfigurationLog, "qtc.cmake.bc", QtWarningM
 const char CONFIGURATION_KEY[] = "CMake.Configuration";
 const char DEVELOPMENT_TEAM_FLAG[] = "Ios:DevelopmentTeam:Flag";
 const char PROVISIONING_PROFILE_FLAG[] = "Ios:ProvisioningProfile:Flag";
+const char CMAKE_OSX_ARCHITECTURES_FLAG[] = "CMAKE_OSX_ARCHITECTURES:DefaultFlag";
 const char CMAKE_QT6_TOOLCHAIN_FILE_ARG[] =
         "-DCMAKE_TOOLCHAIN_FILE:PATH=%{Qt:QT_INSTALL_PREFIX}/lib/cmake/Qt6/qt.toolchain.cmake";
 
@@ -514,7 +515,7 @@ void CMakeBuildSettingsWidget::batchEditConfiguration()
                                            [expander](const QString &s) {
                                                return expander->expand(s);
                                            });
-        const CMakeConfig config = CMakeConfigItem::itemsFromArguments(expandedLines);
+        const CMakeConfig config = CMakeConfig::fromArguments(expandedLines);
 
         m_configModel->setBatchEditConfiguration(config);
     });
@@ -890,6 +891,21 @@ CMakeBuildConfiguration::CMakeBuildConfiguration(Target *target, Id id)
                                           return QString();
                                       });
 
+    macroExpander()->registerVariable(CMAKE_OSX_ARCHITECTURES_FLAG,
+                                      tr("The CMake flag for the architecture on macOS"),
+                                      [target] {
+                                          if (HostOsInfo::isRunningUnderRosetta()) {
+                                              if (auto *qt = QtSupport::QtKitAspect::qtVersion(target->kit())) {
+                                                  const Abis abis = qt->qtAbis();
+                                                  for (const Abi &abi : abis) {
+                                                      if (abi.architecture() == Abi::ArmArchitecture)
+                                                          return QLatin1String("-DCMAKE_OSX_ARCHITECTURES=arm64");
+                                                  }
+                                              }
+                                          }
+                                          return QLatin1String();
+                                      });
+
     addAspect<SourceDirectoryAspect>();
     addAspect<BuildTypeAspect>();
 
@@ -931,7 +947,7 @@ CMakeBuildConfiguration::CMakeBuildConfiguration(Target *target, Id id)
             QtSupport::BaseQtVersion *qt = QtSupport::QtKitAspect::qtVersion(k);
             auto sdkLocation = bs->data(Android::Constants::SdkLocation).value<FilePath>();
 
-            if (qt->qtVersion() >= QtSupport::QtVersionNumber{6, 0, 0}) {
+            if (qt && qt->qtVersion() >= QtSupport::QtVersionNumber{6, 0, 0}) {
                 initialArgs.append("-DQT_HOST_PATH:PATH=%{Qt:QT_HOST_PREFIX}");
                 initialArgs.append("-DANDROID_SDK_ROOT:PATH=" + sdkLocation.path());
             } else {
@@ -939,27 +955,33 @@ CMakeBuildConfiguration::CMakeBuildConfiguration(Target *target, Id id)
             }
         }
 
-        if (isIos(k)) {
-            QtSupport::BaseQtVersion *qt = QtSupport::QtKitAspect::qtVersion(k);
-            if (qt && qt->qtVersion().majorVersion >= 6) {
-                // TODO it would be better if we could set
-                // CMAKE_SYSTEM_NAME=iOS and CMAKE_XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH=YES
-                // and build with "cmake --build . -- -arch <arch>" instead of setting the architecture
-                // and sysroot in the CMake configuration, but that currently doesn't work with Qt/CMake
-                // https://gitlab.kitware.com/cmake/cmake/-/issues/21276
-                const Id deviceType = DeviceTypeKitAspect::deviceTypeId(k);
-                // TODO the architectures are probably not correct with Apple Silicon in the mix...
-                const QString architecture = deviceType == Ios::Constants::IOS_DEVICE_TYPE
-                                                 ? QLatin1String("arm64")
-                                                 : QLatin1String("x86_64");
-                const QString sysroot = deviceType == Ios::Constants::IOS_DEVICE_TYPE
-                                            ? QLatin1String("iphoneos")
-                                            : QLatin1String("iphonesimulator");
-                initialArgs.append(CMAKE_QT6_TOOLCHAIN_FILE_ARG);
-                initialArgs.append("-DCMAKE_OSX_ARCHITECTURES:STRING=" + architecture);
-                initialArgs.append("-DCMAKE_OSX_SYSROOT:STRING=" + sysroot);
-                initialArgs.append("%{" + QLatin1String(DEVELOPMENT_TEAM_FLAG) + "}");
-                initialArgs.append("%{" + QLatin1String(PROVISIONING_PROFILE_FLAG) + "}");
+        const IDevice::ConstPtr device = DeviceKitAspect::device(k);
+        if (device && device->osType() == Utils::OsTypeMac) {
+            if (isIos(k)) {
+                QtSupport::BaseQtVersion *qt = QtSupport::QtKitAspect::qtVersion(k);
+                if (qt && qt->qtVersion().majorVersion >= 6) {
+                    // TODO it would be better if we could set
+                    // CMAKE_SYSTEM_NAME=iOS and CMAKE_XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH=YES
+                    // and build with "cmake --build . -- -arch <arch>" instead of setting the architecture
+                    // and sysroot in the CMake configuration, but that currently doesn't work with Qt/CMake
+                    // https://gitlab.kitware.com/cmake/cmake/-/issues/21276
+                    const Id deviceType = DeviceTypeKitAspect::deviceTypeId(k);
+                    // TODO the architectures are probably not correct with Apple Silicon in the mix...
+                    const QString architecture = deviceType == Ios::Constants::IOS_DEVICE_TYPE
+                                                     ? QLatin1String("arm64")
+                                                     : QLatin1String("x86_64");
+                    const QString sysroot = deviceType == Ios::Constants::IOS_DEVICE_TYPE
+                                                ? QLatin1String("iphoneos")
+                                                : QLatin1String("iphonesimulator");
+                    initialArgs.append(CMAKE_QT6_TOOLCHAIN_FILE_ARG);
+                    initialArgs.append("-DCMAKE_OSX_ARCHITECTURES:STRING=" + architecture);
+                    initialArgs.append("-DCMAKE_OSX_SYSROOT:STRING=" + sysroot);
+                    initialArgs.append("%{" + QLatin1String(DEVELOPMENT_TEAM_FLAG) + "}");
+                    initialArgs.append("%{" + QLatin1String(PROVISIONING_PROFILE_FLAG) + "}");
+                }
+            } else {
+                // macOS
+                initialArgs.append("%{" + QLatin1String(CMAKE_OSX_ARCHITECTURES_FLAG) + "}");
             }
         }
 
@@ -1026,7 +1048,7 @@ bool CMakeBuildConfiguration::fromMap(const QVariantMap &map)
     }();
     if (initialCMakeArguments().isEmpty()) {
         QStringList initialArgs = defaultInitialCMakeArguments(kit(), buildTypeName)
-                                  + Utils::transform(conf, [this](const CMakeConfigItem &i) {
+                                  + Utils::transform(conf.toList(), [this](const CMakeConfigItem &i) {
                                         return i.toArgument(macroExpander());
                                     });
 
@@ -1088,7 +1110,8 @@ CMakeConfig CMakeBuildConfiguration::configurationChanges() const
 
 QStringList CMakeBuildConfiguration::configurationChangesArguments() const
 {
-    return Utils::transform(m_configurationChanges, [](const CMakeConfigItem &i) { return i.toArgument(); });
+    return Utils::transform(m_configurationChanges.toList(),
+                            [](const CMakeConfigItem &i) { return i.toArgument(); });
 }
 
 QStringList CMakeBuildConfiguration::initialCMakeArguments() const
@@ -1274,9 +1297,9 @@ BuildInfo CMakeBuildConfigurationFactory::createBuildInfo(BuildType buildType)
 
 BuildConfiguration::BuildType CMakeBuildConfiguration::buildType() const
 {
-    QByteArray cmakeBuildTypeName = CMakeConfigItem::valueOf("CMAKE_BUILD_TYPE", m_configurationFromCMake);
+    QByteArray cmakeBuildTypeName = m_configurationFromCMake.valueOf("CMAKE_BUILD_TYPE");
     if (cmakeBuildTypeName.isEmpty()) {
-        QByteArray cmakeCfgTypes = CMakeConfigItem::valueOf("CMAKE_CONFIGURATION_TYPES", m_configurationFromCMake);
+        QByteArray cmakeCfgTypes = m_configurationFromCMake.valueOf("CMAKE_CONFIGURATION_TYPES");
         if (!cmakeCfgTypes.isEmpty())
             cmakeBuildTypeName = cmakeBuildType().toUtf8();
     }
@@ -1330,16 +1353,15 @@ QString CMakeBuildConfiguration::cmakeBuildType() const
             QString errorMessage;
             config = CMakeBuildSystem::parseCMakeCacheDotTxt(cmakeCacheTxt, &errorMessage);
         } else {
-            config = CMakeConfigItem::itemsFromArguments(initialCMakeArguments());
+            config = CMakeConfig::fromArguments(initialCMakeArguments());
         }
     } else if (!hasCMakeCache) {
-        config = CMakeConfigItem::itemsFromArguments(initialCMakeArguments());
+        config = CMakeConfig::fromArguments(initialCMakeArguments());
     }
 
     if (!config.isEmpty() && !isMultiConfig()) {
-        cmakeBuildType = QString::fromUtf8(CMakeConfigItem::valueOf("CMAKE_BUILD_TYPE", config));
-        const_cast<CMakeBuildConfiguration*>(this)
-            ->setCMakeBuildType(cmakeBuildType);
+        cmakeBuildType = config.stringValueOf("CMAKE_BUILD_TYPE");
+        const_cast<CMakeBuildConfiguration*>(this)->setCMakeBuildType(cmakeBuildType);
     }
 
     return cmakeBuildType;

@@ -35,6 +35,8 @@
 #include <QFile>
 #include <QIODevice>
 
+using namespace Utils;
+
 namespace CMakeProjectManager {
 
 // --------------------------------------------------------------------
@@ -53,19 +55,28 @@ CMakeConfigItem::CMakeConfigItem(const QByteArray &k, const QByteArray &v) :
     key(k), value(v)
 { }
 
-QByteArray CMakeConfigItem::valueOf(const QByteArray &key, const QList<CMakeConfigItem> &input)
+QByteArray CMakeConfig::valueOf(const QByteArray &key) const
 {
-    for (auto it = input.constBegin(); it != input.constEnd(); ++it) {
+    for (auto it = constBegin(); it != constEnd(); ++it) {
         if (it->key == key)
             return it->value;
     }
     return QByteArray();
 }
 
-QString CMakeConfigItem::expandedValueOf(const ProjectExplorer::Kit *k, const QByteArray &key,
-                                         const QList<CMakeConfigItem> &input)
+QString CMakeConfig::stringValueOf(const QByteArray &key) const
 {
-    for (auto it = input.constBegin(); it != input.constEnd(); ++it) {
+    return QString::fromUtf8(valueOf(key));
+}
+
+FilePath CMakeConfig::filePathValueOf(const QByteArray &key) const
+{
+    return FilePath::fromUtf8(valueOf(key));
+}
+
+QString CMakeConfig::expandedValueOf(const ProjectExplorer::Kit *k, const QByteArray &key) const
+{
+    for (auto it = constBegin(); it != constEnd(); ++it) {
         if (it->key == key)
             return it->expandedValue(k);
     }
@@ -174,11 +185,11 @@ QString CMakeConfigItem::typeToTypeString(const CMakeConfigItem::Type t)
     return {};
 }
 
-Utils::optional<bool> CMakeConfigItem::toBool(const QByteArray &value)
+Utils::optional<bool> CMakeConfigItem::toBool(const QString &value)
 {
     // Taken from CMakes if(<constant>) documentation:
     // "Named boolean constants are case-insensitive."
-    const QString v = QString::fromUtf8(value).toUpper();
+    const QString v = value.toUpper();
 
     bool isInt = false;
     v.toInt(&isInt);
@@ -203,9 +214,9 @@ QString CMakeConfigItem::expandedValue(const Utils::MacroExpander *expander) con
     return expander ? expander->expand(QString::fromUtf8(value)) : QString::fromUtf8(value);
 }
 
-std::function<bool (const CMakeConfigItem &a, const CMakeConfigItem &b)> CMakeConfigItem::sortOperator()
+bool CMakeConfigItem::less(const CMakeConfigItem &a, const CMakeConfigItem &b)
 {
-    return [](const CMakeConfigItem &a, const CMakeConfigItem &b) { return a.key < b.key; };
+    return a.key < b.key;
 }
 
 CMakeConfigItem CMakeConfigItem::fromString(const QString &s)
@@ -300,7 +311,7 @@ static CMakeConfigItem unsetItemFromString(const QString &input)
     return item;
 }
 
-QList<CMakeConfigItem> CMakeConfigItem::itemsFromArguments(const QStringList &list)
+CMakeConfig CMakeConfig::fromArguments(const QStringList &list)
 {
     CMakeConfig result;
     bool inSet = false;
@@ -336,7 +347,7 @@ QList<CMakeConfigItem> CMakeConfigItem::itemsFromArguments(const QStringList &li
     return result;
 }
 
-QList<CMakeConfigItem> CMakeConfigItem::itemsFromFile(const Utils::FilePath &cacheFile, QString *errorMessage)
+CMakeConfig CMakeConfig::fromFile(const Utils::FilePath &cacheFile, QString *errorMessage)
 {
     CMakeConfig result;
     QFile cache(cacheFile.toString());
@@ -393,7 +404,7 @@ QList<CMakeConfigItem> CMakeConfigItem::itemsFromFile(const Utils::FilePath &cac
         }
     }
 
-    Utils::sort(result, CMakeConfigItem::sortOperator());
+    Utils::sort(result, &CMakeConfigItem::less);
 
     return result;
 
@@ -459,6 +470,11 @@ bool CMakeConfigItem::operator==(const CMakeConfigItem &o) const
 {
     // type, isAdvanced and documentation do not matter for a match!
     return o.key == key && o.value == value && o.isUnset == isUnset;
+}
+
+uint qHash(const CMakeConfigItem &it)
+{
+    return ::qHash(it.key) ^ ::qHash(it.value) ^ ::qHash(it.isUnset);
 }
 
 #if WITH_TESTS
