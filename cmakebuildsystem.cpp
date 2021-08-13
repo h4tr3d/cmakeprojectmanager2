@@ -352,7 +352,7 @@ bool CMakeBuildSystem::addFiles(Node *context, const FilePaths &filePaths, FileP
     return BuildSystem::addFiles(context, filePaths, notAdded);
 }
 
-bool CMakeBuildSystem::deleteFiles(Node *context, const QStringList &filePaths)
+bool CMakeBuildSystem::deleteFiles(Node *context, const Utils::FilePaths &filePaths)
 {
     if (eraseFilesPriv(filePaths))
         return true;
@@ -517,15 +517,14 @@ void CMakeBuildSystem::buildCMakeTarget(const QString &buildTarget)
         cmakeBuildConfiguration()->buildTarget(buildTarget);
 }
 
-bool CMakeBuildSystem::addFilesPriv(const QStringList &filePaths)
+bool CMakeBuildSystem::addFilesPriv(const Utils::FilePaths &filePaths)
 {
     QList<FileNode *> nodes; // nodes to store in persistent tree
     for (auto &filePath : filePaths) {
         const auto mimeType = Utils::mimeTypeForFile(filePath);
-        auto fn = FilePath::fromString(filePath);
-        auto type = TreeScanner::genericFileType(mimeType, fn);
+        auto type = TreeScanner::genericFileType(mimeType, filePath);
 
-        auto node = new FileNode(fn, type);
+        auto node = new FileNode(filePath, type);
         node->setEnabled(false);
         node->setIsGenerated(false);
         nodes << node;
@@ -552,14 +551,13 @@ bool CMakeBuildSystem::addFilesPriv(const QStringList &filePaths)
     return true;
 }
 
-bool CMakeBuildSystem::eraseFilesPriv(const QStringList &filePaths)
+bool CMakeBuildSystem::eraseFilesPriv(const Utils::FilePaths &filePaths)
 {
     QList<const FileNode *> removed;
     for (auto& filePath : filePaths) {
         const auto mimeType = Utils::mimeTypeForFile(filePath);
-        auto fn = FilePath::fromString(filePath);
-        auto type = TreeScanner::genericFileType(mimeType, fn);
-        auto toRemove = new FileNode(fn, type);
+        auto type = TreeScanner::genericFileType(mimeType, filePath);
+        auto toRemove = new FileNode(filePath, type);
         toRemove->setIsGenerated(false);
 
         // To update list

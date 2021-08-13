@@ -78,7 +78,7 @@ public:
     void runCMakeWithExtraArguments();
 
     bool deleteFiles(ProjectExplorer::Node *context,
-                     const QStringList &filePaths) final;
+                     const Utils::FilePaths &filePaths) final;
 
     bool canRenameFile(ProjectExplorer::Node *context, const Utils::FilePath &filePath, const Utils::FilePath &newFilePath) final;
     bool renameFile(ProjectExplorer::Node *context, const Utils::FilePath &filePath, const Utils::FilePath &newFilePath) final;
@@ -112,8 +112,8 @@ public:
     bool usesAllCapsTargets() const;
 
 private:
-    bool addFilesPriv(const QStringList &filePaths);
-    bool eraseFilesPriv(const QStringList &filePaths);
+    bool addFilesPriv(const Utils::FilePaths &filePaths);
+    bool eraseFilesPriv(const Utils::FilePaths &filePaths);
     bool renameFilePriv(const Utils::FilePath &filePath, const Utils::FilePath &newFilePath);
     void updateProjectDataPriv();
 
