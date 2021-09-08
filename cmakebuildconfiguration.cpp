@@ -1011,6 +1011,7 @@ CMakeBuildConfiguration::CMakeBuildConfiguration(Target *target, Id id)
 
     const auto qmlDebuggingAspect = addAspect<QtSupport::QmlDebuggingAspect>();
     qmlDebuggingAspect->setKit(target->kit());
+    setIsMultiConfig(CMakeGeneratorKitAspect::isMultiConfigGenerator(target->kit()));
 }
 
 CMakeBuildConfiguration::~CMakeBuildConfiguration()
@@ -1335,14 +1336,16 @@ FilePath CMakeBuildConfiguration::sourceDirectory() const
 
 QString CMakeBuildConfiguration::cmakeBuildType() const
 {
-    if (!isMultiConfig()) {
-        auto configChanges = configurationChanges();
-        auto it = std::find_if(configChanges.begin(), configChanges.end(),
+    auto setBuildTypeFromConfig = [this](const CMakeConfig &config){
+        auto it = std::find_if(config.begin(), config.end(),
                             [](const CMakeConfigItem &item) { return item.key == "CMAKE_BUILD_TYPE";});
-        if (it != configChanges.end())
+        if (it != config.end())
             const_cast<CMakeBuildConfiguration*>(this)
                 ->setCMakeBuildType(QString::fromUtf8(it->value));
-    }
+    };
+
+    if (!isMultiConfig())
+        setBuildTypeFromConfig(configurationChanges());
 
     QString cmakeBuildType = aspect<BuildTypeAspect>()->value();
 
@@ -1363,10 +1366,8 @@ QString CMakeBuildConfiguration::cmakeBuildType() const
         config = CMakeConfig::fromArguments(initialCMakeArguments());
     }
 
-    if (!config.isEmpty() && !isMultiConfig()) {
-        cmakeBuildType = config.stringValueOf("CMAKE_BUILD_TYPE");
-        const_cast<CMakeBuildConfiguration*>(this)->setCMakeBuildType(cmakeBuildType);
-    }
+    if (!config.isEmpty() && !isMultiConfig())
+        setBuildTypeFromConfig(config);
 
     return cmakeBuildType;
 }
