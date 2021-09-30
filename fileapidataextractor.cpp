@@ -28,6 +28,8 @@
 #include "fileapiparser.h"
 #include "projecttreehelper.h"
 
+#include <cppeditor/cppprojectfilecategorizer.h>
+
 #include <utils/algorithm.h>
 #include <utils/qtcassert.h>
 #include <utils/qtcprocess.h>
@@ -53,7 +55,7 @@ using namespace CMakeProjectManager::Internal::FileApiDetails;
 class CMakeFileResult
 {
 public:
-    QSet<FilePath> cmakeFiles;
+    QSet<CMakeFileInfo> cmakeFiles;
 
     std::vector<std::unique_ptr<ProjectExplorer::FileNode>> cmakeNodesSource;
     std::vector<std::unique_ptr<ProjectExplorer::FileNode>> cmakeNodesBuild;
@@ -61,20 +63,18 @@ public:
     std::vector<std::unique_ptr<ProjectExplorer::FileNode>> cmakeListNodes;
 };
 
-CMakeFileResult extractCMakeFilesData(const std::vector<FileApiDetails::CMakeFileInfo> &cmakefiles,
+CMakeFileResult extractCMakeFilesData(const std::vector<CMakeFileInfo> &cmakefiles,
                                       const FilePath &sourceDirectory,
                                       const FilePath &buildDirectory)
 {
     CMakeFileResult result;
 
-    QDir sourceDir(sourceDirectory.toString());
-    QDir buildDir(buildDirectory.toString());
-
     for (const CMakeFileInfo &info : cmakefiles) {
-        const FilePath sfn = FilePath::fromString(
-            QDir::cleanPath(sourceDir.absoluteFilePath(info.path)));
+        const FilePath sfn = sourceDirectory.resolvePath(info.path);
         const int oldCount = result.cmakeFiles.count();
-        result.cmakeFiles.insert(sfn);
+        CMakeFileInfo absolute(info);
+        absolute.path = sfn;
+        result.cmakeFiles.insert(absolute);
         if (oldCount < result.cmakeFiles.count()) {
             if (info.isCMake && !info.isCMakeListsDotTxt) {
                 // Skip files that cmake considers to be part of the installation -- but include
@@ -91,9 +91,9 @@ CMakeFileResult extractCMakeFilesData(const std::vector<FileApiDetails::CMakeFil
 
             if (info.isCMakeListsDotTxt) {
                 result.cmakeListNodes.emplace_back(std::move(node));
-            } else if (sfn.isChildOf(sourceDir)) {
+            } else if (sfn.isChildOf(sourceDirectory)) {
                 result.cmakeNodesSource.emplace_back(std::move(node));
-            } else if (sfn.isChildOf(buildDir)) {
+            } else if (sfn.isChildOf(buildDirectory)) {
                 result.cmakeNodesBuild.emplace_back(std::move(node));
             } else {
                 result.cmakeNodesOther.emplace_back(std::move(node));
@@ -109,7 +109,7 @@ class PreprocessedData
 public:
     CMakeProjectManager::CMakeConfig cache;
 
-    QSet<FilePath> cmakeFiles;
+    QSet<CMakeFileInfo> cmakeFiles;
 
     std::vector<std::unique_ptr<ProjectExplorer::FileNode>> cmakeNodesSource;
     std::vector<std::unique_ptr<ProjectExplorer::FileNode>> cmakeNodesBuild;
@@ -191,18 +191,20 @@ static bool isChildOf(const FilePath &path, const QStringList &prefixes)
 
 QList<CMakeBuildTarget> generateBuildTargets(const PreprocessedData &input,
                                              const FilePath &sourceDirectory,
-                                             const FilePath &buildDirectory)
+                                             const FilePath &buildDirectory,
+                                             bool haveLibrariesRelativeToBuildDirectory)
 {
     QDir sourceDir(sourceDirectory.toString());
 
     const QList<CMakeBuildTarget> result = transform<QList>(input.targetDetails,
-        [&sourceDir, &sourceDirectory, &buildDirectory](const TargetDetails &t) {
-            const FilePath currentBuildDir = buildDirectory.absoluteFilePath(t.buildDir);
+        [&sourceDir, &sourceDirectory, &buildDirectory,
+         &haveLibrariesRelativeToBuildDirectory](const TargetDetails &t) {
+            const FilePath currentBuildDir = buildDirectory.resolvePath(t.buildDir);
 
             CMakeBuildTarget ct;
             ct.title = t.name;
             if (!t.artifacts.isEmpty())
-                ct.executable = buildDirectory.absoluteFilePath(t.artifacts.at(0));
+                ct.executable = buildDirectory.resolvePath(t.artifacts.at(0));
             TargetType type = UtilityType;
             if (t.type == "EXECUTABLE")
                 type = ExecutableType;
@@ -218,7 +220,7 @@ QList<CMakeBuildTarget> generateBuildTargets(const PreprocessedData &input,
             ct.workingDirectory = ct.executable.isEmpty()
                                       ? currentBuildDir.absolutePath()
                                       : ct.executable.parentDir();
-            ct.sourceDirectory = sourceDirectory.absoluteFilePath(t.sourceDir);
+            ct.sourceDirectory = sourceDirectory.resolvePath(t.sourceDir);
 
             ct.backtrace = extractBacktraceInformation(t.backtraceGraph, sourceDir, t.backtrace, 0);
 
@@ -271,7 +273,8 @@ QList<CMakeBuildTarget> generateBuildTargets(const PreprocessedData &input,
                         if (part.startsWith("-"))
                             continue;
 
-                        FilePath tmp = currentBuildDir.absoluteFilePath(FilePath::fromUserInput(part));
+                        const FilePath buildDir = haveLibrariesRelativeToBuildDirectory ? buildDirectory : currentBuildDir;
+                        FilePath tmp = buildDir.resolvePath(FilePath::fromUserInput(part));
 
                         if (f.role == "libraries")
                             tmp = tmp.parentDir();
@@ -328,6 +331,11 @@ RawProjectParts generateRawProjectParts(const PreprocessedData &input,
     for (const TargetDetails &t : input.targetDetails) {
         QDir sourceDir(sourceDirectory.toString());
 
+        CppEditor::ProjectFileCategorizer
+            categorizer({}, transform<QList>(t.sources, [&sourceDir](const SourceInfo &si) {
+                            return sourceDir.absoluteFilePath(si.path);
+                        }));
+
         bool needPostfix = t.compileGroups.size() > 1;
         int count = 1;
         for (const CompileInfo &ci : t.compileGroups) {
@@ -374,8 +382,14 @@ RawProjectParts generateRawProjectParts(const PreprocessedData &input,
                                            return si.path.endsWith(ending);
                                        }).path);
 
-            rpp.setFiles(transform<QList>(ci.sources, [&t, &sourceDir](const int si) {
-                return sourceDir.absoluteFilePath(t.sources[static_cast<size_t>(si)].path);
+            CppEditor::ProjectFiles sources;
+            if (ci.language == "C")
+                sources = categorizer.cSources();
+            else if (ci.language == "CXX")
+                sources = categorizer.cxxSources();
+
+            rpp.setFiles(transform<QList>(sources, [](const CppEditor::ProjectFile &pf) {
+                return pf.path;
             }));
             if (!precompiled_header.isEmpty()) {
                 if (precompiled_header.toFileInfo().isRelative()) {
@@ -425,27 +439,25 @@ RawProjectParts generateRawProjectParts(const PreprocessedData &input,
     return rpps;
 }
 
-FilePath directorySourceDir(const Configuration &c, const QDir &sourceDir, int directoryIndex)
+FilePath directorySourceDir(const Configuration &c, const FilePath &sourceDir, int directoryIndex)
 {
     const size_t di = static_cast<size_t>(directoryIndex);
     QTC_ASSERT(di < c.directories.size(), return FilePath());
 
-    return FilePath::fromString(
-        QDir::cleanPath(sourceDir.absoluteFilePath(c.directories[di].sourcePath)));
+    return sourceDir.resolvePath(c.directories[di].sourcePath).cleanPath();
 }
 
-FilePath directoryBuildDir(const Configuration &c, const QDir &buildDir, int directoryIndex)
+FilePath directoryBuildDir(const Configuration &c, const FilePath &buildDir, int directoryIndex)
 {
     const size_t di = static_cast<size_t>(directoryIndex);
     QTC_ASSERT(di < c.directories.size(), return FilePath());
 
-    return FilePath::fromString(
-        QDir::cleanPath(buildDir.absoluteFilePath(c.directories[di].buildPath)));
+    return buildDir.resolvePath(c.directories[di].buildPath).cleanPath();
 }
 
 void addProjects(const QHash<Utils::FilePath, ProjectNode *> &cmakeListsNodes,
                  const Configuration &config,
-                 const QDir &sourceDir)
+                 const FilePath &sourceDir)
 {
     for (const FileApiDetails::Project &p : config.projects) {
         if (p.parent == -1)
@@ -491,8 +503,7 @@ void addCompileGroups(ProjectNode *targetRoot,
                       const Utils::FilePath &topSourceDirectory,
                       const Utils::FilePath &sourceDirectory,
                       const Utils::FilePath &buildDirectory,
-                      const TargetDetails &td,
-                      QSet<FilePath> &knownHeaderNodes)
+                      const TargetDetails &td)
 {
     const bool inSourceBuild = (sourceDirectory == buildDirectory);
 
@@ -503,15 +514,12 @@ void addCompileGroups(ProjectNode *targetRoot,
     targetRoot->forEachGenericNode(
         [&alreadyListed](const Node *n) { alreadyListed.insert(n->filePath()); });
 
-    const QDir topSourceDir(topSourceDirectory.toString());
-
     std::vector<std::unique_ptr<FileNode>> buildFileNodes;
     std::vector<std::unique_ptr<FileNode>> otherFileNodes;
     std::vector<std::vector<std::unique_ptr<FileNode>>> sourceGroupFileNodes{td.sourceGroups.size()};
 
     for (const SourceInfo &si : td.sources) {
-        const FilePath sourcePath = FilePath::fromString(
-            QDir::cleanPath(topSourceDir.absoluteFilePath(si.path)));
+        const FilePath sourcePath = topSourceDirectory.resolvePath(si.path).cleanPath();
 
         // Filter out already known files:
         const int count = alreadyListed.count();
@@ -522,10 +530,6 @@ void addCompileGroups(ProjectNode *targetRoot,
         // Create FileNodes from the file
         auto node = std::make_unique<FileNode>(sourcePath, Node::fileTypeForFileName(sourcePath));
         node->setIsGenerated(si.isGenerated);
-
-        // Register headers:
-        if (node->fileType() == FileType::Header)
-            knownHeaderNodes.insert(node->filePath());
 
         // Where does the file node need to go?
         if (sourcePath.isChildOf(buildDirectory) && !inSourceBuild) {
@@ -573,10 +577,8 @@ void addCompileGroups(ProjectNode *targetRoot,
 void addTargets(const QHash<Utils::FilePath, ProjectExplorer::ProjectNode *> &cmakeListsNodes,
                 const Configuration &config,
                 const std::vector<TargetDetails> &targetDetails,
-                const FilePath &topSourceDir,
-                const QDir &sourceDir,
-                const QDir &buildDir,
-                QSet<FilePath> &knownHeaderNodes)
+                const FilePath &sourceDir,
+                const FilePath &buildDir)
 {
     for (const FileApiDetails::Target &t : config.targets) {
         const TargetDetails &td = Utils::findOrDefault(targetDetails,
@@ -590,46 +592,37 @@ void addTargets(const QHash<Utils::FilePath, ProjectExplorer::ProjectNode *> &cm
         tNode->setTargetInformation(td.artifacts, td.type);
         tNode->setBuildDirectory(directoryBuildDir(config, buildDir, t.directory));
 
-        addCompileGroups(tNode, topSourceDir, dir, tNode->buildDirectory(), td, knownHeaderNodes);
+        addCompileGroups(tNode, sourceDir, dir, tNode->buildDirectory(), td);
     }
 }
 
-std::pair<std::unique_ptr<CMakeProjectNode>, QSet<FilePath>> generateRootProjectNode(
+std::unique_ptr<CMakeProjectNode> generateRootProjectNode(
     PreprocessedData &data, const FilePath &sourceDirectory, const FilePath &buildDirectory)
 {
-    std::pair<std::unique_ptr<CMakeProjectNode>, QSet<FilePath>> result;
-    result.first = std::make_unique<CMakeProjectNode>(sourceDirectory);
-
-    const QDir sourceDir(sourceDirectory.toString());
-    const QDir buildDir(buildDirectory.toString());
+    std::unique_ptr<CMakeProjectNode> result = std::make_unique<CMakeProjectNode>(sourceDirectory);
 
     const FileApiDetails::Project topLevelProject
         = findOrDefault(data.codemodel.projects, equal(&FileApiDetails::Project::parent, -1));
     if (!topLevelProject.name.isEmpty())
-        result.first->setDisplayName(topLevelProject.name);
+        result->setDisplayName(topLevelProject.name);
     else
-        result.first->setDisplayName(sourceDirectory.fileName());
+        result->setDisplayName(sourceDirectory.fileName());
 
-    QHash<FilePath, ProjectNode *> cmakeListsNodes = addCMakeLists(result.first.get(),
+    QHash<FilePath, ProjectNode *> cmakeListsNodes = addCMakeLists(result.get(),
                                                                    std::move(data.cmakeListNodes));
     data.cmakeListNodes.clear(); // Remove all the nullptr in the vector...
 
-    QSet<FilePath> knownHeaders;
-    addProjects(cmakeListsNodes, data.codemodel, sourceDir);
+    addProjects(cmakeListsNodes, data.codemodel, sourceDirectory);
 
     addTargets(cmakeListsNodes,
                data.codemodel,
                data.targetDetails,
                sourceDirectory,
-               sourceDir,
-               buildDir,
-               knownHeaders);
-
-    // addHeaderNodes(root.get(), knownHeaders, allFiles);
+               buildDirectory);
 
     if (!data.cmakeNodesSource.empty() || !data.cmakeNodesBuild.empty()
         || !data.cmakeNodesOther.empty())
-        addCMakeInputs(result.first.get(),
+        addCMakeInputs(result.get(),
                        sourceDirectory,
                        buildDirectory,
                        std::move(data.cmakeNodesSource),
@@ -639,8 +632,6 @@ std::pair<std::unique_ptr<CMakeProjectNode>, QSet<FilePath>> generateRootProject
     data.cmakeNodesSource.clear(); // Remove all the nullptr in the vector...
     data.cmakeNodesBuild.clear();  // Remove all the nullptr in the vector...
     data.cmakeNodesOther.clear();  // Remove all the nullptr in the vector...
-
-    result.second = knownHeaders;
 
     return result;
 }
@@ -768,14 +759,18 @@ FileApiQtcData extractData(FileApiData &input,
         return {};
     }
 
-    result.buildTargets = generateBuildTargets(data, sourceDirectory, buildDirectory);
+    // Ninja generator from CMake version 3.20.5 has libraries relative to build directory
+    const bool haveLibrariesRelativeToBuildDirectory =
+            input.replyFile.generator.startsWith("Ninja")
+         && input.replyFile.cmakeVersion >= QVersionNumber(3, 20, 5);
+
+    result.buildTargets = generateBuildTargets(data, sourceDirectory, buildDirectory, haveLibrariesRelativeToBuildDirectory);
     result.cmakeFiles = std::move(data.cmakeFiles);
     result.projectParts = generateRawProjectParts(data, sourceDirectory);
 
-    auto pair = !plain ? generateRootProjectNode(data, sourceDirectory, buildDirectory) : generateRootProjectNodePlain(data, sourceDirectory, buildDirectory);
-    ProjectTree::applyTreeManager(pair.first.get()); // QRC nodes
-    result.rootProjectNode = std::move(pair.first);
-    result.knownHeaders = std::move(pair.second);
+    auto rootProjectNode = !plain ? generateRootProjectNode(data, sourceDirectory, buildDirectory) : generateRootProjectNodePlain(data, sourceDirectory, buildDirectory);
+    ProjectTree::applyTreeManager(rootProjectNode.get()); // QRC nodes
+    result.rootProjectNode = std::move(rootProjectNode);
 
     setupLocationInfoForTargets(result.rootProjectNode.get(), result.buildTargets);
 

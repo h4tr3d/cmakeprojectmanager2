@@ -37,6 +37,7 @@
 #include "configmodelitemdelegate.h"
 
 #include <android/androidconstants.h>
+#include <docker/dockerconstants.h>
 #include <ios/iosconstants.h>
 #include <qnx/qnxconstants.h>
 #include <webassembly/webassemblyconstants.h>
@@ -50,10 +51,10 @@
 #include <projectexplorer/buildsteplist.h>
 #include <projectexplorer/kitinformation.h>
 #include <projectexplorer/namedwidget.h>
-#include <projectexplorer/projectexplorer.h>
 #include <projectexplorer/project.h>
-#include <projectexplorer/projectmacroexpander.h>
+#include <projectexplorer/projectexplorer.h>
 #include <projectexplorer/target.h>
+#include <projectexplorer/taskhub.h>
 
 #include <qtsupport/baseqtversion.h>
 #include <qtsupport/qtbuildaspects.h>
@@ -799,6 +800,11 @@ static bool isQnx(const Kit *k)
     return DeviceTypeKitAspect::deviceTypeId(k) == Qnx::Constants::QNX_QNX_OS_TYPE;
 }
 
+static bool isDocker(const Kit *k)
+{
+    return DeviceTypeKitAspect::deviceTypeId(k) == Docker::Constants::DOCKER_DEVICE_TYPE;
+}
+
 static QStringList defaultInitialCMakeArguments(const Kit *k, const QString buildType)
 {
     // Generator:
@@ -813,7 +819,7 @@ static QStringList defaultInitialCMakeArguments(const Kit *k, const QString buil
         = Internal::CMakeProjectPlugin::projectTypeSpecificSettings();
 
     // Package manager
-    if (settings->packageManagerAutoSetup.value())
+    if (!isDocker(k) && settings->packageManagerAutoSetup.value())
         initialArgs.append(QString::fromLatin1("-DCMAKE_PROJECT_INCLUDE_BEFORE:PATH=%1")
                            .arg("%{IDE:ResourcePath}/package-manager/auto-setup.cmake"));
 
@@ -948,6 +954,9 @@ CMakeBuildConfiguration::CMakeBuildConfiguration(Target *target, Id id)
             auto sdkLocation = bs->data(Android::Constants::SdkLocation).value<FilePath>();
 
             if (qt && qt->qtVersion() >= QtSupport::QtVersionNumber{6, 0, 0}) {
+                // Don't build apk under ALL target because Qt Creator will handle it
+                if (qt->qtVersion() >= QtSupport::QtVersionNumber{6, 1, 0})
+                    initialArgs.append("-DQT_NO_GLOBAL_APK_TARGET_PART_OF_ALL:BOOL=ON");
                 initialArgs.append("-DQT_HOST_PATH:PATH=%{Qt:QT_HOST_PREFIX}");
                 initialArgs.append("-DANDROID_SDK_ROOT:PATH=" + sdkLocation.path());
             } else {
@@ -956,33 +965,30 @@ CMakeBuildConfiguration::CMakeBuildConfiguration(Target *target, Id id)
         }
 
         const IDevice::ConstPtr device = DeviceKitAspect::device(k);
-        if (device && device->osType() == Utils::OsTypeMac) {
-            if (isIos(k)) {
-                QtSupport::BaseQtVersion *qt = QtSupport::QtKitAspect::qtVersion(k);
-                if (qt && qt->qtVersion().majorVersion >= 6) {
-                    // TODO it would be better if we could set
-                    // CMAKE_SYSTEM_NAME=iOS and CMAKE_XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH=YES
-                    // and build with "cmake --build . -- -arch <arch>" instead of setting the architecture
-                    // and sysroot in the CMake configuration, but that currently doesn't work with Qt/CMake
-                    // https://gitlab.kitware.com/cmake/cmake/-/issues/21276
-                    const Id deviceType = DeviceTypeKitAspect::deviceTypeId(k);
-                    // TODO the architectures are probably not correct with Apple Silicon in the mix...
-                    const QString architecture = deviceType == Ios::Constants::IOS_DEVICE_TYPE
-                                                     ? QLatin1String("arm64")
-                                                     : QLatin1String("x86_64");
-                    const QString sysroot = deviceType == Ios::Constants::IOS_DEVICE_TYPE
-                                                ? QLatin1String("iphoneos")
-                                                : QLatin1String("iphonesimulator");
-                    initialArgs.append(CMAKE_QT6_TOOLCHAIN_FILE_ARG);
-                    initialArgs.append("-DCMAKE_OSX_ARCHITECTURES:STRING=" + architecture);
-                    initialArgs.append("-DCMAKE_OSX_SYSROOT:STRING=" + sysroot);
-                    initialArgs.append("%{" + QLatin1String(DEVELOPMENT_TEAM_FLAG) + "}");
-                    initialArgs.append("%{" + QLatin1String(PROVISIONING_PROFILE_FLAG) + "}");
-                }
-            } else {
-                // macOS
-                initialArgs.append("%{" + QLatin1String(CMAKE_OSX_ARCHITECTURES_FLAG) + "}");
+        if (isIos(k)) {
+            QtSupport::BaseQtVersion *qt = QtSupport::QtKitAspect::qtVersion(k);
+            if (qt && qt->qtVersion().majorVersion >= 6) {
+                // TODO it would be better if we could set
+                // CMAKE_SYSTEM_NAME=iOS and CMAKE_XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH=YES
+                // and build with "cmake --build . -- -arch <arch>" instead of setting the architecture
+                // and sysroot in the CMake configuration, but that currently doesn't work with Qt/CMake
+                // https://gitlab.kitware.com/cmake/cmake/-/issues/21276
+                const Id deviceType = DeviceTypeKitAspect::deviceTypeId(k);
+                // TODO the architectures are probably not correct with Apple Silicon in the mix...
+                const QString architecture = deviceType == Ios::Constants::IOS_DEVICE_TYPE
+                                                 ? QLatin1String("arm64")
+                                                 : QLatin1String("x86_64");
+                const QString sysroot = deviceType == Ios::Constants::IOS_DEVICE_TYPE
+                                            ? QLatin1String("iphoneos")
+                                            : QLatin1String("iphonesimulator");
+                initialArgs.append(CMAKE_QT6_TOOLCHAIN_FILE_ARG);
+                initialArgs.append("-DCMAKE_OSX_ARCHITECTURES:STRING=" + architecture);
+                initialArgs.append("-DCMAKE_OSX_SYSROOT:STRING=" + sysroot);
+                initialArgs.append("%{" + QLatin1String(DEVELOPMENT_TEAM_FLAG) + "}");
+                initialArgs.append("%{" + QLatin1String(PROVISIONING_PROFILE_FLAG) + "}");
             }
+        } else if (device && device->osType() == Utils::OsTypeMac) {
+            initialArgs.append("%{" + QLatin1String(CMAKE_OSX_ARCHITECTURES_FLAG) + "}");
         }
 
         if (isWebAssembly(k) || isQnx(k)) {
@@ -1009,6 +1015,7 @@ CMakeBuildConfiguration::CMakeBuildConfiguration(Target *target, Id id)
 
     const auto qmlDebuggingAspect = addAspect<QtSupport::QmlDebuggingAspect>();
     qmlDebuggingAspect->setKit(target->kit());
+    setIsMultiConfig(CMakeGeneratorKitAspect::isMultiConfigGenerator(target->kit()));
 }
 
 CMakeBuildConfiguration::~CMakeBuildConfiguration()
@@ -1067,15 +1074,17 @@ FilePath CMakeBuildConfiguration::shadowBuildDirectory(const FilePath &projectFi
         return FilePath();
 
     const QString projectName = projectFilePath.parentDir().fileName();
-    ProjectMacroExpander expander(projectFilePath, projectName, k, bcName, buildType);
     const FilePath projectDir = Project::projectDirectory(projectFilePath);
-    QString buildPath = expander.expand(ProjectExplorerPlugin::buildDirectoryTemplate());
-    buildPath.replace(" ", "-");
+    FilePath buildPath = BuildConfiguration::buildDirectoryFromTemplate(projectDir,
+        projectFilePath, projectName, k, bcName, buildType, BuildConfiguration::ReplaceSpaces);
 
-    if (CMakeGeneratorKitAspect::isMultiConfigGenerator(k))
-        buildPath = buildPath.left(buildPath.lastIndexOf(QString("-%1").arg(bcName)));
+    if (CMakeGeneratorKitAspect::isMultiConfigGenerator(k)) {
+        QString path = buildPath.path();
+        path = path.left(path.lastIndexOf(QString("-%1").arg(bcName)));
+        buildPath.setPath(path);
+    }
 
-    return projectDir.resolvePath(buildPath);
+    return buildPath;
 }
 
 void CMakeBuildConfiguration::buildTarget(const QString &buildTarget)
@@ -1167,6 +1176,7 @@ void CMakeBuildConfiguration::setError(const QString &message)
         qCDebug(cmakeBuildConfigurationLog) << "Emitting enabledChanged signal";
         emit enabledChanged();
     }
+    TaskHub::addTask(BuildSystemTask(Task::TaskType::Error, message));
     emit errorOccurred(m_error);
 }
 
@@ -1175,6 +1185,7 @@ void CMakeBuildConfiguration::setWarning(const QString &message)
     if (m_warning == message)
         return;
     m_warning = message;
+    TaskHub::addTask(BuildSystemTask(Task::TaskType::Warning, message));
     emit warningOccurred(m_warning);
 }
 
@@ -1331,14 +1342,16 @@ FilePath CMakeBuildConfiguration::sourceDirectory() const
 
 QString CMakeBuildConfiguration::cmakeBuildType() const
 {
-    if (!isMultiConfig()) {
-        auto configChanges = configurationChanges();
-        auto it = std::find_if(configChanges.begin(), configChanges.end(),
+    auto setBuildTypeFromConfig = [this](const CMakeConfig &config){
+        auto it = std::find_if(config.begin(), config.end(),
                             [](const CMakeConfigItem &item) { return item.key == "CMAKE_BUILD_TYPE";});
-        if (it != configChanges.end())
+        if (it != config.end())
             const_cast<CMakeBuildConfiguration*>(this)
                 ->setCMakeBuildType(QString::fromUtf8(it->value));
-    }
+    };
+
+    if (!isMultiConfig())
+        setBuildTypeFromConfig(configurationChanges());
 
     QString cmakeBuildType = aspect<BuildTypeAspect>()->value();
 
@@ -1359,10 +1372,8 @@ QString CMakeBuildConfiguration::cmakeBuildType() const
         config = CMakeConfig::fromArguments(initialCMakeArguments());
     }
 
-    if (!config.isEmpty() && !isMultiConfig()) {
-        cmakeBuildType = config.stringValueOf("CMAKE_BUILD_TYPE");
-        const_cast<CMakeBuildConfiguration*>(this)->setCMakeBuildType(cmakeBuildType);
-    }
+    if (!config.isEmpty() && !isMultiConfig())
+        setBuildTypeFromConfig(config);
 
     return cmakeBuildType;
 }

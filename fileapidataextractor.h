@@ -44,16 +44,29 @@ namespace Internal {
 
 class FileApiData;
 
+class CMakeFileInfo
+{
+public:
+    bool operator==(const CMakeFileInfo& other) const { return path == other.path; }
+
+    Utils::FilePath path;
+    bool isCMake = false;
+    bool isCMakeListsDotTxt = false;
+    bool isExternal = false;
+    bool isGenerated = false;
+};
+
+inline uint qHash(const CMakeFileInfo &info, uint seed = 0) { return info.path.hash(seed); }
+
 class FileApiQtcData
 {
 public:
     QString errorMessage;
     CMakeConfig cache;
-    QSet<Utils::FilePath> cmakeFiles;
+    QSet<CMakeFileInfo> cmakeFiles;
     QList<CMakeBuildTarget> buildTargets;
     ProjectExplorer::RawProjectParts projectParts;
     std::unique_ptr<CMakeProjectNode> rootProjectNode;
-    QSet<Utils::FilePath> knownHeaders;
     QString ctestPath;
     bool isMultiConfig = false;
     bool usesAllCapsTargets = false;

@@ -39,6 +39,7 @@
 #include <QFutureInterface>
 #include <QString>
 #include <QVector>
+#include <QVersionNumber>
 
 #include <vector>
 
@@ -65,18 +66,9 @@ public:
     QString cmakeRoot;
 
     QVector<ReplyObject> replies;
+    QVersionNumber cmakeVersion;
 
     Utils::FilePath jsonFile(const QString &kind, const Utils::FilePath &replyDir) const;
-};
-
-class CMakeFileInfo
-{
-public:
-    QString path;
-    bool isCMake = false;
-    bool isCMakeListsDotTxt = false;
-    bool isExternal = false;
-    bool isGenerated = false;
 };
 
 class Directory
@@ -241,7 +233,7 @@ class FileApiData
 public:
     FileApiDetails::ReplyFileContents replyFile;
     CMakeConfig cache;
-    std::vector<FileApiDetails::CMakeFileInfo> cmakeFiles;
+    std::vector<CMakeFileInfo> cmakeFiles;
     FileApiDetails::Configuration codemodel;
     std::vector<FileApiDetails::TargetDetails> targetDetails;
 };

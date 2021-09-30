@@ -28,6 +28,7 @@
 #include "cmakebuildtarget.h"
 #include "cmakeprocess.h"
 #include "cmakeprojectnodes.h"
+#include "fileapidataextractor.h"
 
 #include <projectexplorer/rawprojectpart.h>
 #include <projectexplorer/treescanner.h>
@@ -72,24 +73,24 @@ public:
     QString ctestPath() const;
     virtual
     std::unique_ptr<CMakeProjectNode> generateProjectTree(
-        const ProjectExplorer::TreeScanner::Result &allFiles,
-        QString &errorMessage,
-        bool includeHeaderNodes);
+        const ProjectExplorer::TreeScanner::Result &allFiles, bool failedToParse);
     virtual
     ProjectExplorer::RawProjectParts createRawProjectParts(QString &errorMessage);
 
     bool isMultiConfig() const;
     bool usesAllCapsTargets() const;
 
+    int lastCMakeExitCode() const;
+
 signals:
     void configurationStarted() const;
-    void dataAvailable() const;
+    void dataAvailable(bool restoredFromBackup) const;
     void dirty() const;
     void errorOccurred(const QString &message) const;
 
 protected:
     void startState();
-    virtual void endState(const Utils::FilePath &replyFilePath);
+    virtual void endState(const Utils::FilePath &replyFilePath, bool restoredFromBackup);
     void startCMakeState(const QStringList &configurationArguments);
     void cmakeFinishedState();
 
@@ -102,11 +103,10 @@ protected:
 
     // cmake data:
     CMakeConfig m_cache;
-    QSet<Utils::FilePath> m_cmakeFiles;
+    QSet<CMakeFileInfo> m_cmakeFiles;
     QList<CMakeBuildTarget> m_buildTargets;
     ProjectExplorer::RawProjectParts m_projectParts;
     std::unique_ptr<CMakeProjectNode> m_rootProjectNode;
-    QSet<Utils::FilePath> m_knownHeaders;
     QString m_ctestPath;
     bool m_isMultiConfig = false;
     bool m_usesAllCapsTargets = false;

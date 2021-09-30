@@ -28,7 +28,6 @@
 #include "cmakeparser.h"
 
 #include <coreplugin/progressmanager/progressmanager.h>
-#include <coreplugin/reaper.h>
 #include <projectexplorer/buildsystem.h>
 #include <projectexplorer/projectexplorerconstants.h>
 #include <projectexplorer/taskhub.h>
@@ -57,11 +56,7 @@ CMakeProcess::CMakeProcess()
 
 CMakeProcess::~CMakeProcess()
 {
-    if (m_process) {
-        m_process->disconnect();
-        Core::Reaper::reap(m_process.release());
-    }
-
+    m_process.reset();
     m_parser.flush();
 
     if (m_future) {
@@ -78,7 +73,24 @@ void CMakeProcess::run(const BuildDirParameters &parameters, const QStringList &
     QTC_ASSERT(parameters.isValid() && cmake, return);
 
     const FilePath buildDirectory = parameters.buildDirectory;
-    QTC_ASSERT(buildDirectory.exists(), return);
+    if (!buildDirectory.exists()) {
+        QString msg = tr("The build directory \"%1\" does not exist")
+                .arg(buildDirectory.toUserOutput());
+        BuildSystem::appendBuildSystemOutput(msg + '\n');
+        emit finished();
+        return;
+    }
+
+    if (buildDirectory.needsDevice()) {
+        if (cmake->cmakeExecutable().host() != buildDirectory.host()) {
+            QString msg = tr("CMake executable \"%1\" and build directory "
+                    "\"%2\" must be on the same device.")
+                .arg(cmake->cmakeExecutable().toUserOutput(), buildDirectory.toUserOutput());
+            BuildSystem::appendBuildSystemOutput(msg + '\n');
+            emit finished();
+            return;
+        }
+    }
 
     const QString srcDir = parameters.sourceDirectory.path();
 

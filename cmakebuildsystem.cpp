@@ -30,6 +30,7 @@
 #include "cmakebuildstep.h"
 #include "cmakebuildtarget.h"
 #include "cmakekitinformation.h"
+#include "cmakeproject.h"
 #include "cmakeprojectconstants.h"
 #include "cmakeprojectnodes.h"
 #include "cmakeprojectplugin.h"
@@ -39,10 +40,9 @@
 #include <android/androidconstants.h>
 #include <coreplugin/icore.h>
 #include <coreplugin/progressmanager/progressmanager.h>
-#include <coreplugin/reaper.h>
-#include <cpptools/cppprojectupdater.h>
-#include <cpptools/cpptoolsconstants.h>
-#include <cpptools/generatedcodemodelsupport.h>
+#include <cppeditor/cppeditorconstants.h>
+#include <cppeditor/cppprojectupdater.h>
+#include <cppeditor/generatedcodemodelsupport.h>
 #include <projectexplorer/kitinformation.h>
 #include <projectexplorer/projectexplorer.h>
 #include <projectexplorer/projectexplorerconstants.h>
@@ -84,10 +84,9 @@ static void copySourcePathsToClipboard(const FilePaths &srcPaths, const ProjectN
 {
     QClipboard *clip = QGuiApplication::clipboard();
 
-    QDir projDir{node->filePath().toFileInfo().absoluteFilePath()};
-    QString data = Utils::transform(srcPaths, [projDir](const FilePath &path) {
-        return QDir::cleanPath(projDir.relativeFilePath(path.toString()));
-    }).join(" ");
+    QString data = Utils::transform(srcPaths, [projDir = node->filePath()](const FilePath &path) {
+                       return path.relativePath(projDir).cleanPath().toString();
+                   }).join(" ");
     clip->setText(data);
 }
 
@@ -95,10 +94,10 @@ static void noAutoAdditionNotify(const FilePaths &filePaths, const ProjectNode *
 {
     const FilePaths srcPaths = Utils::filtered(filePaths, [](const FilePath &file) {
         const auto mimeType = Utils::mimeTypeForFile(file).name();
-        return mimeType == CppTools::Constants::C_SOURCE_MIMETYPE ||
-               mimeType == CppTools::Constants::C_HEADER_MIMETYPE ||
-               mimeType == CppTools::Constants::CPP_SOURCE_MIMETYPE ||
-               mimeType == CppTools::Constants::CPP_HEADER_MIMETYPE ||
+        return mimeType == CppEditor::Constants::C_SOURCE_MIMETYPE ||
+               mimeType == CppEditor::Constants::C_HEADER_MIMETYPE ||
+               mimeType == CppEditor::Constants::CPP_SOURCE_MIMETYPE ||
+               mimeType == CppEditor::Constants::CPP_HEADER_MIMETYPE ||
                mimeType == ProjectExplorer::Constants::FORM_MIMETYPE ||
                mimeType == ProjectExplorer::Constants::RESOURCE_MIMETYPE ||
                mimeType == ProjectExplorer::Constants::SCXML_MIMETYPE;
@@ -153,7 +152,7 @@ static Q_LOGGING_CATEGORY(cmakeBuildSystemLog, "qtc.cmake.buildsystem", QtWarnin
 
 CMakeBuildSystem::CMakeBuildSystem(CMakeBuildConfiguration *bc)
     : BuildSystem(bc)
-    , m_cppCodeModelUpdater(new CppTools::CppProjectUpdater)
+    , m_cppCodeModelUpdater(new CppEditor::CppProjectUpdater)
 {
     // TreeScanner:
     connect(&m_treeScanner, &TreeScanner::finished,
@@ -376,9 +375,8 @@ bool CMakeBuildSystem::renameFile(Node *context, const FilePath &filePath, const
 
 FilePaths CMakeBuildSystem::filesGeneratedFrom(const FilePath &sourceFile) const
 {
-    QFileInfo fi = sourceFile.toFileInfo();
     FilePath project = projectDirectory();
-    FilePath baseDirectory = FilePath::fromString(fi.absolutePath());
+    FilePath baseDirectory = sourceFile.parentDir();
 
     while (baseDirectory.isChildOf(project)) {
         const FilePath cmakeListsTxt = baseDirectory.pathAppended("CMakeLists.txt");
@@ -387,22 +385,19 @@ FilePaths CMakeBuildSystem::filesGeneratedFrom(const FilePath &sourceFile) const
         baseDirectory = baseDirectory.parentDir();
     }
 
-    QDir srcDirRoot = QDir(project.toString());
-    QString relativePath = srcDirRoot.relativeFilePath(baseDirectory.toString());
-    QDir buildDir = QDir(cmakeBuildConfiguration()->buildDirectory().toString());
-    QString generatedFilePath = buildDir.absoluteFilePath(relativePath);
+    const FilePath relativePath = baseDirectory.relativePath(project);
+    FilePath generatedFilePath = cmakeBuildConfiguration()->buildDirectory().resolvePath(
+        relativePath);
 
-    if (fi.suffix() == "ui") {
-        generatedFilePath += "/ui_";
-        generatedFilePath += fi.completeBaseName();
-        generatedFilePath += ".h";
-        return {FilePath::fromString(QDir::cleanPath(generatedFilePath))};
+    if (sourceFile.suffix() == "ui") {
+        generatedFilePath = generatedFilePath
+                                .pathAppended("ui_" + sourceFile.completeBaseName() + ".h")
+                                .cleanPath();
+        return {generatedFilePath};
     }
-    if (fi.suffix() == "scxml") {
-        generatedFilePath += "/";
-        generatedFilePath += QDir::cleanPath(fi.completeBaseName());
-        return {FilePath::fromString(generatedFilePath + ".h"),
-                FilePath::fromString(generatedFilePath + ".cpp")};
+    if (sourceFile.suffix() == "scxml") {
+        generatedFilePath = generatedFilePath.pathAppended(sourceFile.completeBaseName());
+        return {generatedFilePath.stringAppended(".h"), generatedFilePath.stringAppended(".cpp")};
     }
 
     // TODO: Other types will be added when adapters for their compilers become available.
@@ -431,6 +426,8 @@ QString CMakeBuildSystem::reparseParametersString(int reparseFlags)
 void CMakeBuildSystem::setParametersAndRequestParse(const BuildDirParameters &parameters,
                                                     const int reparseParameters)
 {
+    project()->clearIssues();
+
     qCDebug(cmakeBuildSystemLog) << cmakeBuildConfiguration()->displayName()
                                  << "setting parameters and requesting reparse"
                                  << reparseParametersString(reparseParameters);
@@ -654,7 +651,7 @@ void CMakeBuildSystem::handleTreeScanningFinished()
 
     m_waitingForScan = false;
 
-    combineScanAndParse();
+    combineScanAndParse(m_reader.lastCMakeExitCode() != 0);
 }
 
 bool CMakeBuildSystem::persistCMakeState()
@@ -710,15 +707,13 @@ void CMakeBuildSystem::clearCMakeCache()
 }
 
 std::unique_ptr<CMakeProjectNode> CMakeBuildSystem::generateProjectTree(
-    const TreeScanner::Result &allFiles, bool includeHeaderNodes)
+    const TreeScanner::Result &allFiles, bool failedToParse)
 {
-    QString errorMessage;
-    auto root = m_reader.generateProjectTree(allFiles, errorMessage, includeHeaderNodes);
-    checkAndReportError(errorMessage);
+    auto root = m_reader.generateProjectTree(allFiles, failedToParse);
     return root;
 }
 
-void CMakeBuildSystem::combineScanAndParse()
+void CMakeBuildSystem::combineScanAndParse(bool restoredFromBackup)
 {
     if (cmakeBuildConfiguration()->isActive()) {
         if (m_waitingForParse || m_waitingForScan)
@@ -727,8 +722,22 @@ void CMakeBuildSystem::combineScanAndParse()
         if (m_combinedScanAndParseResult) {
             updateProjectData();
             m_currentGuard.markAsSuccess();
+
+            if (restoredFromBackup)
+                project()->addIssue(
+                    CMakeProject::IssueType::Error,
+                    tr("<b>CMake configuration failed<b>"
+                       "<p>The backup of the previous configuration has been restored.</p>"
+                       "<p>Have a look at the Issues pane or in the \"Projects > Build\" settings "
+                       "for more information about the failure.</p"));
         } else {
             updateFallbackProjectData();
+
+            project()->addIssue(
+                CMakeProject::IssueType::Error,
+                tr("<b>Failed to load project<b>"
+                   "<p>Have a look at the Issues pane or in the \"Projects > Build\" settings "
+                   "for more information about the failure.</p"));
         }
     }
 
@@ -787,7 +796,7 @@ void CMakeBuildSystem::updateProjectData()
 
     Project *p = project();
     {
-        auto newRoot = generateProjectTree(m_allFiles, true);
+        auto newRoot = generateProjectTree(m_allFiles, false);
         if (newRoot) {
             setRootProjectNode(std::move(newRoot));
 
@@ -854,7 +863,7 @@ void CMakeBuildSystem::updateProjectData()
         QList<QByteArray> moduleMappings;
         for (const RawProjectPart &rpp : qAsConst(rpps)) {
             FilePath moduleMapFile = cmakeBuildConfiguration()->buildDirectory()
-                    .pathAppended("/qml_module_mappings/" + rpp.buildSystemTarget);
+                    .pathAppended("qml_module_mappings/" + rpp.buildSystemTarget);
             if (moduleMapFile.exists()) {
                 QFile mmf(moduleMapFile.toString());
                 if (mmf.open(QFile::ReadOnly)) {
@@ -889,7 +898,7 @@ void CMakeBuildSystem::updateFallbackProjectData()
 
     QTC_ASSERT(m_treeScanner.isFinished() && !m_reader.isParsing(), return );
 
-    auto newRoot = generateProjectTree(m_allFiles, false);
+    auto newRoot = generateProjectTree(m_allFiles, true);
     setRootProjectNode(std::move(newRoot));
 
     qCDebug(cmakeBuildSystemLog) << "All fallback CMake project data up to date.";
@@ -913,7 +922,7 @@ void CMakeBuildSystem::updateCMakeConfiguration(QString &errorMessage)
     cmakeBuildConfiguration()->setConfigurationFromCMake(cmakeConfig);
 }
 
-void CMakeBuildSystem::handleParsingSucceeded()
+void CMakeBuildSystem::handleParsingSucceeded(bool restoredFromBackup)
 {
     if (!cmakeBuildConfiguration()->isActive()) {
         stopParsingAndClearState();
@@ -940,7 +949,7 @@ void CMakeBuildSystem::handleParsingSucceeded()
         checkAndReportError(errorMessage);
     }
 
-    m_ctestPath = m_reader.ctestPath();
+    m_ctestPath = FilePath::fromString(m_reader.ctestPath());
 
     setApplicationTargets(appTargets());
     setDeploymentData(deploymentData());
@@ -948,7 +957,7 @@ void CMakeBuildSystem::handleParsingSucceeded()
     QTC_ASSERT(m_waitingForParse, return );
     m_waitingForParse = false;
 
-    combineScanAndParse();
+    combineScanAndParse(restoredFromBackup);
 }
 
 void CMakeBuildSystem::handleParsingFailed(const QString &msg)
@@ -965,7 +974,7 @@ void CMakeBuildSystem::handleParsingFailed(const QString &msg)
     m_waitingForParse = false;
     m_combinedScanAndParseResult = false;
 
-    combineScanAndParse();
+    combineScanAndParse(false);
 }
 
 void CMakeBuildSystem::wireUpConnections()
@@ -1267,6 +1276,11 @@ bool CMakeBuildSystem::usesAllCapsTargets() const
     return m_reader.usesAllCapsTargets();
 }
 
+CMakeProject *CMakeBuildSystem::project() const
+{
+    return static_cast<CMakeProject *>(ProjectExplorer::BuildSystem::project());
+}
+
 const QList<TestCaseInfo> CMakeBuildSystem::testcasesInfo() const
 {
     return m_testNames;
@@ -1314,7 +1328,7 @@ DeploymentData CMakeBuildSystem::deploymentData() const
         if (ct.targetType == ExecutableType || ct.targetType == DynamicLibraryType) {
             if (!ct.executable.isEmpty()
                     && result.deployableForLocalFile(ct.executable).localFilePath() != ct.executable) {
-                result.addFile(ct.executable.toString(),
+                result.addFile(ct.executable,
                                deploymentPrefix + buildDir.relativeFilePath(ct.executable.toFileInfo().dir().path()),
                                DeployableFile::TypeExecutable);
             }
@@ -1444,10 +1458,10 @@ void CMakeBuildSystem::updateInitialCMakeExpandableVars()
         // this is not 100% correct since CMake resolve them to CMAKE_CURRENT_SOURCE_DIR
         // depending on context, but we cannot do better here
         return first == second
-               || projectDirectory.absoluteFilePath(first)
-                      == projectDirectory.absoluteFilePath(second)
-               || projectDirectory.absoluteFilePath(first).canonicalPath()
-                      == projectDirectory.absoluteFilePath(second).canonicalPath();
+               || projectDirectory.resolvePath(first)
+                      == projectDirectory.resolvePath(second)
+               || projectDirectory.resolvePath(first).canonicalPath()
+                      == projectDirectory.resolvePath(second).canonicalPath();
     };
 
     // Replace path values that do not  exist on file system

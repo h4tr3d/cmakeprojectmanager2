@@ -37,15 +37,13 @@
 #include <utils/futuresynchronizer.h>
 #include <utils/temporarydirectory.h>
 
+namespace CppEditor { class CppProjectUpdater; }
 namespace ProjectExplorer { class ExtraCompiler; }
-
-namespace CppTools {
-class CppProjectUpdater;
-} // namespace CppTools
 
 namespace CMakeProjectManager {
 
 class CMakeBuildConfiguration;
+class CMakeProject;
 
 namespace Internal {
 
@@ -71,6 +69,7 @@ public:
                   const Utils::FilePaths &filePaths, Utils::FilePaths *) final;
     
     Utils::FilePaths filesGeneratedFrom(const Utils::FilePath &sourceFile) const final;
+    QString name() const final { return QLatin1String("cmake"); }
 
     // Actions:
     void runCMake();
@@ -111,6 +110,8 @@ public:
     bool isMultiConfig() const;
     bool usesAllCapsTargets() const;
 
+    CMakeProject *project() const;
+
 private:
     bool addFilesPriv(const Utils::FilePaths &filePaths);
     bool eraseFilesPriv(const Utils::FilePaths &filePaths);
@@ -143,10 +144,10 @@ private:
     void handleTreeScanningFinished();
 
     // Combining Treescanner and Parser states:
-    void combineScanAndParse();
+    void combineScanAndParse(bool restoredFromBackup);
 
     std::unique_ptr<CMakeProjectNode> generateProjectTree(
-        const ProjectExplorer::TreeScanner::Result &allFiles, bool includeHeadersNode);
+        const ProjectExplorer::TreeScanner::Result &allFiles, bool failedToParse);
     void checkAndReportError(QString &errorMessage);
 
     void updateCMakeConfiguration(QString &errorMessage);
@@ -158,7 +159,7 @@ private:
                               const QList<QByteArray> &moduleMappings);
     void updateInitialCMakeExpandableVars();
 
-    void handleParsingSucceeded();
+    void handleParsingSucceeded(bool restoredFromBackup);
     void handleParsingFailed(const QString &msg);
 
     void wireUpConnections();
@@ -182,7 +183,7 @@ private:
 
     ParseGuard m_currentGuard;
 
-    CppTools::CppProjectUpdater *m_cppCodeModelUpdater = nullptr;
+    CppEditor::CppProjectUpdater *m_cppCodeModelUpdater = nullptr;
     QList<ProjectExplorer::ExtraCompiler *> m_extraCompilers;
     QList<CMakeBuildTarget> m_buildTargets;
 
@@ -198,7 +199,7 @@ private:
     mutable bool m_isHandlingError = false;
 
     // CTest integration
-    QString m_ctestPath;
+    Utils::FilePath m_ctestPath;
     QList<ProjectExplorer::TestCaseInfo> m_testNames;
     Utils::FutureSynchronizer m_futureSynchronizer;
 };

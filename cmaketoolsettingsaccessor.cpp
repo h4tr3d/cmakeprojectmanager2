@@ -78,16 +78,16 @@ static std::vector<std::unique_ptr<CMakeTool>> autoDetectCMakeTools()
         for (auto envVar : {"ProgramFiles", "ProgramFiles(x86)", "ProgramW6432"}) {
             if (qEnvironmentVariableIsSet(envVar)) {
                 const QString progFiles = qEnvironmentVariable(envVar);
-                path.append(FilePath::fromString(progFiles + "/CMake"));
-                path.append(FilePath::fromString(progFiles + "/CMake/bin"));
+                path.append(FilePath::fromUserInput(progFiles + "/CMake"));
+                path.append(FilePath::fromUserInput(progFiles + "/CMake/bin"));
             }
         }
     }
 
     if (HostOsInfo::isMacHost()) {
-        path.append(FilePath::fromString("/Applications/CMake.app/Contents/bin"));
-        path.append(FilePath::fromString("/usr/local/bin"));
-        path.append(FilePath::fromString("/opt/local/bin"));
+        path.append("/Applications/CMake.app/Contents/bin");
+        path.append("/usr/local/bin");
+        path.append("/opt/local/bin");
     }
 
     const QStringList execs = env.appendExeExtensions(QLatin1String("cmake"));
