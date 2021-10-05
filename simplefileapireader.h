@@ -14,13 +14,11 @@ class SimpleFileApiReader : public FileApiReader
 
 public:
     std::unique_ptr<CMakeProjectNode> generateProjectTree(
-        const ProjectExplorer::TreeScanner::Result &allFiles,
-        QString &errorMessage,
-        bool includeHeaderNodes) final;
+        const ProjectExplorer::TreeScanner::Result &allFiles, bool failedToParse) final;
     ProjectExplorer::RawProjectParts createRawProjectParts(QString &errorMessage) final;
 
 protected:
-    void endState(const Utils::FilePath &replyFilePath) final;
+    void endState(const Utils::FilePath &replyFilePath, bool restoredFromBackup) final;
 
 private:
     QList<std::tuple<Utils::FilePath, ProjectExplorer::FileType, bool>> m_filesCache;

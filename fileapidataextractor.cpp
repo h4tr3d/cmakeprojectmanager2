@@ -674,11 +674,10 @@ void setupLocationInfoForTargets(CMakeProjectNode *rootNode, const QList<CMakeBu
     }
 }
 
-std::pair<std::unique_ptr<CMakeProjectNode>, QSet<FilePath>> generateRootProjectNodePlain(
+std::unique_ptr<CMakeProjectNode> generateRootProjectNodePlain(
     PreprocessedData &data, const FilePath &sourceDirectory, const FilePath &buildDirectory)
 {
-    std::pair<std::unique_ptr<CMakeProjectNode>, QSet<FilePath>> result;
-    result.first = std::make_unique<CMakeProjectNode>(sourceDirectory);
+    std::unique_ptr<CMakeProjectNode> result = std::make_unique<CMakeProjectNode>(sourceDirectory);
 
     const QDir sourceDir(sourceDirectory.toString());
     const QDir buildDir(buildDirectory.toString());
@@ -686,7 +685,7 @@ std::pair<std::unique_ptr<CMakeProjectNode>, QSet<FilePath>> generateRootProject
     const FileApiDetails::Project topLevelProject
         = findOrDefault(data.codemodel.projects, equal(&FileApiDetails::Project::parent, -1));
     if (!topLevelProject.name.isEmpty())
-        result.first->setDisplayName(topLevelProject.name);
+        result->setDisplayName(topLevelProject.name);
 
     std::vector<std::unique_ptr<ProjectExplorer::FileNode>> files;
     files.reserve(data.cmakeListNodes.size() + data.cmakeNodesSource.size() + data.cmakeNodesBuild.size() + data.cmakeNodesOther.size());
@@ -729,7 +728,7 @@ std::pair<std::unique_ptr<CMakeProjectNode>, QSet<FilePath>> generateRootProject
         }
     }
 
-    result.first->addNestedNodes(std::move(files), sourceDirectory);
+    result->addNestedNodes(std::move(files), sourceDirectory);
 
     return result;
 }
@@ -768,7 +767,8 @@ FileApiQtcData extractData(FileApiData &input,
     result.cmakeFiles = std::move(data.cmakeFiles);
     result.projectParts = generateRawProjectParts(data, sourceDirectory);
 
-    auto rootProjectNode = !plain ? generateRootProjectNode(data, sourceDirectory, buildDirectory) : generateRootProjectNodePlain(data, sourceDirectory, buildDirectory);
+    auto rootProjectNode = !plain ? generateRootProjectNode(data, sourceDirectory, buildDirectory) 
+                                  : generateRootProjectNodePlain(data, sourceDirectory, buildDirectory);
     ProjectTree::applyTreeManager(rootProjectNode.get()); // QRC nodes
     result.rootProjectNode = std::move(rootProjectNode);
 

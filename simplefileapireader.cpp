@@ -37,7 +37,7 @@ Q_DECLARE_LOGGING_CATEGORY(cmakeFileApiMode);
 // SimpleFileApiReader:
 // --------------------------------------------------------------------
 
-void SimpleFileApiReader::endState(const FilePath &replyFilePath)
+void SimpleFileApiReader::endState(const FilePath &replyFilePath, bool restoredFromBackup)
 {
     qCDebug(cmakeFileApiMode) << "SimpleFileApiReader: END STATE.";
     QTC_ASSERT(m_isParsing, return );
@@ -45,7 +45,7 @@ void SimpleFileApiReader::endState(const FilePath &replyFilePath)
 
     const FilePath sourceDirectory = m_parameters.sourceDirectory;
     const FilePath buildDirectory = m_parameters.buildDirectory;
-    const FilePath topCmakeFile = m_cmakeFiles.size() == 1 ? *m_cmakeFiles.begin() : FilePath{};
+    const FilePath topCmakeFile = m_cmakeFiles.size() == 1 ? (*m_cmakeFiles.begin()).path : FilePath{};
     const QString cmakeBuildType = m_parameters.cmakeBuildType == "Build" ? "" : m_parameters.cmakeBuildType;
 
     QTC_CHECK(!replyFilePath.needsDevice());
@@ -75,7 +75,7 @@ void SimpleFileApiReader::endState(const FilePath &replyFilePath)
                         });
     onResultReady(m_future.value(),
                   this,
-                  [this, topCmakeFile, sourceDirectory, buildDirectory](
+                  [this, topCmakeFile, sourceDirectory, buildDirectory, restoredFromBackup](
                       const std::shared_ptr<FileApiQtcData> &value) {
                       m_isParsing = false;
                       m_cache = std::move(value->cache);
@@ -83,13 +83,12 @@ void SimpleFileApiReader::endState(const FilePath &replyFilePath)
                       m_buildTargets = std::move(value->buildTargets);
                       m_projectParts = std::move(value->projectParts);
                       m_rootProjectNode = std::move(value->rootProjectNode);
-                      m_knownHeaders = std::move(value->knownHeaders);
                       m_ctestPath = std::move(value->ctestPath);
                       m_isMultiConfig = std::move(value->isMultiConfig);
                       m_usesAllCapsTargets = std::move(value->usesAllCapsTargets);
 
                       if (value->errorMessage.isEmpty()) {
-                          emit this->dataAvailable();
+                          emit this->dataAvailable(restoredFromBackup);
                       } else {
                           emit this->errorOccurred(value->errorMessage);
                       }
@@ -98,10 +97,8 @@ void SimpleFileApiReader::endState(const FilePath &replyFilePath)
 }
 
 std::unique_ptr<CMakeProjectNode> SimpleFileApiReader::generateProjectTree(
-    const ProjectExplorer::TreeScanner::Result &allFiles, QString &errorMessage, bool /*includeHeaderNodes*/)
+    const ProjectExplorer::TreeScanner::Result &allFiles, bool failedToParse)
 {
-    Q_UNUSED(errorMessage)
-
     QSet<Utils::FilePath> alreadyListed;
 
     // Cache is needed to reload tree without CMake run
