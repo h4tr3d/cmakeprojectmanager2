@@ -246,15 +246,16 @@ void FileApiReader::endState(const FilePath &replyFilePath, bool restoredFromBac
     m_lastReplyTimestamp = replyFilePath.lastModified();
 
     m_future = runAsync(ProjectExplorerPlugin::sharedThreadPool(),
-                        [replyFilePath, sourceDirectory, buildDirectory, cmakeBuildType](
+                        [replyFilePath, sourceDirectory, buildDirectory, cmakeBuildType, isPlain = m_isPlain](
                             QFutureInterface<std::shared_ptr<FileApiQtcData>> &fi) {
                             auto result = std::make_shared<FileApiQtcData>();
                             FileApiData data = FileApiParser::parseData(fi,
                                                                         replyFilePath,
                                                                         cmakeBuildType,
                                                                         result->errorMessage);
+                            qCDebug(cmakeFileApiMode) << "FileApiReader: isPlain" << isPlain;
                             if (result->errorMessage.isEmpty())
-                                *result = extractData(data, sourceDirectory, buildDirectory);
+                                *result = extractData(data, sourceDirectory, buildDirectory, isPlain);
                             else
                                 qWarning() << result->errorMessage;
 

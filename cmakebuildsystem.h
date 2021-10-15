@@ -130,6 +130,7 @@ private:
         = (1 << 1), // Force initial configuration arguments to cmake
         REPARSE_FORCE_EXTRA_CONFIGURATION = (1 << 2), // Force extra configuration arguments to cmake
         REPARSE_URGENT = (1 << 3),                    // Do not delay the parser run by 1s
+        REPARSE_SCAN = (1 << 4),                      // Run filesystem scan
     };
     QString reparseParametersString(int reparseFlags);
     void setParametersAndRequestParse(const BuildDirParameters &parameters,
@@ -175,9 +176,10 @@ private:
     void runCTest();
 
     ProjectExplorer::TreeScanner m_treeScanner;
-    std::shared_ptr<ProjectExplorer::FolderNode> m_allFiles;
+    ProjectExplorer::TreeScanner::Result m_allFiles;
     QHash<QString, bool> m_mimeBinaryCache;
 
+    bool m_waitingForScan = false;
     bool m_waitingForParse = false;
     bool m_combinedScanAndParseResult = false;
 

@@ -72,7 +72,6 @@ public:
     CMakeConfig takeParsedConfiguration(QString &errorMessage);
     QString ctestPath() const;
     virtual
-    virtual
     ProjectExplorer::RawProjectParts createRawProjectParts(QString &errorMessage);
 
     bool isMultiConfig() const;
@@ -92,7 +91,7 @@ signals:
 
 protected:
     void startState();
-    virtual void endState(const Utils::FilePath &replyFilePath, bool restoredFromBackup);
+    void endState(const Utils::FilePath &replyFilePath, bool restoredFromBackup);
     void startCMakeState(const QStringList &configurationArguments);
     void cmakeFinishedState();
 
@@ -112,6 +111,7 @@ protected:
     QString m_ctestPath;
     bool m_isMultiConfig = false;
     bool m_usesAllCapsTargets = false;
+    bool m_isPlain = false;
     int m_lastCMakeExitCode = 0;
 
     Utils::optional<QFuture<std::shared_ptr<FileApiQtcData>>> m_future;

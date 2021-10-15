@@ -37,66 +37,13 @@ Q_DECLARE_LOGGING_CATEGORY(cmakeFileApiMode);
 // SimpleFileApiReader:
 // --------------------------------------------------------------------
 
-void SimpleFileApiReader::endState(const FilePath &replyFilePath, bool restoredFromBackup)
+SimpleFileApiReader::SimpleFileApiReader()
+    : FileApiReader()
 {
-    qCDebug(cmakeFileApiMode) << "SimpleFileApiReader: END STATE.";
-    QTC_ASSERT(m_isParsing, return );
-    QTC_ASSERT(!m_future.has_value(), return );
-
-    const FilePath sourceDirectory = m_parameters.sourceDirectory;
-    const FilePath buildDirectory = m_parameters.buildDirectory;
-    const FilePath topCmakeFile = m_cmakeFiles.size() == 1 ? (*m_cmakeFiles.begin()).path : FilePath{};
-    const QString cmakeBuildType = m_parameters.cmakeBuildType == "Build" ? "" : m_parameters.cmakeBuildType;
-
-    QTC_CHECK(!replyFilePath.needsDevice());
-    m_lastReplyTimestamp = replyFilePath.lastModified();
-
-    m_future = runAsync(ProjectExplorerPlugin::sharedThreadPool(),
-                        [replyFilePath, sourceDirectory, buildDirectory, topCmakeFile, cmakeBuildType](
-                            QFutureInterface<std::shared_ptr<FileApiQtcData>> &fi) {
-                            auto result = std::make_shared<FileApiQtcData>();
-                            FileApiData data = FileApiParser::parseData(fi,
-                                                                        replyFilePath,
-                                                                        cmakeBuildType,
-                                                                        result->errorMessage);
-                            if (!result->errorMessage.isEmpty()) {
-                                *result = generateFallbackData(topCmakeFile,
-                                                               sourceDirectory,
-                                                               buildDirectory,
-                                                               result->errorMessage);
-                            } else {
-                                *result = extractData(data, sourceDirectory, buildDirectory, true);
-                            }
-                            if (!result->errorMessage.isEmpty()) {
-                                qWarning() << result->errorMessage;
-                            }
-
-                            fi.reportResult(result);
-                        });
-    onResultReady(m_future.value(),
-                  this,
-                  [this, topCmakeFile, sourceDirectory, buildDirectory, restoredFromBackup](
-                      const std::shared_ptr<FileApiQtcData> &value) {
-                      m_isParsing = false;
-                      m_cache = std::move(value->cache);
-                      m_cmakeFiles = std::move(value->cmakeFiles);
-                      m_buildTargets = std::move(value->buildTargets);
-                      m_projectParts = std::move(value->projectParts);
-                      m_rootProjectNode = std::move(value->rootProjectNode);
-                      m_ctestPath = std::move(value->ctestPath);
-                      m_isMultiConfig = std::move(value->isMultiConfig);
-                      m_usesAllCapsTargets = std::move(value->usesAllCapsTargets);
-
-                      if (value->errorMessage.isEmpty()) {
-                          emit this->dataAvailable(restoredFromBackup);
-                      } else {
-                          emit this->errorOccurred(value->errorMessage);
-                      }
-                      m_future = {};
-                  });
+    m_isPlain = true;
 }
 
-std::unique_ptr<CMakeProjectNode> SimpleFileApiReader::generateProjectTree(
+std::unique_ptr<CMakeProjectNode> SimpleFileApiReader::rootProjectNode(
     const ProjectExplorer::TreeScanner::Result &allFiles, bool failedToParse)
 {
     QSet<Utils::FilePath> alreadyListed;

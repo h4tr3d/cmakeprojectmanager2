@@ -13,12 +13,12 @@ class SimpleFileApiReader : public FileApiReader
     Q_OBJECT
 
 public:
-    std::unique_ptr<CMakeProjectNode> generateProjectTree(
-        const ProjectExplorer::TreeScanner::Result &allFiles, bool failedToParse) final;
+    SimpleFileApiReader();
+    
     ProjectExplorer::RawProjectParts createRawProjectParts(QString &errorMessage) final;
-
-protected:
-    void endState(const Utils::FilePath &replyFilePath, bool restoredFromBackup) final;
+    
+    // TBD: make virtual?
+    std::unique_ptr<CMakeProjectNode> rootProjectNode(const ProjectExplorer::TreeScanner::Result &allFiles, bool failedToParse);
 
 private:
     QList<std::tuple<Utils::FilePath, ProjectExplorer::FileType, bool>> m_filesCache;
