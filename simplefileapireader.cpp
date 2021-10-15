@@ -110,9 +110,11 @@ std::unique_ptr<CMakeProjectNode> SimpleFileApiReader::rootProjectNode(
 RawProjectParts SimpleFileApiReader::createRawProjectParts(QString &errorMessage)
 {
     Q_UNUSED(errorMessage)
+    
+    if (!m_projectParts.empty())
+        m_projectPartsCache = std::exchange(m_projectParts, {});
 
-    // Keep for the future calls
-    return m_projectParts;
+    return m_projectPartsCache;
 }
 
 

@@ -23,6 +23,7 @@ public:
 private:
     QList<std::tuple<Utils::FilePath, ProjectExplorer::FileType, bool>> m_filesCache;
     QString m_topLevelNameCache;
+    ProjectExplorer::RawProjectParts m_projectPartsCache;
 };
 
 } // namespace Internal
