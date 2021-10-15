@@ -72,8 +72,6 @@ public:
     CMakeConfig takeParsedConfiguration(QString &errorMessage);
     QString ctestPath() const;
     virtual
-    std::unique_ptr<CMakeProjectNode> generateProjectTree(
-        const ProjectExplorer::TreeScanner::Result &allFiles, bool failedToParse);
     virtual
     ProjectExplorer::RawProjectParts createRawProjectParts(QString &errorMessage);
 
@@ -81,6 +79,10 @@ public:
     bool usesAllCapsTargets() const;
 
     int lastCMakeExitCode() const;
+
+    std::unique_ptr<CMakeProjectNode> rootProjectNode();
+
+    Utils::FilePath topCmakeFile() const;
 
 signals:
     void configurationStarted() const;

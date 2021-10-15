@@ -35,6 +35,7 @@
 #include "cmakeprojectnodes.h"
 #include "cmakeprojectplugin.h"
 #include "cmakespecificsettings.h"
+#include "projecttreehelper.h"
 #include "utils/algorithm.h"
 
 #include <android/androidconstants.h>
@@ -160,8 +161,7 @@ CMakeBuildSystem::CMakeBuildSystem(CMakeBuildConfiguration *bc)
 
     m_treeScanner.setFilter([this](const MimeType &mimeType, const FilePath &fn) {
         // Mime checks requires more resources, so keep it last in check list
-        auto isIgnored = fn.toString().startsWith(projectFilePath().toString() + ".user")
-                         || TreeScanner::isWellKnownBinary(mimeType, fn);
+        auto isIgnored = TreeScanner::isWellKnownBinary(mimeType, fn);
 
         // Cache mime check result for speed up
         if (!isIgnored) {
@@ -215,7 +215,6 @@ CMakeBuildSystem::~CMakeBuildSystem()
 
     delete m_cppCodeModelUpdater;
     qDeleteAll(m_extraCompilers);
-    qDeleteAll(m_allFiles.allFiles);
 }
 
 void CMakeBuildSystem::triggerParsing()
@@ -246,27 +245,10 @@ void CMakeBuildSystem::triggerParsing()
 
     qCDebug(cmakeBuildSystemLog) << "ParseGuard acquired.";
 
-    if (m_allFiles.allFiles.isEmpty()) {
-        qCDebug(cmakeBuildSystemLog)
-            << "No treescanner information available, forcing treescanner run.";
-        updateReparseParameters(REPARSE_SCAN);
-    }
-
     int reparseParameters = takeReparseParameters();
 
-    m_waitingForScan = (reparseParameters & REPARSE_SCAN) != 0;
     m_waitingForParse = true;
     m_combinedScanAndParseResult = true;
-
-    if (m_waitingForScan) {
-        qCDebug(cmakeBuildSystemLog) << "Starting TreeScanner";
-        QTC_CHECK(m_treeScanner.isFinished());
-        if (m_treeScanner.asyncScanForFiles(projectDirectory()))
-            Core::ProgressManager::addTask(m_treeScanner.future(),
-                                           tr("Scan \"%1\" project tree")
-                                               .arg(project()->displayName()),
-                                           "CMake.Scan.Tree");
-    }
 
     QTC_ASSERT(m_parameters.isValid(), return );
 
@@ -416,8 +398,6 @@ QString CMakeBuildSystem::reparseParametersString(int reparseFlags)
             result += " FORCE_CMAKE_RUN";
         if (reparseFlags & REPARSE_FORCE_INITIAL_CONFIGURATION)
             result += " FORCE_CONFIG";
-        if (reparseFlags & REPARSE_SCAN)
-            result += " SCAN";
     }
     return result.trimmed();
 }
@@ -495,7 +475,7 @@ void CMakeBuildSystem::runCMakeAndScanProjectTree()
     BuildDirParameters parameters(cmakeBuildConfiguration());
     qCDebug(cmakeBuildSystemLog) << "Requesting parse due to \"Rescan Project\" command";
     setParametersAndRequestParse(parameters,
-                                 REPARSE_FORCE_CMAKE_RUN | REPARSE_SCAN | REPARSE_URGENT);
+                                 REPARSE_FORCE_CMAKE_RUN | REPARSE_URGENT);
 }
 
 void CMakeBuildSystem::runCMakeWithExtraArguments()
@@ -640,20 +620,8 @@ void CMakeBuildSystem::updateProjectDataPriv()
 }
     
 
-void CMakeBuildSystem::handleTreeScanningFinished()
-{
-    QTC_CHECK(m_waitingForScan);
-
-    qDeleteAll(m_allFiles.allFiles);
-    m_allFiles = m_treeScanner.release();
     for (auto fn : m_allFiles.allFiles)
         fn->setEnabled(false);
-
-    m_waitingForScan = false;
-
-    combineScanAndParse(m_reader.lastCMakeExitCode() != 0);
-}
-
 bool CMakeBuildSystem::persistCMakeState()
 {
     BuildDirParameters parameters(cmakeBuildConfiguration());
@@ -706,17 +674,10 @@ void CMakeBuildSystem::clearCMakeCache()
 
 }
 
-std::unique_ptr<CMakeProjectNode> CMakeBuildSystem::generateProjectTree(
-    const TreeScanner::Result &allFiles, bool failedToParse)
-{
-    auto root = m_reader.generateProjectTree(allFiles, failedToParse);
-    return root;
-}
-
 void CMakeBuildSystem::combineScanAndParse(bool restoredFromBackup)
 {
     if (cmakeBuildConfiguration()->isActive()) {
-        if (m_waitingForParse || m_waitingForScan)
+        if (m_waitingForParse)
             return;
 
         if (m_combinedScanAndParseResult) {
@@ -730,6 +691,15 @@ void CMakeBuildSystem::combineScanAndParse(bool restoredFromBackup)
                        "<p>The backup of the previous configuration has been restored.</p>"
                        "<p>Have a look at the Issues pane or in the \"Projects > Build\" settings "
                        "for more information about the failure.</p"));
+
+            m_reader.resetData();
+
+            m_currentGuard = {};
+            m_testNames.clear();
+
+            emitBuildSystemUpdated();
+
+            runCTest();
         } else {
             updateFallbackProjectData();
 
@@ -740,15 +710,6 @@ void CMakeBuildSystem::combineScanAndParse(bool restoredFromBackup)
                    "for more information about the failure.</p"));
         }
     }
-
-    m_reader.resetData();
-
-    m_currentGuard = {};
-    m_testNames.clear();
-
-    emitBuildSystemUpdated();
-
-    runCTest();
 }
 
 void CMakeBuildSystem::checkAndReportError(QString &errorMessage)
@@ -796,7 +757,7 @@ void CMakeBuildSystem::updateProjectData()
 
     Project *p = project();
     {
-        auto newRoot = generateProjectTree(m_allFiles, false);
+        auto newRoot = m_reader.rootProjectNode();
         if (newRoot) {
             setRootProjectNode(std::move(newRoot));
 
@@ -892,16 +853,51 @@ void CMakeBuildSystem::updateProjectData()
     qCDebug(cmakeBuildSystemLog) << "All CMake project data up to date.";
 }
 
+void CMakeBuildSystem::handleTreeScanningFinished()
+{
+    TreeScanner::Result result = m_treeScanner.release();
+    m_allFiles = result.folderNode;
+    qDeleteAll(result.allFiles);
+
+    updateFileSystemNodes();
+}
+
+void CMakeBuildSystem::updateFileSystemNodes()
+{
+    auto newRoot = std::make_unique<CMakeProjectNode>(m_parameters.sourceDirectory);
+    newRoot->setDisplayName(m_parameters.sourceDirectory.fileName());
+
+    if (!m_reader.topCmakeFile().isEmpty()) {
+        auto node = std::make_unique<FileNode>(m_reader.topCmakeFile(), FileType::Project);
+        node->setIsGenerated(false);
+
+        std::vector<std::unique_ptr<FileNode>> fileNodes;
+        fileNodes.emplace_back(std::move(node));
+
+        addCMakeLists(newRoot.get(), std::move(fileNodes));
+    }
+
+    addFileSystemNodes(newRoot.get(), m_allFiles);
+    setRootProjectNode(std::move(newRoot));
+
+    m_reader.resetData();
+
+    m_currentGuard = {};
+    emitBuildSystemUpdated();
+
+    qCDebug(cmakeBuildSystemLog) << "All fallback CMake project data up to date.";
+}
+
 void CMakeBuildSystem::updateFallbackProjectData()
 {
     qCDebug(cmakeBuildSystemLog) << "Updating fallback CMake project data";
-
-    QTC_ASSERT(m_treeScanner.isFinished() && !m_reader.isParsing(), return );
-
-    auto newRoot = generateProjectTree(m_allFiles, true);
-    setRootProjectNode(std::move(newRoot));
-
-    qCDebug(cmakeBuildSystemLog) << "All fallback CMake project data up to date.";
+    qCDebug(cmakeBuildSystemLog) << "Starting TreeScanner";
+    QTC_CHECK(m_treeScanner.isFinished());
+    if (m_treeScanner.asyncScanForFiles(projectDirectory()))
+        Core::ProgressManager::addTask(m_treeScanner.future(),
+                                       tr("Scan \"%1\" project tree")
+                                           .arg(project()->displayName()),
+                                       "CMake.Scan.Tree");
 }
 
 void CMakeBuildSystem::updateCMakeConfiguration(QString &errorMessage)
@@ -1084,7 +1080,7 @@ void CMakeBuildSystem::becameDirty()
     if (isParsing())
         return;
 
-    setParametersAndRequestParse(BuildDirParameters(cmakeBuildConfiguration()), REPARSE_SCAN);
+    setParametersAndRequestParse(BuildDirParameters(cmakeBuildConfiguration()), REPARSE_DEFAULT);
 }
 
 void CMakeBuildSystem::updateReparseParameters(const int parameters)
