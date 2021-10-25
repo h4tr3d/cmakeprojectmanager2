@@ -887,6 +887,18 @@ void CMakeBuildSystem::updateProjectData()
     qCDebug(cmakeBuildSystemLog) << "All CMake project data up to date.";
 }
 
+/*
+ * TBD: Scenario below must be reworked.
+ * 
+ * New upstream approach are running Tree Scanner only on CMake processing failure. 
+ * 
+ * In our approach, to be more close to the File System, we must do it in parallel and 
+ * combine result on the tree generation.
+ * 
+ * Error case mostly out of scope and must be reviewed.
+ * 
+ */ 
+
 #if 0
 void CMakeBuildSystem::handleTreeScanningFinished()
 {
