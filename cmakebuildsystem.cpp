@@ -1258,7 +1258,7 @@ const QList<BuildTargetInfo> CMakeBuildSystem::appTargets() const
             BuildTargetInfo bti;
             bti.displayName = ct.title;
             bti.targetFilePath = ct.executable;
-            bti.projectFilePath = ct.sourceDirectory.stringAppended("/");
+            bti.projectFilePath = ct.sourceDirectory.cleanPath();
             bti.workingDirectory = ct.workingDirectory;
             bti.buildKey = buildKey;
             bti.usesTerminal = !ct.linksToQtGui;
@@ -1266,10 +1266,8 @@ const QList<BuildTargetInfo> CMakeBuildSystem::appTargets() const
 
             // Workaround for QTCREATORBUG-19354:
             bti.runEnvModifier = [this, buildKey](Environment &env, bool enabled) {
-                if (enabled) {
-                    const Utils::FilePaths paths = librarySearchPaths(this, buildKey);
-                    env.prependOrSetLibrarySearchPaths(Utils::transform(paths, &FilePath::toString));
-                }
+                if (enabled)
+                    env.prependOrSetLibrarySearchPaths(librarySearchPaths(this, buildKey));
             };
 
             appTargetList.append(bti);
