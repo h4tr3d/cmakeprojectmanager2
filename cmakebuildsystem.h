@@ -78,6 +78,7 @@ public:
     void runCMake();
     void runCMakeAndScanProjectTree();
     void runCMakeWithExtraArguments();
+    void stopCMakeRun();
 
     bool deleteFiles(ProjectExplorer::Node *context,
                      const Utils::FilePaths &filePaths) final;

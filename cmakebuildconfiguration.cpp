@@ -141,7 +141,6 @@ private:
     QPushButton *m_setButton;
     QPushButton *m_unsetButton;
     QPushButton *m_resetButton;
-    QPushButton *m_clearSelectionButton;
     QCheckBox *m_showAdvancedCheckBox;
     QPushButton *m_reconfigureButton;
     QTimer m_showProgressTimer;
@@ -271,6 +270,7 @@ CMakeBuildSettingsWidget::CMakeBuildSettingsWidget(CMakeBuildConfiguration *bc) 
     m_configView->setFrameShape(QFrame::NoFrame);
     m_configView->setItemDelegate(new ConfigModelItemDelegate(m_buildConfiguration->project()->projectDirectory(),
                                                               m_configView));
+    m_configView->setRootIsDecorated(false);
     QFrame *findWrapper = Core::ItemViewFind::createSearchableWrapper(m_configView, Core::ItemViewFind::LightColored);
     findWrapper->setFrameStyle(QFrame::StyledPanel);
 
@@ -308,10 +308,6 @@ CMakeBuildSettingsWidget::CMakeBuildSettingsWidget(CMakeBuildConfiguration *bc) 
     m_resetButton->setToolTip(tr("Reset all unapplied changes."));
     m_resetButton->setEnabled(false);
 
-    m_clearSelectionButton = new QPushButton(tr("Clear Selection"));
-    m_clearSelectionButton->setToolTip(tr("Clear selection."));
-    m_clearSelectionButton->setEnabled(false);
-
     m_batchEditButton = new QPushButton(tr("Batch Edit..."));
     m_batchEditButton->setToolTip(tr("Set or reset multiple values in the CMake Configuration."));
 
@@ -334,7 +330,6 @@ CMakeBuildSettingsWidget::CMakeBuildSettingsWidget(CMakeBuildConfiguration *bc) 
             m_editButton,
             m_setButton,
             m_unsetButton,
-            m_clearSelectionButton,
             m_resetButton,
             m_batchEditButton,
             Space(10),
@@ -416,13 +411,16 @@ CMakeBuildSettingsWidget::CMakeBuildSettingsWidget(CMakeBuildConfiguration *bc) 
             });
 
     connect(m_resetButton, &QPushButton::clicked, m_configModel, &ConfigModel::resetAllChanges);
-    connect(m_reconfigureButton,
-            &QPushButton::clicked,
-            m_buildConfiguration,
-            &CMakeBuildConfiguration::runCMakeWithExtraArguments);
-    connect(m_setButton, &QPushButton::clicked, this, [this]() {
-        setVariableUnsetFlag(false);
+    connect(m_reconfigureButton, &QPushButton::clicked, this, [this]() {
+        auto buildSystem = static_cast<CMakeBuildSystem *>(m_buildConfiguration->buildSystem());
+        if (!buildSystem->isParsing()) {
+            buildSystem->runCMakeWithExtraArguments();
+        } else {
+            buildSystem->stopCMakeRun();
+            m_reconfigureButton->setEnabled(false);
+        }
     });
+    connect(m_setButton, &QPushButton::clicked, this, [this]() { setVariableUnsetFlag(false); });
     connect(m_unsetButton, &QPushButton::clicked, this, [this]() {
         setVariableUnsetFlag(true);
     });
@@ -432,9 +430,6 @@ CMakeBuildSettingsWidget::CMakeBuildSettingsWidget(CMakeBuildConfiguration *bc) 
             idx = idx.sibling(idx.row(), 1);
         m_configView->setCurrentIndex(idx);
         m_configView->edit(idx);
-    });
-    connect(m_clearSelectionButton, &QPushButton::clicked, this, [this]() {
-        m_configView->selectionModel()->clear();
     });
     connect(addButtonMenu, &QMenu::triggered, this, [this](QAction *action) {
         ConfigModel::DataItem::Type type =
@@ -578,7 +573,15 @@ void CMakeBuildSettingsWidget::updateButtonState()
             });
 
     m_resetButton->setEnabled(m_configModel->hasChanges() && !isParsing);
-    m_reconfigureButton->setEnabled(!configChanges.isEmpty() && !isParsing);
+    m_reconfigureButton->setEnabled(true);
+
+    if (isParsing)
+        m_reconfigureButton->setText(tr("Stop CMake"));
+    else if (m_configModel->hasChanges())
+        m_reconfigureButton->setText(tr("Apply Configuration Changes"));
+    else
+        m_reconfigureButton->setText(tr("Run CMake"));
+
     m_buildConfiguration->setConfigurationChanges(configChanges);
 }
 
@@ -685,7 +688,6 @@ void CMakeBuildSettingsWidget::updateSelection()
             editableCount++;
     }
 
-    m_clearSelectionButton->setEnabled(!selectedIndexes.isEmpty());
     m_setButton->setEnabled(setableCount > 0);
     m_unsetButton->setEnabled(unsetableCount > 0);
     m_editButton->setEnabled(editableCount == 1);
@@ -1330,11 +1332,6 @@ BuildConfiguration::BuildType CMakeBuildConfiguration::buildType() const
 BuildSystem *CMakeBuildConfiguration::buildSystem() const
 {
     return m_buildSystem;
-}
-
-void CMakeBuildConfiguration::runCMakeWithExtraArguments()
-{
-    m_buildSystem->runCMakeWithExtraArguments();
 }
 
 void CMakeBuildConfiguration::setSourceDirectory(const FilePath &path)
