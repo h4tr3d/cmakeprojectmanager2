@@ -116,6 +116,9 @@ public:
 
     CMakeProject *project() const;
 
+signals:
+    void configurationCleared();
+
 private:
     bool addFilesPriv(const Utils::FilePaths &filePaths);
     bool eraseFilesPriv(const Utils::FilePaths &filePaths);
@@ -137,7 +140,7 @@ private:
     void setParametersAndRequestParse(const BuildDirParameters &parameters,
                                       const int reparseParameters);
 
-    bool mustApplyExtraArguments(const BuildDirParameters &parameters) const;
+    bool mustApplyConfigurationChangesArguments(const BuildDirParameters &parameters) const;
 
     // State handling:
     // Parser states:
