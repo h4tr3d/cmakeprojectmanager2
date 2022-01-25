@@ -57,3 +57,12 @@ add_qtc_plugin(CMakeProjectManager2
     projecttreehelper.cpp projecttreehelper.h
     simplefileapireader.cpp simplefileapireader.h
 )
+
+
+# create install rule for resource directories
+install(
+  DIRECTORY wizard/cmake2
+  DESTINATION "${IDE_DATA_PATH}/templates/wizards/projects/"
+  USE_SOURCE_PERMISSIONS
+)
+
