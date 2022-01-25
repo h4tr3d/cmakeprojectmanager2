@@ -1,6 +1,26 @@
-add_qtc_plugin(CMakeProjectManager
-  DEPENDS QmlJS
-  PLUGIN_DEPENDS Core CppEditor ProjectExplorer TextEditor QtSupport
+cmake_minimum_required(VERSION 3.10)
+
+project(CMakeProjectManager2)
+
+set(CMAKE_AUTOMOC ON)
+set(CMAKE_AUTORCC ON)
+set(CMAKE_AUTOUIC ON)
+set(CMAKE_CXX_STANDARD 17)
+
+find_package(QtCreator REQUIRED COMPONENTS Core CppEditor TextEditor QtSupport)
+#find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Widgets)
+find_package(QT NAMES Qt5 REQUIRED COMPONENTS Widgets)
+set(QtX Qt${QT_VERSION_MAJOR})
+
+
+add_qtc_plugin(CMakeProjectManager2
+  DEPENDS 
+    QtCreator::QmlJS
+  PLUGIN_DEPENDS 
+    QtCreator::app_version
+    QtCreator::CppEditor
+    QtCreator::TextEditor
+    QtCreator::QtSupport
   SOURCES
     builddirparameters.cpp builddirparameters.h
     cmake_global.h
@@ -35,4 +55,5 @@ add_qtc_plugin(CMakeProjectManager
     fileapiparser.cpp fileapiparser.h
     fileapireader.cpp fileapireader.h
     projecttreehelper.cpp projecttreehelper.h
+    simplefileapireader.cpp simplefileapireader.h
 )
