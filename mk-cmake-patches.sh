@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-if [ ! -f qtcreator.pro ]; then
+if [ ! -f qtcreator.qbs ]; then
     echo "This command must be executed from the ROOT folder of Qt Creator source tree"
     exit 1
 fi
