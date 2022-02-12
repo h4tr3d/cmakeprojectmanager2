@@ -1069,7 +1069,7 @@ static bool isWindowsARM64(const Kit *k)
         return false;
     const Abi targetAbi = toolchain->targetAbi();
     return targetAbi.os() == Abi::WindowsOS && targetAbi.architecture() == Abi::ArmArchitecture
-            && targetAbi.wordWidth() == 64;
+           && targetAbi.wordWidth() == 64;
 }
 
 static CommandLine defaultInitialCMakeCommand(const Kit *k, const QString buildType)
