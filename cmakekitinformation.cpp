@@ -326,7 +326,7 @@ QSet<Id> CMakeKitAspect::availableFeatures(const Kit *k) const
 
 QString CMakeKitAspect::msgUnsupportedVersion(const QByteArray &versionString)
 {
-    return tr("CMake version %1 is unsupported. Please update to "
+    return tr("CMake version %1 is unsupported. Update to "
               "version 3.14 (with file-api) or later.")
         .arg(QString::fromUtf8(versionString));
 }
@@ -353,7 +353,7 @@ public:
           m_changeButton(createSubWidget<QPushButton>())
     {
         const CMakeTool *tool = CMakeKitAspect::cmakeTool(kit);
-        connect(this, &KitAspectWidget::labelLinkActivated, this, [=](const QString &link) {
+        connect(this, &KitAspectWidget::labelLinkActivated, this, [=](const QString &) {
             CMakeTool::openCMakeHelpUrl(tool, "%1/manual/cmake-generators.7.html");
         });
 
@@ -668,11 +668,10 @@ CMakeConfig CMakeGeneratorKitAspect::generatorCMakeConfig(const ProjectExplorer:
     if (info.generator.isEmpty())
         return config;
 
-    if (info.extraGenerator.isEmpty())
-        config << CMakeConfigItem("CMAKE_GENERATOR", info.generator.toUtf8());
-    else
-        config << CMakeConfigItem("CMAKE_GENERATOR",
-                                  (info.extraGenerator + " - " + info.generator).toUtf8());
+    config << CMakeConfigItem("CMAKE_GENERATOR", info.generator.toUtf8());
+
+    if (!info.extraGenerator.isEmpty())
+        config << CMakeConfigItem("CMAKE_EXTRA_GENERATOR", info.extraGenerator.toUtf8());
 
     if (!info.platform.isEmpty())
         config << CMakeConfigItem("CMAKE_GENERATOR_PLATFORM", info.platform.toUtf8());
@@ -972,7 +971,7 @@ private:
                                 "To set a variable, use -D&lt;variable&gt;:&lt;type&gt;=&lt;value&gt;.<br/>"
                                 "&lt;type&gt; can have one of the following values: FILEPATH, PATH, "
                                 "BOOL, INTERNAL, or STRING."));
-        connect(editorLabel, &QLabel::linkActivated, this, [=](const QString &link) {
+        connect(editorLabel, &QLabel::linkActivated, this, [=](const QString &) {
             CMakeTool::openCMakeHelpUrl(tool, "%1/manual/cmake-variables.7.html");
         });
         m_editor->setMinimumSize(800, 200);
@@ -984,7 +983,7 @@ private:
         m_additionalEditor = new QLineEdit;
         auto additionalLabel = new QLabel(m_dialog);
         additionalLabel->setText(tr("Additional CMake <a href=\"options\">options</a>:"));
-        connect(additionalLabel, &QLabel::linkActivated, this, [=](const QString &link) {
+        connect(additionalLabel, &QLabel::linkActivated, this, [=](const QString &) {
             CMakeTool::openCMakeHelpUrl(tool, "%1/manual/cmake.1.html#options");
         });
 

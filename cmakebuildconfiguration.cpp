@@ -303,7 +303,7 @@ CMakeBuildSettingsWidget::CMakeBuildSettingsWidget(CMakeBuildConfiguration *bc) 
     m_resetButton->setEnabled(false);
 
     m_batchEditButton = new QPushButton(tr("Batch Edit..."));
-    m_batchEditButton->setToolTip(tr("Set or reset multiple values in the CMake Configuration."));
+    m_batchEditButton->setToolTip(tr("Set or reset multiple values in the CMake configuration."));
 
     m_showAdvancedCheckBox = new QCheckBox(tr("Advanced"));
 
@@ -339,16 +339,18 @@ CMakeBuildSettingsWidget::CMakeBuildSettingsWidget(CMakeBuildConfiguration *bc) 
             qmlDebugAspect
         },
         m_warningMessageLabel,
-        Space(10),
-        Row{m_kitConfiguration, m_configurationStates},
-        Group {
-            cmakeConfiguration,
-            Row {
-                bc->aspect<InitialCMakeArgumentsAspect>(),
-                bc->aspect<AdditionalCMakeOptionsAspect>()
-            },
-            m_reconfigureButton,
-        }
+        m_kitConfiguration,
+        Column {
+            m_configurationStates,
+            Group {
+                cmakeConfiguration,
+                Row {
+                    bc->aspect<InitialCMakeArgumentsAspect>(),
+                    bc->aspect<AdditionalCMakeOptionsAspect>()
+                },
+                m_reconfigureButton,
+            }
+        }.setSpacing(0)
     }.attachTo(details, false);
 
     updateAdvancedCheckBox();
@@ -488,14 +490,14 @@ CMakeBuildSettingsWidget::CMakeBuildSettingsWidget(CMakeBuildConfiguration *bc) 
         if (m_buildConfiguration->isEnabled())
             setError(QString());
     });
-    connect(this, &QObject::destroyed, this, [this](const QObject *obj) {
+    connect(this, &QObject::destroyed, this, [this] {
         updateInitialCMakeArguments();
     });
 
     connect(bc->aspect<InitialCMakeArgumentsAspect>(),
             &Utils::BaseAspect::labelLinkActivated,
             this,
-            [this](const QString &link) {
+            [this](const QString &) {
                 const CMakeTool *tool = CMakeKitAspect::cmakeTool(
                     m_buildConfiguration->target()->kit());
                 CMakeTool::openCMakeHelpUrl(tool, "%1/manual/cmake.1.html#options");
@@ -503,7 +505,7 @@ CMakeBuildSettingsWidget::CMakeBuildSettingsWidget(CMakeBuildConfiguration *bc) 
     connect(bc->aspect<AdditionalCMakeOptionsAspect>(),
             &Utils::BaseAspect::labelLinkActivated,
             this,
-            [this](const QString &link) {
+            [this](const QString &) {
                 const CMakeTool *tool = CMakeKitAspect::cmakeTool(
                     m_buildConfiguration->target()->kit());
                 CMakeTool::openCMakeHelpUrl(tool, "%1/manual/cmake.1.html#options");
@@ -527,7 +529,7 @@ void CMakeBuildSettingsWidget::batchEditConfiguration()
        "To set or change a variable, use -D&lt;variable&gt;:&lt;type&gt;=&lt;value&gt;.<br/>"
        "&lt;type&gt; can have one of the following values: FILEPATH, PATH, BOOL, INTERNAL, or STRING.<br/>"
                       "To unset a variable, use -U&lt;variable&gt;.<br/>"));
-    connect(label, &QLabel::linkActivated, this, [this](const QString &link) {
+    connect(label, &QLabel::linkActivated, this, [this](const QString &) {
         const CMakeTool *tool = CMakeKitAspect::cmakeTool(m_buildConfiguration->target()->kit());
         CMakeTool::openCMakeHelpUrl(tool, "%1/manual/cmake-variables.7.html");
     });
@@ -1737,8 +1739,22 @@ void InitialCMakeArgumentsAspect::setAllValues(const QString &values, QStringLis
 {
     QStringList arguments = values.split('\n', Qt::SkipEmptyParts);
     for (QString &arg: arguments) {
-        if (arg.startsWith("-G"))
-            arg.replace("-G", "-DCMAKE_GENERATOR:STRING=");
+        if (arg.startsWith("-G")) {
+            const QString strDash(" - ");
+            const int idxDash = arg.indexOf(strDash);
+            if (idxDash > 0) {
+                // -GCodeBlocks - Ninja
+                QString generator = "-DCMAKE_GENERATOR:STRING=" + arg.mid(idxDash + strDash.length());
+                arguments.append(generator);
+
+                arg = arg.left(idxDash);
+                arg.replace("-G", "-DCMAKE_EXTRA_GENERATOR:STRING=");
+
+            } else {
+                // -GNinja
+                arg.replace("-G", "-DCMAKE_GENERATOR:STRING=");
+            }
+        }
         if (arg.startsWith("-A"))
             arg.replace("-A", "-DCMAKE_GENERATOR_PLATFORM:STRING=");
         if (arg.startsWith("-T"))
