@@ -16,6 +16,11 @@ do
     fi
 done
 
+if [ -z "$FILES" ]; then
+    echo "no changes"
+    exit 0
+fi
+
 echo "new changes:"
 for p in $FILES
 do
