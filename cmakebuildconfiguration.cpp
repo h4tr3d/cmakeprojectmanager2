@@ -620,7 +620,7 @@ void CMakeBuildSettingsWidget::updateInitialCMakeArguments()
             *it = ci;
             if (ci.isUnset)
                 initialList.erase(it);
-        } else {
+        } else if (!ci.key.isEmpty()) {
             initialList.push_back(ci);
         }
     }
