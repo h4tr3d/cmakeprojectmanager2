@@ -728,7 +728,7 @@ void CMakeBuildSystem::combineScanAndParse(bool restoredFromBackup)
 
             if (restoredFromBackup)
                 project()->addIssue(
-                    CMakeProject::IssueType::Error,
+                    CMakeProject::IssueType::Warning,
                     tr("<b>CMake configuration failed<b>"
                        "<p>The backup of the previous configuration has been restored.</p>"
                        "<p>Issues and \"Projects > Build\" settings "
@@ -746,7 +746,7 @@ void CMakeBuildSystem::combineScanAndParse(bool restoredFromBackup)
             updateFallbackProjectData();
 
             project()->addIssue(
-                CMakeProject::IssueType::Error,
+                CMakeProject::IssueType::Warning,
                 tr("<b>Failed to load project<b>"
                    "<p>Issues and \"Projects > Build\" settings "
                    "show more information about the failure.</p"));

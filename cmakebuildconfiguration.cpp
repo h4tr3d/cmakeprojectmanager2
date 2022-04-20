@@ -50,6 +50,7 @@
 #include <projectexplorer/buildinfo.h>
 #include <projectexplorer/buildmanager.h>
 #include <projectexplorer/buildsteplist.h>
+#include <projectexplorer/devicesupport/idevice.h>
 #include <projectexplorer/kitinformation.h>
 #include <projectexplorer/namedwidget.h>
 #include <projectexplorer/project.h>
@@ -620,7 +621,7 @@ void CMakeBuildSettingsWidget::updateInitialCMakeArguments()
             *it = ci;
             if (ci.isUnset)
                 initialList.erase(it);
-        } else {
+        } else if (!ci.key.isEmpty()) {
             initialList.push_back(ci);
         }
     }
@@ -1101,11 +1102,11 @@ static CommandLine defaultInitialCMakeCommand(const Kit *k, const QString buildT
     if (!isIos(k)) { // iOS handles this differently
         const QString sysRoot = SysRootKitAspect::sysRoot(k).path();
         if (!sysRoot.isEmpty()) {
-            cmd.addArg("-DCMAKE_SYSROOT:PATH" + sysRoot);
+            cmd.addArg("-DCMAKE_SYSROOT:PATH=" + sysRoot);
             if (ToolChain *tc = ToolChainKitAspect::cxxToolChain(k)) {
                 const QString targetTriple = tc->originalTargetTriple();
                 cmd.addArg("-DCMAKE_C_COMPILER_TARGET:STRING=" + targetTriple);
-                cmd.addArg("-DCMAKE_CXX_COMPILER_TARGET:STRING=%1" + targetTriple);
+                cmd.addArg("-DCMAKE_CXX_COMPILER_TARGET:STRING=" + targetTriple);
             }
         }
     }
