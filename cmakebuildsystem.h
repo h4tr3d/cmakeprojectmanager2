@@ -116,14 +116,26 @@ public:
 
     CMakeProject *project() const;
 
+    QString error() const;
+    QString warning() const;
+
 signals:
     void configurationCleared();
+    void configurationChanged(const CMakeConfig &config);
+    void errorOccurred(const QString &message);
+    void warningOccurred(const QString &message);
 
 private:
     bool addFilesPriv(const Utils::FilePaths &filePaths);
     bool eraseFilesPriv(const Utils::FilePaths &filePaths);
     bool renameFilePriv(const Utils::FilePath &filePath, const Utils::FilePath &newFilePath);
     void updateProjectDataPriv();
+
+    enum ForceEnabledChanged { False, True };
+    void clearError(ForceEnabledChanged fec = ForceEnabledChanged::False);
+
+    void setError(const QString &message);
+    void setWarning(const QString &message);
 
     // Actually ask for parsing:
     enum ReparseParameters {
@@ -208,6 +220,9 @@ private:
     Utils::FilePath m_ctestPath;
     QList<ProjectExplorer::TestCaseInfo> m_testNames;
     Utils::FutureSynchronizer m_futureSynchronizer;
+
+    QString m_error;
+    QString m_warning;
 };
 
 } // namespace Internal

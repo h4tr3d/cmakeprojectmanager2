@@ -59,9 +59,6 @@ public:
     QStringList initialCMakeArguments() const;
     CMakeConfig initialCMakeConfiguration() const;
 
-    QString error() const;
-    QString warning() const;
-
     static Utils::FilePath
     shadowBuildDirectory(const Utils::FilePath &projectFilePath, const ProjectExplorer::Kit *k,
                          const QString &bcName, BuildConfiguration::BuildType buildType);
@@ -84,10 +81,7 @@ public:
     void filterConfigArgumentsFromAdditionalCMakeArguments();
 
 signals:
-    void errorOccurred(const QString &message);
-    void warningOccurred(const QString &message);
     void signingFlagsChanged();
-    void configurationChanged(const CMakeConfig &config);
 
 protected:
     bool fromMap(const QVariantMap &map) override;
@@ -100,19 +94,10 @@ private:
 
     virtual CMakeConfig signingFlags() const;
 
-    enum ForceEnabledChanged { False, True };
-    void clearError(ForceEnabledChanged fec = ForceEnabledChanged::False);
-
     void setConfigurationFromCMake(const CMakeConfig &config);
     void setConfigurationChanges(const CMakeConfig &config);
 
     void setInitialCMakeArguments(const QStringList &args);
-
-    void setError(const QString &message);
-    void setWarning(const QString &message);
-
-    QString m_error;
-    QString m_warning;
 
     CMakeConfig m_configurationFromCMake;
     CMakeConfig m_configurationChanges;

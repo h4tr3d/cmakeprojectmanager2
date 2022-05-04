@@ -14,6 +14,7 @@ set(QtX Qt${QT_VERSION_MAJOR})
 
 
 add_qtc_plugin(CMakeProjectManager2
+  PLUGIN_CLASS CMakeProjectPlugin
   DEPENDS 
     QtCreator::QmlJS
     QtCreator::app_version

@@ -259,7 +259,7 @@ CMakeBuildSettingsWidget::CMakeBuildSettingsWidget(CMakeBuildConfiguration *bc) 
     m_configView->setUniformRowHeights(true);
     m_configView->setSortingEnabled(true);
     m_configView->sortByColumn(0, Qt::AscendingOrder);
-    auto stretcher = new HeaderViewStretcher(m_configView->header(), 0);
+    (void) new HeaderViewStretcher(m_configView->header(), 0);
     m_configView->setSelectionMode(QAbstractItemView::ExtendedSelection);
     m_configView->setSelectionBehavior(QAbstractItemView::SelectItems);
     m_configView->setAlternatingRowColors(true);
@@ -355,9 +355,11 @@ CMakeBuildSettingsWidget::CMakeBuildSettingsWidget(CMakeBuildConfiguration *bc) 
         }.setSpacing(0)
     }.attachTo(details, false);
 
+    auto buildSystem = static_cast<CMakeBuildSystem *>(bc->buildSystem());
+
     updateAdvancedCheckBox();
-    setError(bc->error());
-    setWarning(bc->warning());
+    setError(buildSystem->error());
+    setWarning(buildSystem->warning());
 
     connect(bc->buildSystem(), &BuildSystem::parsingStarted, this, [this] {
         updateButtonState();
@@ -373,38 +375,29 @@ CMakeBuildSettingsWidget::CMakeBuildSettingsWidget(CMakeBuildConfiguration *bc) 
         m_configModel->setConfiguration(m_buildConfiguration->configurationFromCMake());
         m_configModel->setInitialParametersConfiguration(
             m_buildConfiguration->initialCMakeConfiguration());
-        m_configView->expandAll();
     }
 
-    connect(bc->buildSystem(), &BuildSystem::parsingFinished, this, [this, stretcher] {
+    connect(bc->buildSystem(), &BuildSystem::parsingFinished, this, [this] {
         m_configModel->setConfiguration(m_buildConfiguration->configurationFromCMake());
         m_configModel->setInitialParametersConfiguration(
             m_buildConfiguration->initialCMakeConfiguration());
         m_buildConfiguration->filterConfigArgumentsFromAdditionalCMakeArguments();
         updateFromKit();
-        m_configView->expandAll();
         m_configView->setEnabled(true);
-        stretcher->stretch();
         updateButtonState();
         m_showProgressTimer.stop();
         m_progressIndicator->hide();
         updateConfigurationStateSelection();
     });
 
-    auto cbc = static_cast<CMakeBuildSystem *>(bc->buildSystem());
-    connect(cbc, &CMakeBuildSystem::configurationCleared, this, [this]() {
+    connect(buildSystem, &CMakeBuildSystem::configurationCleared, this, [this] {
         updateConfigurationStateSelection();
     });
 
-    connect(m_buildConfiguration, &CMakeBuildConfiguration::errorOccurred,
-            this, [this]() {
+    connect(buildSystem, &CMakeBuildSystem::errorOccurred, this, [this] {
         m_showProgressTimer.stop();
         m_progressIndicator->hide();
         updateConfigurationStateSelection();
-    });
-    connect(m_configTextFilterModel, &QAbstractItemModel::modelReset, this, [this, stretcher]() {
-        m_configView->expandAll();
-        stretcher->stretch();
     });
 
     connect(m_configModel, &QAbstractItemModel::dataChanged,
@@ -478,11 +471,13 @@ CMakeBuildSettingsWidget::CMakeBuildSettingsWidget(CMakeBuildConfiguration *bc) 
     connect(m_batchEditButton, &QAbstractButton::clicked,
             this, &CMakeBuildSettingsWidget::batchEditConfiguration);
 
-    connect(bc, &CMakeBuildConfiguration::errorOccurred, this, &CMakeBuildSettingsWidget::setError);
-    connect(bc, &CMakeBuildConfiguration::warningOccurred, this, &CMakeBuildSettingsWidget::setWarning);
-    connect(bc, &CMakeBuildConfiguration::configurationChanged, this, [this](const CMakeConfig &config) {
-       m_configModel->setBatchEditConfiguration(config);
-    });
+    connect(buildSystem, &CMakeBuildSystem::errorOccurred,
+            this, &CMakeBuildSettingsWidget::setError);
+    connect(buildSystem, &CMakeBuildSystem::warningOccurred,
+            this, &CMakeBuildSettingsWidget::setWarning);
+
+    connect(buildSystem, &CMakeBuildSystem::configurationChanged,
+            m_configModel, &ConfigModel::setBatchEditConfiguration);
 
     updateFromKit();
     connect(m_buildConfiguration->target(), &Target::kitChanged,
@@ -1192,6 +1187,7 @@ CMakeBuildConfiguration::CMakeBuildConfiguration(Target *target, Id id)
 
     addAspect<SourceDirectoryAspect>();
     addAspect<BuildTypeAspect>();
+    addAspect<QtSupport::QmlDebuggingAspect>(this);
 
     appendInitialBuildStep(Constants::CMAKE_BUILD_STEP_ID);
     appendInitialCleanStep(Constants::CMAKE_BUILD_STEP_ID);
@@ -1291,8 +1287,6 @@ CMakeBuildConfiguration::CMakeBuildConfiguration(Target *target, Id id)
         setCMakeBuildType(info.typeName);
     });
 
-    const auto qmlDebuggingAspect = addAspect<QtSupport::QmlDebuggingAspect>();
-    qmlDebuggingAspect->setKit(target->kit());
     setIsMultiConfig(CMakeGeneratorKitAspect::isMultiConfigGenerator(target->kit()));
 }
 
@@ -1431,7 +1425,7 @@ void CMakeBuildConfiguration::setConfigurationChanges(const CMakeConfig &config)
 // FIXME: Run clean steps when a setting starting with "ANDROID_BUILD_ABI_" is changed.
 // FIXME: Warn when kit settings are overridden by a project.
 
-void CMakeBuildConfiguration::clearError(ForceEnabledChanged fec)
+void CMakeBuildSystem::clearError(ForceEnabledChanged fec)
 {
     if (!m_error.isEmpty()) {
         m_error.clear();
@@ -1439,7 +1433,7 @@ void CMakeBuildConfiguration::clearError(ForceEnabledChanged fec)
     }
     if (fec == ForceEnabledChanged::True) {
         qCDebug(cmakeBuildConfigurationLog) << "Emitting enabledChanged signal";
-        emit enabledChanged();
+        emit buildConfiguration()->enabledChanged();
     }
 }
 
@@ -1484,7 +1478,7 @@ void CMakeBuildConfiguration::filterConfigArgumentsFromAdditionalCMakeArguments(
     aspect<AdditionalCMakeOptionsAspect>()->setValue(ProcessArgs::joinArgs(unknownOptions));
 }
 
-void CMakeBuildConfiguration::setError(const QString &message)
+void CMakeBuildSystem::setError(const QString &message)
 {
     qCDebug(cmakeBuildConfigurationLog) << "Setting error to" << message;
     QTC_ASSERT(!message.isEmpty(), return );
@@ -1494,13 +1488,13 @@ void CMakeBuildConfiguration::setError(const QString &message)
         m_error = message;
     if (oldMessage.isEmpty() != !message.isEmpty()) {
         qCDebug(cmakeBuildConfigurationLog) << "Emitting enabledChanged signal";
-        emit enabledChanged();
+        emit buildConfiguration()->enabledChanged();
     }
     TaskHub::addTask(BuildSystemTask(Task::TaskType::Error, message));
     emit errorOccurred(m_error);
 }
 
-void CMakeBuildConfiguration::setWarning(const QString &message)
+void CMakeBuildSystem::setWarning(const QString &message)
 {
     if (m_warning == message)
         return;
@@ -1509,12 +1503,12 @@ void CMakeBuildConfiguration::setWarning(const QString &message)
     emit warningOccurred(m_warning);
 }
 
-QString CMakeBuildConfiguration::error() const
+QString CMakeBuildSystem::error() const
 {
     return m_error;
 }
 
-QString CMakeBuildConfiguration::warning() const
+QString CMakeBuildSystem::warning() const
 {
     return m_warning;
 }
