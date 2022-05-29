@@ -25,6 +25,7 @@
 
 #include "cmakeprocess.h"
 
+#include "builddirparameters.h"
 #include "cmakeparser.h"
 
 #include <coreplugin/progressmanager/progressmanager.h>
@@ -32,8 +33,11 @@
 #include <projectexplorer/projectexplorerconstants.h>
 #include <projectexplorer/taskhub.h>
 
+#include <utils/processinterface.h>
 #include <utils/qtcprocess.h>
 #include <utils/stringutils.h>
+
+#include <QFutureWatcher>
 
 using namespace Utils;
 
@@ -41,6 +45,7 @@ namespace CMakeProjectManager {
 namespace Internal {
 
 using namespace ProjectExplorer;
+const int USER_STOP_EXIT_CODE = 15;
 
 static QString stripTrailingNewline(QString str)
 {
@@ -49,26 +54,23 @@ static QString stripTrailingNewline(QString str)
     return str;
 }
 
-CMakeProcess::CMakeProcess()
-{
-    connect(&m_cancelTimer, &QTimer::timeout, this, &CMakeProcess::checkForCancelled);
-    m_cancelTimer.setInterval(500);
-}
+CMakeProcess::CMakeProcess() = default;
 
 CMakeProcess::~CMakeProcess()
 {
-    m_process.reset();
     m_parser.flush();
 
-    if (m_future) {
-        reportCanceled();
-        reportFinished();
+    if (m_futureWatcher) {
+        m_futureWatcher.reset();
+        // None of the progress related functions will work after this!
+        m_futureInterface.reportCanceled();
+        m_futureInterface.reportFinished();
     }
 }
 
 void CMakeProcess::run(const BuildDirParameters &parameters, const QStringList &arguments)
 {
-    QTC_ASSERT(!m_process && !m_future, return);
+    QTC_ASSERT(!m_process, return);
 
     CMakeTool *cmake = parameters.cmakeTool();
     QTC_ASSERT(parameters.isValid() && cmake, return);
@@ -104,25 +106,23 @@ void CMakeProcess::run(const BuildDirParameters &parameters, const QStringList &
     // Always use the sourceDir: If we are triggered because the build directory is getting deleted
     // then we are racing against CMakeCache.txt also getting deleted.
 
-    auto process = std::make_unique<QtcProcess>();
-    m_processWasCanceled = false;
+    m_process.reset(new QtcProcess);
 
-    m_cancelTimer.start();
+    m_process->setWorkingDirectory(buildDirectory);
+    m_process->setEnvironment(parameters.environment);
 
-    process->setWorkingDirectory(buildDirectory);
-    process->setEnvironment(parameters.environment);
-
-    process->setStdOutLineCallback([](const QString &s) {
+    m_process->setStdOutLineCallback([](const QString &s) {
         BuildSystem::appendBuildSystemOutput(stripTrailingNewline(s));
     });
 
-    process->setStdErrLineCallback([this](const QString &s) {
+    m_process->setStdErrLineCallback([this](const QString &s) {
         m_parser.appendMessage(s, StdErrFormat);
         BuildSystem::appendBuildSystemOutput(stripTrailingNewline(s));
     });
 
-    connect(process.get(), &QtcProcess::finished,
-            this, &CMakeProcess::handleProcessFinished);
+    connect(m_process.get(), &QtcProcess::done, this, [this] {
+        handleProcessDone(m_process->resultData());
+    });
 
     CommandLine commandLine(cmakeExecutable);
     commandLine.addArgs({"-S", sourceDirectory.path(), "-B", buildDirectory.path()});
@@ -131,74 +131,48 @@ void CMakeProcess::run(const BuildDirParameters &parameters, const QStringList &
     TaskHub::clearTasks(ProjectExplorer::Constants::TASK_CATEGORY_BUILDSYSTEM);
 
     BuildSystem::startNewBuildSystemOutput(
-        tr("Running %1 in %2.").arg(commandLine.toUserOutput()).arg(buildDirectory.toUserOutput()));
+        tr("Running %1 in %2.").arg(commandLine.toUserOutput(), buildDirectory.toUserOutput()));
 
-    auto future = std::make_unique<QFutureInterface<void>>();
-    future->setProgressRange(0, 1);
-    Core::ProgressManager::addTimedTask(*future.get(),
+    m_futureInterface = QFutureInterface<void>();
+    m_futureInterface.setProgressRange(0, 1);
+    Core::ProgressManager::addTimedTask(m_futureInterface,
                                         tr("Configuring \"%1\"").arg(parameters.projectName),
                                         "CMake.Configure",
                                         10);
+    m_futureWatcher.reset(new QFutureWatcher<void>);
+    connect(m_futureWatcher.get(), &QFutureWatcher<void>::canceled, this, &CMakeProcess::stop);
+    m_futureWatcher->setFuture(m_futureInterface.future());
 
-    process->setUseCtrlCStub(true);
-    process->setCommand(commandLine);
+    m_process->setCommand(commandLine);
     emit started();
     m_elapsed.start();
-    process->start();
-
-    m_process = std::move(process);
-    m_future = std::move(future);
+    m_process->start();
 }
 
-void CMakeProcess::terminate()
+void CMakeProcess::stop()
 {
-    if (m_process) {
-        m_processWasCanceled = true;
-        m_process->terminate();
+    if (!m_process)
+        return;
+    m_process->close();
+    handleProcessDone({USER_STOP_EXIT_CODE, QProcess::CrashExit, QProcess::Crashed, {}});
+}
+
+void CMakeProcess::handleProcessDone(const Utils::ProcessResultData &resultData)
+{
+    if (m_futureWatcher) {
+        m_futureWatcher->disconnect();
+        m_futureWatcher.release()->deleteLater();
     }
-}
-
-QProcess::ProcessState CMakeProcess::state() const
-{
-    if (m_process)
-        return m_process->state();
-    return QProcess::NotRunning;
-}
-
-void CMakeProcess::reportCanceled()
-{
-    QTC_ASSERT(m_future, return);
-    m_future->reportCanceled();
-}
-
-void CMakeProcess::reportFinished()
-{
-    QTC_ASSERT(m_future, return);
-    m_future->reportFinished();
-    m_future.reset();
-}
-
-void CMakeProcess::setProgressValue(int p)
-{
-    QTC_ASSERT(m_future, return);
-    m_future->setProgressValue(p);
-}
-
-void CMakeProcess::handleProcessFinished()
-{
-    QTC_ASSERT(m_process && m_future, return);
-
-    m_cancelTimer.stop();
-
-    const int code = m_process->exitCode();
+    const int code = resultData.m_exitCode;
 
     QString msg;
-    if (m_process->exitStatus() != QProcess::NormalExit) {
-        if (m_processWasCanceled) {
+    if (resultData.m_error == QProcess::FailedToStart) {
+        msg = tr("CMake process failed to start.");
+    } else if (resultData.m_exitStatus != QProcess::NormalExit) {
+        if (m_futureInterface.isCanceled() || code == USER_STOP_EXIT_CODE)
             msg = tr("CMake process was canceled by the user.");
-        } else {
+         else
             msg = tr("CMake process crashed.");
-        }
     } else if (code != 0) {
         msg = tr("CMake process exited with exit code %1.").arg(code);
     }
@@ -207,29 +181,17 @@ void CMakeProcess::handleProcessFinished()
     if (!msg.isEmpty()) {
         BuildSystem::appendBuildSystemOutput(msg + '\n');
         TaskHub::addTask(BuildSystemTask(Task::Error, msg));
-        m_future->reportCanceled();
+        m_futureInterface.reportCanceled();
     } else {
-        m_future->setProgressValue(1);
+        m_futureInterface.setProgressValue(1);
     }
 
-    m_future->reportFinished();
+    m_futureInterface.reportFinished();
 
     emit finished();
 
     const QString elapsedTime = Utils::formatElapsedTime(m_elapsed.elapsed());
     BuildSystem::appendBuildSystemOutput(elapsedTime + '\n');
-}
-
-void CMakeProcess::checkForCancelled()
-{
-    if (!m_process || !m_future)
-        return;
-
-    if (m_future->isCanceled()) {
-        m_cancelTimer.stop();
-        m_processWasCanceled = true;
-        m_process->close();
-    }
 }
 
 } // namespace Internal

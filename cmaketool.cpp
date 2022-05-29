@@ -433,7 +433,7 @@ static QStringList parseDefinition(const QString &definition)
     bool ignoreWord = false;
     QVector<QChar> braceStack;
 
-    foreach (const QChar &c, definition) {
+    for (const QChar &c : definition) {
         if (c == '[' || c == '<' || c == '(') {
             braceStack.append(c);
             ignoreWord = false;
@@ -499,7 +499,7 @@ QStringList CMakeTool::parseVariableOutput(const QString &output)
 {
     const QStringList variableList = output.split('\n');
     QStringList result;
-    foreach (const QString &v, variableList) {
+    for (const QString &v : variableList) {
         if (v.startsWith("CMAKE_COMPILER_IS_GNU<LANG>")) { // This key takes a compiler name :-/
             result << "CMAKE_COMPILER_IS_GNUCC"
                    << "CMAKE_COMPILER_IS_GNUCXX";

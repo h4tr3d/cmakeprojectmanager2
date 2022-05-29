@@ -205,7 +205,7 @@ private:
 
     void wireUpConnections();
 
-    Utils::FilePath buildDirectory(const BuildDirParameters &parameters);
+    void ensureBuildDirectory(const BuildDirParameters &parameters);
     void stopParsingAndClearState();
     void becameDirty();
 

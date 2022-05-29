@@ -103,8 +103,10 @@ const char CONFIGURATION_KEY[] = "CMake.Configuration";
 const char DEVELOPMENT_TEAM_FLAG[] = "Ios:DevelopmentTeam:Flag";
 const char PROVISIONING_PROFILE_FLAG[] = "Ios:ProvisioningProfile:Flag";
 const char CMAKE_OSX_ARCHITECTURES_FLAG[] = "CMAKE_OSX_ARCHITECTURES:DefaultFlag";
-const char CMAKE_QT6_TOOLCHAIN_FILE_ARG[] =
-        "-DCMAKE_TOOLCHAIN_FILE:FILEPATH=%{Qt:QT_INSTALL_PREFIX}/lib/cmake/Qt6/qt.toolchain.cmake";
+const char QT_QML_DEBUG_FLAG[] = "Qt:QML_DEBUG_FLAG";
+const char CMAKE_QT6_TOOLCHAIN_FILE_ARG[]
+    = "-DCMAKE_TOOLCHAIN_FILE:FILEPATH=%{Qt:QT_INSTALL_PREFIX}/lib/cmake/Qt6/qt.toolchain.cmake";
+const char CMAKE_BUILD_TYPE[] = "CMake.Build.Type";
 
 namespace Internal {
 
@@ -813,23 +815,39 @@ CMakeConfig CMakeBuildSettingsWidget::getQmlDebugCxxFlags()
     const bool enable = aspect->value() == TriState::Enabled;
 
     const CMakeConfig configList = m_buildSystem->configurationFromCMake();
-    const QByteArrayList cxxFlags{"CMAKE_CXX_FLAGS", "CMAKE_CXX_FLAGS_DEBUG",
-                                  "CMAKE_CXX_FLAGS_RELWITHDEBINFO"};
+    const QByteArrayList cxxFlagsPrev{"CMAKE_CXX_FLAGS",
+                                      "CMAKE_CXX_FLAGS_DEBUG",
+                                      "CMAKE_CXX_FLAGS_RELWITHDEBINFO",
+                                      "CMAKE_CXX_FLAGS_INIT"};
+    const QByteArrayList cxxFlags{"CMAKE_CXX_FLAGS_INIT", "CMAKE_CXX_FLAGS"};
     const QByteArray qmlDebug("-DQT_QML_DEBUG");
 
     CMakeConfig changedConfig;
 
-    for (const CMakeConfigItem &item : configList) {
-        if (!cxxFlags.contains(item.key))
-            continue;
+    if (enable) {
+        const FilePath cmakeCache = m_buildSystem->cmakeBuildConfiguration()->buildDirectory().pathAppended("CMakeCache.txt");
 
-        CMakeConfigItem it(item);
-        if (enable) {
-            if (!it.value.contains(qmlDebug)) {
-                it.value = it.value.append(' ').append(qmlDebug).trimmed();
-                changedConfig.append(it);
+        // Only modify the CMAKE_CXX_FLAGS variable if the project was previously configured
+        // otherwise CMAKE_CXX_FLAGS_INIT will take care of setting the qmlDebug define
+        if (cmakeCache.exists()) {
+            for (const CMakeConfigItem &item : configList) {
+                if (!cxxFlags.contains(item.key))
+                    continue;
+
+                CMakeConfigItem it(item);
+                if (!it.value.contains(qmlDebug)) {
+                    it.value = it.value.append(' ').append(qmlDebug).trimmed();
+                    changedConfig.append(it);
+                }
             }
-        } else {
+        }
+    } else {
+        // Remove -DQT_QML_DEBUG from all configurations, potentially set by previous Qt Creator versions
+        for (const CMakeConfigItem &item : configList) {
+            if (!cxxFlagsPrev.contains(item.key))
+                continue;
+
+            CMakeConfigItem it(item);
             int index = it.value.indexOf(qmlDebug);
             if (index != -1) {
                 it.value.remove(index, qmlDebug.length());
@@ -1173,6 +1191,16 @@ CMakeBuildConfiguration::CMakeBuildConfiguration(Target *target, Id id)
                                           }
                                           return QLatin1String();
                                       });
+    macroExpander()->registerVariable(QT_QML_DEBUG_FLAG,
+                                      tr("The CMake flag for QML debugging, if enabled"),
+                                      [this] {
+                                          if (aspect<QtSupport::QmlDebuggingAspect>()->value()
+                                              == TriState::Enabled) {
+                                              return QLatin1String(
+                                                  "-DQT_QML_DEBUG");
+                                          }
+                                          return QLatin1String();
+                                      });
 
     addAspect<SourceDirectoryAspect>();
     addAspect<BuildTypeAspect>();
@@ -1183,8 +1211,17 @@ CMakeBuildConfiguration::CMakeBuildConfiguration(Target *target, Id id)
 
     setInitializer([this, target](const BuildInfo &info) {
         const Kit *k = target->kit();
+        const QtSupport::QtVersion *qt = QtSupport::QtKitAspect::qtVersion(k);
+        const QVariantMap extraInfoMap = info.extraInfo.value<QVariantMap>();
+        const QString buildType = extraInfoMap.contains(CMAKE_BUILD_TYPE)
+                                      ? extraInfoMap.value(CMAKE_BUILD_TYPE).toString()
+                                      : info.typeName;
+        const TriState qmlDebugging = extraInfoMap.contains(Constants::QML_DEBUG_SETTING)
+                                          ? TriState::fromVariant(
+                                              extraInfoMap.value(Constants::QML_DEBUG_SETTING))
+                                          : TriState::Default;
 
-        CommandLine cmd = defaultInitialCMakeCommand(k, info.typeName);
+        CommandLine cmd = defaultInitialCMakeCommand(k, buildType);
         m_buildSystem->setIsMultiConfig(CMakeGeneratorKitAspect::isMultiConfigGenerator(k));
 
         // Android magic:
@@ -1213,7 +1250,6 @@ CMakeBuildConfiguration::CMakeBuildConfiguration(Target *target, Id id)
             cmd.addArg("-DANDROID_STL:STRING=c++_shared");
             cmd.addArg("-DCMAKE_FIND_ROOT_PATH:PATH=%{Qt:QT_INSTALL_PREFIX}");
 
-            QtSupport::QtVersion *qt = QtSupport::QtKitAspect::qtVersion(k);
             auto sdkLocation = bs->data(Android::Constants::SdkLocation).value<FilePath>();
 
             if (qt && qt->qtVersion() >= QtSupport::QtVersionNumber{6, 0, 0}) {
@@ -1229,7 +1265,6 @@ CMakeBuildConfiguration::CMakeBuildConfiguration(Target *target, Id id)
 
         const IDevice::ConstPtr device = DeviceKitAspect::device(k);
         if (CMakeBuildConfiguration::isIos(k)) {
-            QtSupport::QtVersion *qt = QtSupport::QtKitAspect::qtVersion(k);
             if (qt && qt->qtVersion().majorVersion >= 6) {
                 // TODO it would be better if we could set
                 // CMAKE_SYSTEM_NAME=iOS and CMAKE_XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH=YES
@@ -1255,7 +1290,6 @@ CMakeBuildConfiguration::CMakeBuildConfiguration(Target *target, Id id)
         }
 
         if (isWebAssembly(k) || isQnx(k) || isWindowsARM64(k)) {
-            const QtSupport::QtVersion *qt = QtSupport::QtKitAspect::qtVersion(k);
             if (qt && qt->qtVersion().majorVersion >= 6)
                 cmd.addArg(CMAKE_QT6_TOOLCHAIN_FILE_ARG);
         }
@@ -1267,13 +1301,16 @@ CMakeBuildConfiguration::CMakeBuildConfiguration(Target *target, Id id)
                                                    info.buildType));
         }
 
-        if (info.extraInfo.isValid()) {
-            setSourceDirectory(FilePath::fromVariant(
-                        info.extraInfo.value<QVariantMap>().value(Constants::CMAKE_HOME_DIR)));
-        }
+        if (extraInfoMap.contains(Constants::CMAKE_HOME_DIR))
+            setSourceDirectory(FilePath::fromVariant(extraInfoMap.value(Constants::CMAKE_HOME_DIR)));
+
+        aspect<QtSupport::QmlDebuggingAspect>()->setValue(qmlDebugging);
+
+        if (qt && qt->isQmlDebuggingSupported())
+            cmd.addArg("-DCMAKE_CXX_FLAGS_INIT:STRING=%{" + QLatin1String(QT_QML_DEBUG_FLAG) + "}");
 
         m_buildSystem->setInitialCMakeArguments(cmd.splitArguments());
-        m_buildSystem->setCMakeBuildType(info.typeName);
+        m_buildSystem->setCMakeBuildType(buildType);
     });
 }
 
@@ -1565,15 +1602,7 @@ CMakeBuildConfigurationFactory::BuildType CMakeBuildConfigurationFactory::buildT
 BuildConfiguration::BuildType CMakeBuildConfigurationFactory::cmakeBuildTypeToBuildType(
     const CMakeBuildConfigurationFactory::BuildType &in)
 {
-    // Cover all common CMake build types
-    if (in == BuildTypeRelease || in == BuildTypeMinSizeRel)
-        return BuildConfiguration::Release;
-    else if (in == BuildTypeDebug)
-        return BuildConfiguration::Debug;
-    else if (in == BuildTypeRelWithDebInfo)
-        return BuildConfiguration::Profile;
-    else
-        return BuildConfiguration::Unknown;
+    return createBuildInfo(in).buildType;
 }
 
 BuildInfo CMakeBuildConfigurationFactory::createBuildInfo(BuildType buildType)
@@ -1586,11 +1615,16 @@ BuildInfo CMakeBuildConfigurationFactory::createBuildInfo(BuildType buildType)
         info.displayName = BuildConfiguration::tr("Build");
         info.buildType = BuildConfiguration::Unknown;
         break;
-    case BuildTypeDebug:
+    case BuildTypeDebug: {
         info.typeName = "Debug";
         info.displayName = BuildConfiguration::tr("Debug");
         info.buildType = BuildConfiguration::Debug;
+        QVariantMap extraInfo;
+        // enable QML debugging by default
+        extraInfo.insert(Constants::QML_DEBUG_SETTING, TriState::Enabled.toVariant());
+        info.extraInfo = extraInfo;
         break;
+    }
     case BuildTypeRelease:
         info.typeName = "Release";
         info.displayName = BuildConfiguration::tr("Release");
@@ -1606,6 +1640,18 @@ BuildInfo CMakeBuildConfigurationFactory::createBuildInfo(BuildType buildType)
         info.displayName = CMakeBuildConfiguration::tr("Release with Debug Information");
         info.buildType = BuildConfiguration::Profile;
         break;
+    case BuildTypeProfile: {
+        info.typeName = "Profile";
+        info.displayName = CMakeBuildConfiguration::tr("Profile");
+        info.buildType = BuildConfiguration::Profile;
+        QVariantMap extraInfo;
+        // override CMake build type, which defaults to info.typeName
+        extraInfo.insert(CMAKE_BUILD_TYPE, "RelWithDebInfo");
+        // enable QML debugging by default
+        extraInfo.insert(Constants::QML_DEBUG_SETTING, TriState::Enabled.toVariant());
+        info.extraInfo = extraInfo;
+        break;
+    }
     default:
         QTC_CHECK(false);
         break;
@@ -1809,7 +1855,7 @@ SourceDirectoryAspect::SourceDirectoryAspect()
 // -----------------------------------------------------------------------------
 BuildTypeAspect::BuildTypeAspect()
 {
-    setSettingsKey("CMake.Build.Type");
+    setSettingsKey(CMAKE_BUILD_TYPE);
     setLabelText(tr("Build type:"));
     setDisplayStyle(LineEditDisplay);
     setDefaultValue("Unknown");

@@ -459,7 +459,7 @@ void CMakeBuildSystem::setParametersAndRequestParse(const BuildDirParameters &pa
     QTC_ASSERT(parameters.isValid(), return );
 
     m_parameters = parameters;
-    m_parameters.buildDirectory = buildDirectory(parameters);
+    ensureBuildDirectory(parameters);
     updateReparseParameters(reparseParameters);
 
     m_reader.setParameters(m_parameters);
@@ -668,15 +668,14 @@ bool CMakeBuildSystem::persistCMakeState()
     QTC_ASSERT(parameters.isValid(), return false);
 
     const bool hadBuildDirectory = parameters.buildDirectory.exists();
-    parameters.buildDirectory = buildDirectory(parameters);
+    ensureBuildDirectory(parameters);
 
     int reparseFlags = REPARSE_DEFAULT;
     qCDebug(cmakeBuildSystemLog) << "Checking whether build system needs to be persisted:"
                                  << "buildDir:" << parameters.buildDirectory
                                  << "Has extraargs:" << !parameters.configurationChangesArguments.isEmpty();
 
-    if (parameters.buildDirectory == parameters.buildDirectory
-        && mustApplyConfigurationChangesArguments(parameters)) {
+    if (mustApplyConfigurationChangesArguments(parameters)) {
         reparseFlags = REPARSE_FORCE_EXTRA_CONFIGURATION;
         qCDebug(cmakeBuildSystemLog) << "   -> must run CMake with extra arguments.";
     }
@@ -932,7 +931,8 @@ void CMakeBuildSystem::updateFileSystemNodes()
         addCMakeLists(newRoot.get(), std::move(fileNodes));
     }
 
-    addFileSystemNodes(newRoot.get(), m_allFiles);
+    if (m_allFiles)
+        addFileSystemNodes(newRoot.get(), m_allFiles);
     setRootProjectNode(std::move(newRoot));
 
     m_reader.resetData();
@@ -1105,15 +1105,13 @@ void CMakeBuildSystem::wireUpConnections()
     }
 }
 
-FilePath CMakeBuildSystem::buildDirectory(const BuildDirParameters &parameters)
+void CMakeBuildSystem::ensureBuildDirectory(const BuildDirParameters &parameters)
 {
     const FilePath bdir = parameters.buildDirectory;
 
     if (!buildConfiguration()->createBuildDirectory())
         handleParsingFailed(
             tr("Failed to create build directory \"%1\".").arg(bdir.toUserOutput()));
-
-    return bdir;
 }
 
 void CMakeBuildSystem::stopParsingAndClearState()
@@ -1158,7 +1156,8 @@ void CMakeBuildSystem::runCTest()
     QTC_ASSERT(parameters.isValid(), return);
 
     const CommandLine cmd { m_ctestPath, { "-N", "--show-only=json-v1" } };
-    const FilePath workingDirectory = buildDirectory(parameters);
+    ensureBuildDirectory(parameters);
+    const FilePath workingDirectory = parameters.buildDirectory;
     const Environment environment = buildConfiguration()->environment();
 
     auto future = Utils::runAsync([cmd, workingDirectory, environment]
@@ -1440,7 +1439,8 @@ void CMakeBuildSystem::updateQmlJSCodeModel(const QStringList &extraHeaderPaths,
     projectInfo.importPaths.clear();
 
     auto addImports = [&projectInfo](const QString &imports) {
-        foreach (const QString &import, CMakeConfigItem::cmakeSplitValue(imports))
+        const QStringList importList = CMakeConfigItem::cmakeSplitValue(imports);
+        for (const QString &import : importList)
             projectInfo.importPaths.maybeInsert(FilePath::fromString(import), QmlJS::Dialect::Qml);
     };
 

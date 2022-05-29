@@ -25,6 +25,7 @@
 
 #include "fileapireader.h"
 
+#include "cmakeprocess.h"
 #include "fileapidataextractor.h"
 #include "fileapiparser.h"
 
@@ -175,7 +176,7 @@ void FileApiReader::stop()
 void FileApiReader::stopCMakeRun()
 {
     if (m_cmakeProcess)
-        m_cmakeProcess->terminate();
+        m_cmakeProcess->stop();
 }
 
 bool FileApiReader::isParsing() const

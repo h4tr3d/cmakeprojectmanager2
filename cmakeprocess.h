@@ -25,23 +25,29 @@
 
 #pragma once
 
-#include "builddirparameters.h"
-
 #include <utils/outputformatter.h>
 
 #include <QElapsedTimer>
 #include <QFutureInterface>
 #include <QObject>
-#include <QProcess>
 #include <QStringList>
-#include <QTimer>
 
 #include <memory>
 
-namespace Utils { class QtcProcess; }
+QT_BEGIN_NAMESPACE
+template<class T>
+class QFutureWatcher;
+QT_END_NAMESPACE
+
+namespace Utils {
+class ProcessResultData;
+class QtcProcess;
+}
 
 namespace CMakeProjectManager {
 namespace Internal {
+
+class BuildDirParameters;
 
 class CMakeProcess : public QObject
 {
@@ -49,18 +55,10 @@ class CMakeProcess : public QObject
 
 public:
     CMakeProcess();
-    CMakeProcess(const CMakeProcess&) = delete;
     ~CMakeProcess();
 
     void run(const BuildDirParameters &parameters, const QStringList &arguments);
-    void terminate();
-
-    QProcess::ProcessState state() const;
-
-    // Update progress information:
-    void reportCanceled();
-    void reportFinished(); // None of the progress related functions will work after this!
-    void setProgressValue(int p);
+    void stop();
 
     int lastExitCode() const { return m_lastExitCode; }
 
@@ -69,14 +67,12 @@ signals:
     void finished();
 
 private:
-    void handleProcessFinished();
-    void checkForCancelled();
+    void handleProcessDone(const Utils::ProcessResultData &resultData);
 
     std::unique_ptr<Utils::QtcProcess> m_process;
     Utils::OutputFormatter m_parser;
-    std::unique_ptr<QFutureInterface<void>> m_future;
-    bool m_processWasCanceled = false;
-    QTimer m_cancelTimer;
+    QFutureInterface<void> m_futureInterface;
+    std::unique_ptr<QFutureWatcher<void>> m_futureWatcher;
     QElapsedTimer m_elapsed;
     int m_lastExitCode = 0;
 };
