@@ -34,6 +34,7 @@
 
 #include <utils/detailswidget.h>
 #include <utils/fileutils.h>
+#include <utils/headerviewstretcher.h>
 #include <utils/pathchooser.h>
 #include <utils/qtcassert.h>
 #include <utils/stringutils.h>
@@ -569,6 +570,7 @@ public:
         header->setStretchLastSection(false);
         header->setSectionResizeMode(0, QHeaderView::ResizeToContents);
         header->setSectionResizeMode(1, QHeaderView::Stretch);
+        (void) new HeaderViewStretcher(header, 0);
 
         auto buttonLayout = new QVBoxLayout();
         buttonLayout->setContentsMargins(0, 0, 0, 0);
@@ -699,9 +701,10 @@ void CMakeToolConfigWidget::currentCMakeToolChanged(const QModelIndex &newCurren
 
 CMakeSettingsPage::CMakeSettingsPage()
 {
-    setId(Constants::CMAKE_SETTINGS_PAGE_ID);
-    setDisplayName(CMakeToolConfigWidget::tr("CMake"));
-    setCategory(ProjectExplorer::Constants::KITS_SETTINGS_CATEGORY);
+    setId(Constants::Settings::TOOLS_ID);
+    setDisplayName(tr("Tools"));
+    setDisplayCategory("CMake");
+    setCategory(Constants::Settings::CATEGORY);
     setWidgetCreator([] { return new CMakeToolConfigWidget; });
 }
 
