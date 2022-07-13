@@ -25,12 +25,9 @@
 
 #include "cmakeproject.h"
 
-#include "cmakebuildstep.h"
-#include "cmakebuildsystem.h"
 #include "cmakekitinformation.h"
 #include "cmakeprojectconstants.h"
 #include "cmakeprojectimporter.h"
-#include "cmakeprojectnodes.h"
 #include "cmaketool.h"
 
 #include <coreplugin/icore.h>
@@ -39,6 +36,7 @@
 #include <projectexplorer/buildsteplist.h>
 #include <projectexplorer/kitinformation.h>
 #include <projectexplorer/projectexplorerconstants.h>
+#include <projectexplorer/projectnodes.h>
 #include <projectexplorer/target.h>
 #include <QMessageBox>
 
