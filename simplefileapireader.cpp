@@ -8,7 +8,7 @@
 #include "projecttreehelper.h"
 
 #include <coreplugin/editormanager/editormanager.h>
-#include <coreplugin/fileiconprovider.h>
+#include <utils/fsengine/fileiconprovider.h>
 #include <coreplugin/messagemanager.h>
 #include <coreplugin/progressmanager/progressmanager.h>
 #include <projectexplorer/projectexplorer.h>
