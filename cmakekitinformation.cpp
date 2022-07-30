@@ -52,6 +52,7 @@
 #include <utils/commandline.h>
 #include <utils/elidinglabel.h>
 #include <utils/environment.h>
+#include <utils/guard.h>
 #include <utils/layoutbuilder.h>
 #include <utils/macroexpander.h>
 #include <utils/qtcassert.h>
@@ -105,7 +106,7 @@ public:
 
         updateComboBox();
         refresh();
-        connect(m_comboBox, QOverload<int>::of(&QComboBox::currentIndexChanged),
+        connect(m_comboBox, &QComboBox::currentIndexChanged,
                 this, &CMakeKitAspectWidget::currentCMakeToolChanged);
 
         CMakeToolManager *cmakeMgr = CMakeToolManager::instance();
@@ -190,10 +191,11 @@ private:
         const int pos = indexOf(id);
         QTC_ASSERT(pos >= 0, return);
 
-        // do not handle the current index changed signal
-        m_removingItem = true;
-        m_comboBox->removeItem(pos);
-        m_removingItem = false;
+        {
+            // do not handle the current index changed signal
+            const GuardLocker locker(m_ignoreChanges);
+            m_comboBox->removeItem(pos);
+        }
 
         // update the checkbox and set the current index
         updateComboBox();
@@ -202,14 +204,14 @@ private:
 
     void currentCMakeToolChanged(int index)
     {
-        if (m_removingItem)
+        if (m_ignoreChanges.isLocked())
             return;
 
         const Id id = Id::fromSetting(m_comboBox->itemData(index));
         CMakeKitAspect::setCMakeTool(m_kit, id);
     }
 
-    bool m_removingItem = false;
+    Guard m_ignoreChanges;
     QComboBox *m_comboBox;
     QWidget *m_manageButton;
 };
@@ -382,9 +384,6 @@ private:
 
     void refresh() override
     {
-        if (m_ignoreChange)
-            return;
-
         CMakeTool *const tool = CMakeKitAspect::cmakeTool(m_kit);
         if (tool != m_currentTool)
             m_currentTool = tool;
@@ -505,7 +504,6 @@ private:
         }
     }
 
-    bool m_ignoreChange = false;
     ElidingLabel *m_label;
     QPushButton *m_changeButton;
     CMakeTool *m_currentTool = nullptr;

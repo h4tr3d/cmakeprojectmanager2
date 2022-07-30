@@ -31,7 +31,6 @@
 #include "cmakeproject.h"
 
 #include <android/androidconstants.h>
-#include <coreplugin/fileiconprovider.h>
 #include <ios/iosconstants.h>
 #include <projectexplorer/projectexplorerconstants.h>
 #include <projectexplorer/target.h>

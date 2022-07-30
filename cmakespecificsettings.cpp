@@ -88,7 +88,7 @@ CMakeSpecificSettingsPage::CMakeSpecificSettingsPage(CMakeSpecificSettings *sett
     setDisplayName(tr("General"));
     setDisplayCategory("CMake");
     setCategory(Constants::Settings::CATEGORY);
-    setCategoryIconPath(Constants::Icons::LOGO_BW);
+    setCategoryIconPath(Constants::Icons::SETTINGS_CATEGORY);
     setSettings(settings);
 
     setLayouter([settings](QWidget *widget) {
@@ -96,13 +96,13 @@ CMakeSpecificSettingsPage::CMakeSpecificSettingsPage(CMakeSpecificSettings *sett
         using namespace Layouting;
         Column {
             Group {
-                Title(::CMakeProjectManager::Internal::CMakeSpecificSettings::tr("Adding Files")),
-                s.afterAddFileSetting
+                title(::CMakeProjectManager::Internal::CMakeSpecificSettings::tr("Adding Files")),
+                Column { s.afterAddFileSetting }
             },
             s.packageManagerAutoSetup,
             s.askBeforeReConfigureInitialParams,
             s.showSourceSubFolders,
-            Stretch(),
+            st
         }.attachTo(widget);
     });
 }

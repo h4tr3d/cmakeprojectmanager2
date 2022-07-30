@@ -485,14 +485,14 @@ bool CMakeBuildSystem::mustApplyConfigurationChangesArguments(const BuildDirPara
     if (parameters.configurationChangesArguments.isEmpty())
         return false;
 
-    auto answer = QMessageBox::question(Core::ICore::mainWindow(),
-                                        tr("Apply configuration changes?"),
-                                        "<p>" + tr("Run CMake with configuration changes?")
-                                            + "</p><pre>"
-                                            + parameters.configurationChangesArguments.join("\n")
-                                            + "</pre>",
-                                        QMessageBox::Apply | QMessageBox::Discard,
-                                        QMessageBox::Apply);
+    int answer = QMessageBox::question(Core::ICore::dialogParent(),
+                                       tr("Apply configuration changes?"),
+                                       "<p>" + tr("Run CMake with configuration changes?")
+                                       + "</p><pre>"
+                                       + parameters.configurationChangesArguments.join("\n")
+                                       + "</pre>",
+                                       QMessageBox::Apply | QMessageBox::Discard,
+                                       QMessageBox::Apply);
     return answer == QMessageBox::Apply;
 }
 
@@ -886,7 +886,7 @@ void CMakeBuildSystem::updateProjectData()
 
             if (mergedHeaderPathsAndQmlImportPaths) {
                 for (const auto &headerPath : rpp.headerPaths) {
-                    if (headerPath.type == HeaderPathType::User)
+                    if (headerPath.type == HeaderPathType::User || headerPath.type == HeaderPathType::System)
                         extraHeaderPaths.append(headerPath.path);
                 }
             }

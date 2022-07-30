@@ -28,7 +28,6 @@
 #include "cmake_global.h"
 
 #include <utils/optional.h>
-#include <utils/porting.h>
 
 #include <QByteArray>
 #include <QStringList>
@@ -70,7 +69,7 @@ public:
     QString toCMakeSetLine(const Utils::MacroExpander *expander = nullptr) const;
 
     bool operator==(const CMakeConfigItem &o) const;
-    friend Utils::QHashValueType qHash(const CMakeConfigItem &it);  // needed for MSVC
+    friend size_t qHash(const CMakeConfigItem &it);  // needed for MSVC
 
     QByteArray key;
     Type type = STRING;
