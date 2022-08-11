@@ -433,6 +433,7 @@ public:
     void store() const;
 
 private:
+    void onBinaryPathEditingFinished();
     void updateQchFilePath();
 
     CMakeToolItemModel *m_model;
@@ -477,11 +478,8 @@ CMakeToolItemConfigWidget::CMakeToolItemConfigWidget(CMakeToolItemModel *model)
     formLayout->addRow(new QLabel(tr("Help file:")), m_qchFileChooser);
     formLayout->addRow(m_autoRunCheckBox);
 
-    connect(m_binaryChooser, &PathChooser::rawPathChanged, this, [this]() {
-        updateQchFilePath();
-        m_qchFileChooser->setBaseDirectory(m_binaryChooser->filePath().parentDir());
-        store();
-    });
+    connect(m_binaryChooser, &PathChooser::browsingFinished, this, &CMakeToolItemConfigWidget::onBinaryPathEditingFinished);
+    connect(m_binaryChooser, &PathChooser::editingFinished, this, &CMakeToolItemConfigWidget::onBinaryPathEditingFinished);
     connect(m_qchFileChooser, &PathChooser::rawPathChanged, this, &CMakeToolItemConfigWidget::store);
     connect(m_displayNameLineEdit, &QLineEdit::textChanged, this, &CMakeToolItemConfigWidget::store);
     connect(m_autoRunCheckBox, &QCheckBox::toggled,
@@ -496,6 +494,12 @@ void CMakeToolItemConfigWidget::store() const
                                  m_binaryChooser->filePath(),
                                  m_qchFileChooser->filePath(),
                                  m_autoRunCheckBox->checkState() == Qt::Checked);
+}
+
+void CMakeToolItemConfigWidget::onBinaryPathEditingFinished()
+{
+    updateQchFilePath();
+    store();
 }
 
 void CMakeToolItemConfigWidget::updateQchFilePath()
