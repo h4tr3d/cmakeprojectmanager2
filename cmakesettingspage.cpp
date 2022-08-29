@@ -1,27 +1,5 @@
-/****************************************************************************
-**
-** Copyright (C) 2016 The Qt Company Ltd.
-** Contact: https://www.qt.io/licensing/
-**
-** This file is part of Qt Creator.
-**
-** Commercial License Usage
-** Licensees holding valid commercial Qt licenses may use this file in
-** accordance with the commercial license agreement provided with the
-** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company. For licensing terms
-** and conditions see https://www.qt.io/terms-conditions. For further
-** information use the contact form at https://www.qt.io/contact-us.
-**
-** GNU General Public License Usage
-** Alternatively, this file may be used under the terms of the GNU
-** General Public License version 3 as published by the Free Software
-** Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
-** included in the packaging of this file. Please review the following
-** information to ensure the GNU General Public License requirements will
-** be met: https://www.gnu.org/licenses/gpl-3.0.html.
-**
-****************************************************************************/
+// Copyright (C) 2016 The Qt Company Ltd.
+// SPDX-License-Identifier: LicenseRef-Qt-Commercial OR GPL-3.0+ OR GPL-3.0 WITH Qt-GPL-exception-1.0
 
 #include "cmakesettingspage.h"
 
@@ -433,8 +411,8 @@ public:
     void store() const;
 
 private:
+    void onBinaryPathEditingFinished();
     void updateQchFilePath();
-    void reload();
 
     CMakeToolItemModel *m_model;
     QLineEdit *m_displayNameLineEdit;
@@ -478,11 +456,8 @@ CMakeToolItemConfigWidget::CMakeToolItemConfigWidget(CMakeToolItemModel *model)
     formLayout->addRow(new QLabel(tr("Help file:")), m_qchFileChooser);
     formLayout->addRow(m_autoRunCheckBox);
 
-    connect(m_binaryChooser, &PathChooser::rawPathChanged, this, [this]() {
-        updateQchFilePath();
-        store();
-        reload();
-    });
+    connect(m_binaryChooser, &PathChooser::browsingFinished, this, &CMakeToolItemConfigWidget::onBinaryPathEditingFinished);
+    connect(m_binaryChooser, &PathChooser::editingFinished, this, &CMakeToolItemConfigWidget::onBinaryPathEditingFinished);
     connect(m_qchFileChooser, &PathChooser::rawPathChanged, this, &CMakeToolItemConfigWidget::store);
     connect(m_displayNameLineEdit, &QLineEdit::textChanged, this, &CMakeToolItemConfigWidget::store);
     connect(m_autoRunCheckBox, &QCheckBox::toggled,
@@ -499,22 +474,16 @@ void CMakeToolItemConfigWidget::store() const
                                  m_autoRunCheckBox->checkState() == Qt::Checked);
 }
 
+void CMakeToolItemConfigWidget::onBinaryPathEditingFinished()
+{
+    updateQchFilePath();
+    store();
+}
+
 void CMakeToolItemConfigWidget::updateQchFilePath()
 {
     if (m_qchFileChooser->filePath().isEmpty())
         m_qchFileChooser->setFilePath(CMakeTool::searchQchFile(m_binaryChooser->filePath()));
-}
-
-void CMakeToolItemConfigWidget::reload()
-{
-    if (!m_id.isValid())
-        return;
-
-    const CMakeToolTreeItem *item = m_model->cmakeToolItem(m_id);
-    if (!item)
-        return;
-
-    load(item);
 }
 
 void CMakeToolItemConfigWidget::load(const CMakeToolTreeItem *item)
