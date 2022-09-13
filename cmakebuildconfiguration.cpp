@@ -1188,7 +1188,7 @@ CMakeBuildConfiguration::CMakeBuildConfiguration(Target *target, Id id)
 
     const auto buildDirAspect = aspect<BuildDirectoryAspect>();
     buildDirAspect->setValueAcceptor(
-        [](const QString &oldDir, const QString &newDir) -> Utils::optional<QString> {
+        [](const QString &oldDir, const QString &newDir) -> std::optional<QString> {
             if (oldDir.isEmpty())
                 return newDir;
 
@@ -1204,7 +1204,7 @@ CMakeBuildConfiguration::CMakeBuildConfiguration(Target *target, Id id)
                     == QMessageBox::Ok) {
                     return newDir;
                 }
-                return Utils::nullopt;
+                return std::nullopt;
             }
             return newDir;
         });
@@ -1353,7 +1353,7 @@ CMakeBuildConfiguration::CMakeBuildConfiguration(Target *target, Id id)
         if (info.buildDirectory.isEmpty()) {
             setBuildDirectory(shadowBuildDirectory(target->project()->projectFilePath(),
                                                    k,
-                                                   info.displayName,
+                                                   info.typeName,
                                                    info.buildType));
         }
 
@@ -1367,6 +1367,7 @@ CMakeBuildConfiguration::CMakeBuildConfiguration(Target *target, Id id)
 
         m_buildSystem->setInitialCMakeArguments(cmd.splitArguments());
         m_buildSystem->setCMakeBuildType(buildType);
+        updateAndEmitConfigureEnvironmentChanged();
     });
 }
 
@@ -1439,9 +1440,8 @@ FilePath CMakeBuildConfiguration::shadowBuildDirectory(const FilePath &projectFi
                                                     bcName, buildType, "cmake");
 
     if (CMakeGeneratorKitAspect::isMultiConfigGenerator(k)) {
-        QString path = buildPath.path();
-        path = path.left(path.lastIndexOf(QString("-%1").arg(bcName)));
-        buildPath.setPath(path);
+        const QString path = buildPath.path();
+        buildPath = buildPath.withNewPath(path.left(path.lastIndexOf(QString("-%1").arg(bcName))));
     }
 
     return buildPath;

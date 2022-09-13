@@ -24,7 +24,7 @@ public:
     explicit CMakeListsNode(const Utils::FilePath &cmakeListPath);
 
     bool showInSimpleTree() const final;
-    Utils::optional<Utils::FilePath> visibleAfterAddFileAction() const override;
+    std::optional<Utils::FilePath> visibleAfterAddFileAction() const override;
 };
 
 class CMakeProjectNode : public ProjectExplorer::ProjectNode
@@ -47,7 +47,7 @@ public:
     Utils::FilePath buildDirectory() const;
     void setBuildDirectory(const Utils::FilePath &directory);
 
-    Utils::optional<Utils::FilePath> visibleAfterAddFileAction() const override;
+    std::optional<Utils::FilePath> visibleAfterAddFileAction() const override;
 
     void build() override;
 
