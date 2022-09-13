@@ -18,7 +18,6 @@
 #include <projectexplorer/toolchain.h>
 
 #include <utils/algorithm.h>
-#include <utils/optional.h>
 #include <utils/qtcassert.h>
 #include <utils/runextensions.h>
 
