@@ -1094,9 +1094,24 @@ void CMakeBuildSystem::ensureBuildDirectory(const BuildDirParameters &parameters
 {
     const FilePath bdir = parameters.buildDirectory;
 
-    if (!buildConfiguration()->createBuildDirectory())
-        handleParsingFailed(
-            tr("Failed to create build directory \"%1\".").arg(bdir.toUserOutput()));
+    if (!buildConfiguration()->createBuildDirectory()) {
+        handleParsingFailed(tr("Failed to create build directory \"%1\".").arg(bdir.toUserOutput()));
+        return;
+    }
+
+    const CMakeTool *tool = parameters.cmakeTool();
+    if (!tool) {
+        handleParsingFailed(tr("No CMake tool set up in kit."));
+        return;
+    }
+
+    if (tool->cmakeExecutable().needsDevice()) {
+        if (!tool->cmakeExecutable().ensureReachable(bdir)) {
+            // Make sure that the build directory is available on the device.
+            handleParsingFailed(
+                tr("The remote CMake executable cannot write to the local build directory."));
+        }
+    }
 }
 
 void CMakeBuildSystem::stopParsingAndClearState()
