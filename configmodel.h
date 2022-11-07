@@ -7,10 +7,7 @@
 
 #include <utils/treemodel.h>
 
-#include <QString>
-
-namespace CMakeProjectManager {
-namespace Internal {
+namespace CMakeProjectManager::Internal {
 
 class ConfigModelTreeItem;
 
@@ -21,7 +18,8 @@ class ConfigModel : public Utils::TreeModel<>
 public:
     enum Roles {
         ItemIsAdvancedRole = Qt::UserRole,
-        ItemIsInitialRole
+        ItemIsInitialRole,
+        ItemIsUserNew,
     };
 
     struct DataItem {
@@ -136,5 +134,4 @@ public:
     ConfigModel::InternalDataItem *dataItem;
 };
 
-} // namespace Internal
-} // namespace CMakeProjectManager
+} // CMakeProjectManager::Internal

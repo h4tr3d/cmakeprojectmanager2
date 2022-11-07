@@ -20,12 +20,9 @@
 #include <memory>
 #include <optional>
 
-namespace ProjectExplorer {
-class ProjectNode;
-}
+namespace ProjectExplorer { class ProjectNode; }
 
-namespace CMakeProjectManager {
-namespace Internal {
+namespace CMakeProjectManager::Internal {
 
 class CMakeProcess;
 class FileApiQtcData;
@@ -105,5 +102,4 @@ protected:
     QDateTime m_lastReplyTimestamp;
 };
 
-} // namespace Internal
-} // namespace CMakeProjectManager
+} // CMakeProjectManager::Internal

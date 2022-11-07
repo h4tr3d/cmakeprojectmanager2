@@ -7,6 +7,7 @@
 #include "cmakekitinformation.h"
 #include "cmakeproject.h"
 #include "cmakeprojectconstants.h"
+#include "cmakeprojectmanagertr.h"
 #include "cmakeprojectnodes.h"
 
 #include <coreplugin/actionmanager/actioncontainer.h>
@@ -15,6 +16,7 @@
 #include <coreplugin/editormanager/ieditor.h>
 #include <coreplugin/icore.h>
 #include <coreplugin/messagemanager.h>
+#include <cppeditor/cpptoolsreuse.h>
 #include <projectexplorer/buildmanager.h>
 #include <projectexplorer/projectexplorer.h>
 #include <projectexplorer/projectexplorerconstants.h>
@@ -32,10 +34,10 @@ using namespace ProjectExplorer;
 using namespace CMakeProjectManager::Internal;
 
 CMakeManager::CMakeManager()
-    : m_runCMakeAction(new QAction(QIcon(), tr("Run CMake"), this))
-    , m_clearCMakeCacheAction(new QAction(QIcon(), tr("Clear CMake Configuration"), this))
-    , m_runCMakeActionContextMenu(new QAction(QIcon(), tr("Run CMake"), this))
-    , m_rescanProjectAction(new QAction(QIcon(), tr("Rescan Project"), this))
+    : m_runCMakeAction(new QAction(QIcon(), Tr::tr("Run CMake"), this))
+    , m_clearCMakeCacheAction(new QAction(QIcon(), Tr::tr("Clear CMake Configuration"), this))
+    , m_runCMakeActionContextMenu(new QAction(QIcon(), Tr::tr("Run CMake"), this))
+    , m_rescanProjectAction(new QAction(QIcon(), Tr::tr("Rescan Project"), this))
 {
     Core::ActionContainer *mbuild =
             Core::ActionManager::actionContainer(ProjectExplorer::Constants::M_BUILDPROJECT);
@@ -77,7 +79,7 @@ CMakeManager::CMakeManager()
         runCMake(ProjectTree::currentBuildSystem());
     });
 
-    m_buildFileContextMenu = new QAction(tr("Build"), this);
+    m_buildFileContextMenu = new QAction(Tr::tr("Build"), this);
     command = Core::ActionManager::registerAction(m_buildFileContextMenu,
                                                   Constants::BUILD_FILE_CONTEXT_MENU,
                                                   projectContext);
@@ -95,15 +97,15 @@ CMakeManager::CMakeManager()
         rescanProject(ProjectTree::currentBuildSystem());
     });
 
-    m_buildFileAction = new Utils::ParameterAction(tr("Build File"),
-                                                   tr("Build File \"%1\""),
+    m_buildFileAction = new Utils::ParameterAction(Tr::tr("Build File"),
+                                                   Tr::tr("Build File \"%1\""),
                                                    Utils::ParameterAction::AlwaysEnabled,
                                                    this);
     command = Core::ActionManager::registerAction(m_buildFileAction, Constants::BUILD_FILE);
     command->setAttribute(Core::Command::CA_Hide);
     command->setAttribute(Core::Command::CA_UpdateText);
     command->setDescription(m_buildFileAction->text());
-    command->setDefaultKeySequence(QKeySequence(tr("Ctrl+Alt+B")));
+    command->setDefaultKeySequence(QKeySequence(Tr::tr("Ctrl+Alt+B")));
     mbuild->addAction(command, ProjectExplorer::Constants::G_BUILD_BUILD);
     connect(m_buildFileAction, &QAction::triggered, this, [this] { buildFile(); });
 
@@ -216,10 +218,17 @@ void CMakeManager::buildFile(Node *node)
     CMakeTargetNode *targetNode = dynamic_cast<CMakeTargetNode *>(fileNode->parentProjectNode());
     if (!targetNode)
         return;
+    Utils::FilePath filePath = fileNode->filePath();
+    if (filePath.fileName().contains(".h")) {
+        bool wasHeader = false;
+        const QString sourceFile = CppEditor::correspondingHeaderOrSource(filePath.toString(), &wasHeader);
+        if (wasHeader && !sourceFile.isEmpty())
+            filePath = Utils::FilePath::fromString(sourceFile);
+    }
     Target *target = project->activeTarget();
     QTC_ASSERT(target, return);
     const QString generator = CMakeGeneratorKitAspect::generator(target->kit());
-    const QString relativeSource = fileNode->filePath().relativeChildPath(targetNode->filePath()).toString();
+    const QString relativeSource = filePath.relativeChildPath(targetNode->filePath()).toString();
     const QString objExtension = Utils::HostOsInfo::isWindowsHost() ? QString(".obj") : QString(".o");
     Utils::FilePath targetBase;
     BuildConfiguration *bc = target->activeBuildConfiguration();
@@ -230,7 +239,7 @@ void CMakeManager::buildFile(Node *node)
         targetBase = relativeBuildDir / "CMakeFiles" / (targetNode->displayName() + ".dir");
     } else if (!generator.contains("Makefiles")) {
         Core::MessageManager::writeFlashing(
-            tr("Build File is not supported for generator \"%1\"").arg(generator));
+            Tr::tr("Build File is not supported for generator \"%1\"").arg(generator));
         return;
     }
 

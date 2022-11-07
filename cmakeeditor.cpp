@@ -21,12 +21,17 @@
 using namespace Core;
 using namespace TextEditor;
 
-namespace CMakeProjectManager {
-namespace Internal {
+namespace CMakeProjectManager::Internal {
 
 //
 // CMakeEditor
 //
+
+class CMakeEditor : public TextEditor::BaseTextEditor
+{
+public:
+    void contextHelp(const HelpCallback &callback) const final;
+};
 
 void CMakeEditor::contextHelp(const HelpCallback &callback) const
 {
@@ -70,8 +75,10 @@ void CMakeEditor::contextHelp(const HelpCallback &callback) const
     }
 
     const QString id = "command/" + textAt(begin, end - begin).toLower();
-    callback(
-        {{id, Utils::Text::wordUnderCursor(editorWidget()->textCursor())}, {}, HelpItem::Unknown});
+    callback({{id, Utils::Text::wordUnderCursor(editorWidget()->textCursor())},
+              {},
+              {},
+              HelpItem::Unknown});
 }
 
 //
@@ -237,5 +244,4 @@ CMakeEditorFactory::CMakeEditorFactory()
     contextMenu->addAction(ActionManager::command(TextEditor::Constants::UN_COMMENT_SELECTION));
 }
 
-} // namespace Internal
-} // namespace CMakeProjectManager
+} // CMakeProjectManager::Internal

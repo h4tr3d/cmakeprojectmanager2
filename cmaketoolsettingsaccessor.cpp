@@ -3,24 +3,21 @@
 
 #include "cmaketoolsettingsaccessor.h"
 
+#include "cmakeprojectmanagertr.h"
 #include "cmaketool.h"
-#include "cmaketoolmanager.h"
 
 #include <coreplugin/icore.h>
 
 #include <app/app_version.h>
-#include <utils/environment.h>
 
 #include <utils/algorithm.h>
+#include <utils/environment.h>
 
 #include <QDebug>
-#include <QDir>
-#include <QFileInfo>
 
 using namespace Utils;
 
-namespace CMakeProjectManager {
-namespace Internal {
+namespace CMakeProjectManager::Internal {
 
 // --------------------------------------------------------------------
 // CMakeToolSettingsUpgraders:
@@ -71,24 +68,22 @@ static std::vector<std::unique_ptr<CMakeTool>> autoDetectCMakeTools()
     const QStringList execs = env.appendExeExtensions(QLatin1String("cmake"));
 
     FilePaths suspects;
-    for (const FilePath &base : qAsConst(path)) {
+    for (const FilePath &base : std::as_const(path)) {
         if (base.isEmpty())
             continue;
 
-        QFileInfo fi;
         for (const QString &exec : execs) {
-            fi.setFile(QDir(base.toString()), exec);
-            if (fi.exists() && fi.isFile() && fi.isExecutable())
-                suspects << FilePath::fromString(fi.absoluteFilePath());
+            const FilePath suspect = base.resolvePath(exec);
+            if (suspect.isExecutableFile())
+                suspects << suspect;
         }
     }
 
     std::vector<std::unique_ptr<CMakeTool>> found;
-    for (const FilePath &command : qAsConst(suspects)) {
+    for (const FilePath &command : std::as_const(suspects)) {
         auto item = std::make_unique<CMakeTool>(CMakeTool::AutoDetection, CMakeTool::createId());
         item->setFilePath(command);
-        item->setDisplayName(::CMakeProjectManager::CMakeToolManager::tr("System CMake at %1")
-                                 .arg(command.toUserOutput()));
+        item->setDisplayName(Tr::tr("System CMake at %1").arg(command.toUserOutput()));
 
         found.emplace_back(std::move(item));
     }
@@ -149,7 +144,7 @@ mergeTools(std::vector<std::unique_ptr<CMakeTool>> &sdkTools,
 
 CMakeToolSettingsAccessor::CMakeToolSettingsAccessor() :
     UpgradingSettingsAccessor("QtCreatorCMakeTools",
-                              QCoreApplication::translate("CMakeProjectManager::CMakeToolManager", "CMake"),
+                              Tr::tr("CMake"),
                               Core::Constants::IDE_DISPLAY_NAME)
 {
     setBaseFilePath(Core::ICore::userResourcePath(CMAKE_TOOL_FILENAME));
@@ -238,5 +233,4 @@ CMakeToolSettingsAccessor::cmakeTools(const QVariantMap &data, bool fromSdk) con
     return result;
 }
 
-} // namespace Internal
-} // namespace CMakeProjectManager
+} // CMakeProjectManager::Internal

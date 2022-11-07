@@ -11,6 +11,7 @@
 #include "cmakeproject.h"
 #include "cmakeprojectconstants.h"
 #include "cmakeprojectnodes.h"
+#include "cmakeprojectmanagertr.h"
 #include "cmakeprojectplugin.h"
 #include "cmakespecificsettings.h"
 #include "projecttreehelper.h"
@@ -61,15 +62,14 @@
 using namespace ProjectExplorer;
 using namespace Utils;
 
-namespace CMakeProjectManager {
-namespace Internal {
+namespace CMakeProjectManager::Internal {
 
 static void copySourcePathsToClipboard(const FilePaths &srcPaths, const ProjectNode *node)
 {
     QClipboard *clip = QGuiApplication::clipboard();
 
     QString data = Utils::transform(srcPaths, [projDir = node->filePath()](const FilePath &path) {
-                       return path.relativePath(projDir).cleanPath().toString();
+                       return path.relativePathFrom(projDir).cleanPath().toString();
                    }).join(" ");
     clip->setText(data);
 }
@@ -94,8 +94,8 @@ static void noAutoAdditionNotify(const FilePaths &filePaths, const ProjectNode *
             bool checkValue{false};
             QDialogButtonBox::StandardButton reply = CheckableMessageBox::question(
                 Core::ICore::dialogParent(),
-                QMessageBox::tr("Copy to Clipboard?"),
-                QMessageBox::tr("Files are not automatically added to the "
+                Tr::tr("Copy to Clipboard?"),
+                Tr::tr("Files are not automatically added to the "
                                 "CMakeLists.txt file of the CMake project."
                                 "\nCopy the path to the source files to the clipboard?"),
                 "Remember My Choice",
@@ -371,7 +371,7 @@ FilePaths CMakeBuildSystem::filesGeneratedFrom(const FilePath &sourceFile) const
         baseDirectory = baseDirectory.parentDir();
     }
 
-    const FilePath relativePath = baseDirectory.relativePath(project);
+    const FilePath relativePath = baseDirectory.relativePathFrom(project);
     FilePath generatedFilePath = buildConfiguration()->buildDirectory().resolvePath(relativePath);
 
     if (sourceFile.suffix() == "ui") {
@@ -431,7 +431,7 @@ void CMakeBuildSystem::setParametersAndRequestParse(const BuildDirParameters &pa
     if (!tool || !tool->isValid()) {
         TaskHub::addTask(
             BuildSystemTask(Task::Error,
-                            tr("The kit needs to define a CMake tool to parse this project.")));
+                            Tr::tr("The kit needs to define a CMake tool to parse this project.")));
         return;
     }
     if (!tool->hasFileApi()) {
@@ -464,8 +464,8 @@ bool CMakeBuildSystem::mustApplyConfigurationChangesArguments(const BuildDirPara
         return false;
 
     int answer = QMessageBox::question(Core::ICore::dialogParent(),
-                                       tr("Apply configuration changes?"),
-                                       "<p>" + tr("Run CMake with configuration changes?")
+                                       Tr::tr("Apply configuration changes?"),
+                                       "<p>" + Tr::tr("Run CMake with configuration changes?")
                                        + "</p><pre>"
                                        + parameters.configurationChangesArguments.join("\n")
                                        + "</pre>",
@@ -711,7 +711,7 @@ void CMakeBuildSystem::combineScanAndParse(bool restoredFromBackup)
             if (restoredFromBackup)
                 project()->addIssue(
                     CMakeProject::IssueType::Warning,
-                    tr("<b>CMake configuration failed<b>"
+                    Tr::tr("<b>CMake configuration failed<b>"
                        "<p>The backup of the previous configuration has been restored.</p>"
                        "<p>Issues and \"Projects > Build\" settings "
                        "show more information about the failure.</p"));
@@ -729,7 +729,7 @@ void CMakeBuildSystem::combineScanAndParse(bool restoredFromBackup)
 
             project()->addIssue(
                 CMakeProject::IssueType::Warning,
-                tr("<b>Failed to load project<b>"
+                Tr::tr("<b>Failed to load project<b>"
                    "<p>Issues and \"Projects > Build\" settings "
                    "show more information about the failure.</p"));
         }
@@ -756,7 +756,7 @@ void CMakeBuildSystem::updateProjectData()
     {
         QSet<QString> res;
         QStringList apps;
-        for (const auto &target : qAsConst(m_buildTargets)) {
+        for (const auto &target : std::as_const(m_buildTargets)) {
             if (target.targetType == DynamicLibraryType) {
                 res.insert(target.executable.parentDir().toString());
                 apps.push_back(target.executable.toUserOutput());
@@ -824,30 +824,30 @@ void CMakeBuildSystem::updateProjectData()
         setError(errorMessage);
     qCDebug(cmakeBuildSystemLog) << "Raw project parts created." << errorMessage;
 
-    {
-        for (RawProjectPart &rpp : rpps) {
-            rpp.setQtVersion(
-                kitInfo.projectPartQtVersion); // TODO: Check if project actually uses Qt.
-            const QString includeFileBaseDir = buildConfiguration()->buildDirectory().toString();
-            if (kitInfo.cxxToolChain) {
-                rpp.setFlagsForCxx({kitInfo.cxxToolChain, rpp.flagsForCxx.commandLineFlags,
-                                    includeFileBaseDir});
-            }
-            if (kitInfo.cToolChain) {
-                rpp.setFlagsForC({kitInfo.cToolChain, rpp.flagsForC.commandLineFlags,
-                                  includeFileBaseDir});
-            }
-        }
-
-        m_cppCodeModelUpdater->update({p, kitInfo, buildConfiguration()->environment(), rpps},
-                                      m_extraCompilers);
+    for (RawProjectPart &rpp : rpps) {
+        rpp.setQtVersion(
+                    kitInfo.projectPartQtVersion); // TODO: Check if project actually uses Qt.
+        const QString includeFileBaseDir = buildConfiguration()->buildDirectory().toString();
+        QStringList cxxFlags = rpp.flagsForCxx.commandLineFlags;
+        QStringList cFlags = rpp.flagsForC.commandLineFlags;
+        addTargetFlagForIos(cxxFlags, cFlags, this, [this] {
+            return m_configurationFromCMake.stringValueOf("CMAKE_OSX_DEPLOYMENT_TARGET");
+        });
+        if (kitInfo.cxxToolChain)
+            rpp.setFlagsForCxx({kitInfo.cxxToolChain, cxxFlags, includeFileBaseDir});
+        if (kitInfo.cToolChain)
+            rpp.setFlagsForC({kitInfo.cToolChain, cFlags, includeFileBaseDir});
     }
+
+    m_cppCodeModelUpdater->update({p, kitInfo, buildConfiguration()->environment(), rpps},
+                                  m_extraCompilers);
+
     {
         const bool mergedHeaderPathsAndQmlImportPaths = kit()->value(
                     QtSupport::KitHasMergedHeaderPathsWithQmlImportPaths::id(), false).toBool();
         QStringList extraHeaderPaths;
         QList<QByteArray> moduleMappings;
-        for (const RawProjectPart &rpp : qAsConst(rpps)) {
+        for (const RawProjectPart &rpp : std::as_const(rpps)) {
             FilePath moduleMapFile = buildConfiguration()->buildDirectory()
                     .pathAppended("qml_module_mappings/" + rpp.buildSystemTarget);
             if (moduleMapFile.exists()) {
@@ -936,7 +936,7 @@ void CMakeBuildSystem::updateFallbackProjectData()
     QTC_CHECK(m_treeScanner.isFinished());
     if (m_treeScanner.asyncScanForFiles(projectDirectory()))
         Core::ProgressManager::addTask(m_treeScanner.future(),
-                                       tr("Scan \"%1\" project tree")
+                                       Tr::tr("Scan \"%1\" project tree")
                                            .arg(project()->displayName()),
                                        "CMake.Scan.Tree");
 #else
@@ -1095,13 +1095,13 @@ void CMakeBuildSystem::ensureBuildDirectory(const BuildDirParameters &parameters
     const FilePath bdir = parameters.buildDirectory;
 
     if (!buildConfiguration()->createBuildDirectory()) {
-        handleParsingFailed(tr("Failed to create build directory \"%1\".").arg(bdir.toUserOutput()));
+        handleParsingFailed(Tr::tr("Failed to create build directory \"%1\".").arg(bdir.toUserOutput()));
         return;
     }
 
     const CMakeTool *tool = parameters.cmakeTool();
     if (!tool) {
-        handleParsingFailed(tr("No CMake tool set up in kit."));
+        handleParsingFailed(Tr::tr("No CMake tool set up in kit."));
         return;
     }
 
@@ -1109,7 +1109,7 @@ void CMakeBuildSystem::ensureBuildDirectory(const BuildDirParameters &parameters
         if (!tool->cmakeExecutable().ensureReachable(bdir)) {
             // Make sure that the build directory is available on the device.
             handleParsingFailed(
-                tr("The remote CMake executable cannot write to the local build directory."));
+                Tr::tr("The remote CMake executable cannot write to the local build directory."));
         }
     }
 }
@@ -1336,28 +1336,28 @@ DeploymentData CMakeBuildSystem::deploymentData() const
 {
     DeploymentData result;
 
-    QDir sourceDir = project()->projectDirectory().toString();
-    QDir buildDir = buildConfiguration()->buildDirectory().toString();
+    FilePath sourceDir = project()->projectDirectory();
+    FilePath buildDir = buildConfiguration()->buildDirectory();
 
     QString deploymentPrefix;
-    QString deploymentFilePath = sourceDir.filePath("QtCreatorDeployment.txt");
+    FilePath deploymentFilePath = sourceDir.pathAppended("QtCreatorDeployment.txt");
 
-    bool hasDeploymentFile = QFileInfo::exists(deploymentFilePath);
+    bool hasDeploymentFile = deploymentFilePath.exists();
     if (!hasDeploymentFile) {
-        deploymentFilePath = buildDir.filePath("QtCreatorDeployment.txt");
-        hasDeploymentFile = QFileInfo::exists(deploymentFilePath);
+        deploymentFilePath = buildDir.pathAppended("QtCreatorDeployment.txt");
+        hasDeploymentFile = deploymentFilePath.exists();
     }
     if (!hasDeploymentFile)
         return result;
 
-    deploymentPrefix = result.addFilesFromDeploymentFile(deploymentFilePath,
-                                                         sourceDir.absolutePath());
+    deploymentPrefix = result.addFilesFromDeploymentFile(deploymentFilePath.toString(),
+                                                         sourceDir.toString());
     for (const CMakeBuildTarget &ct : m_buildTargets) {
         if (ct.targetType == ExecutableType || ct.targetType == DynamicLibraryType) {
             if (!ct.executable.isEmpty()
                     && result.deployableForLocalFile(ct.executable).localFilePath() != ct.executable) {
                 result.addFile(ct.executable,
-                               deploymentPrefix + buildDir.relativeFilePath(ct.executable.toFileInfo().dir().path()),
+                               deploymentPrefix + buildDir.relativeChildPath(ct.executable).toString(),
                                DeployableFile::TypeExecutable);
             }
         }
@@ -1582,5 +1582,4 @@ MakeInstallCommand CMakeBuildSystem::makeInstallCommand(const FilePath &installR
     return cmd;
 }
 
-} // namespace Internal
-} // namespace CMakeProjectManager
+} // CMakeProjectManager::Internal
