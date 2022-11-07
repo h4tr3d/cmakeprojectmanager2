@@ -7,8 +7,11 @@
 
 #include <projectexplorer/projectnodes.h>
 
-namespace CMakeProjectManager::Internal {
+namespace CMakeProjectManager {
 class CMakeProject;
+} // CMakeProjectManager
+
+namespace CMakeProjectManager::Internal {
 
 
 class CMakeInputsNode : public ProjectExplorer::ProjectNode
