@@ -1430,8 +1430,8 @@ void CMakeBuildSystem::updateQmlJSCodeModel(const QStringList &extraHeaderPaths,
         return;
 
     Project *p = project();
-    QmlJS::ModelManagerInterface::ProjectInfo projectInfo = modelManager
-                                                                ->defaultProjectInfoForProject(p);
+    QmlJS::ModelManagerInterface::ProjectInfo projectInfo
+        = modelManager->defaultProjectInfoForProject(p, p->files(Project::HiddenRccFolders));
 
     projectInfo.importPaths.clear();
 

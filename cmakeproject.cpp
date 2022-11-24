@@ -165,7 +165,7 @@ void CMakeProject::setupBuildPresets(Internal::PresetsData &presetsData)
                 TaskHub::requestPopup();
             }
 
-            const QString &configurePresetName = buildPreset.configurePreset.value();
+            const QString &configurePresetName = buildPreset.configurePreset.value_or(QString());
             buildPreset.environment
                 = Utils::findOrDefault(presetsData.configurePresets,
                                        [configurePresetName](

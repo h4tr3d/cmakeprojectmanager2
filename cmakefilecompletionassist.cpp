@@ -19,12 +19,12 @@ using namespace ProjectExplorer;
 
 namespace CMakeProjectManager::Internal {
 
-class CMakeFileCompletionAssist : public TextEditor::KeywordsCompletionAssistProcessor
+class CMakeFileCompletionAssist : public KeywordsCompletionAssistProcessor
 {
 public:
     CMakeFileCompletionAssist();
 
-    TextEditor::IAssistProposal *perform(const TextEditor::AssistInterface *interface) final;
+    IAssistProposal *performAsync() final;
 };
 
 CMakeFileCompletionAssist::CMakeFileCompletionAssist() :
@@ -34,10 +34,10 @@ CMakeFileCompletionAssist::CMakeFileCompletionAssist() :
     setDynamicCompletionFunction(&TextEditor::pathComplete);
 }
 
-IAssistProposal *CMakeFileCompletionAssist::perform(const AssistInterface *interface)
+IAssistProposal *CMakeFileCompletionAssist::performAsync()
 {
     Keywords kw;
-    const Utils::FilePath &filePath = interface->filePath();
+    const Utils::FilePath &filePath = interface()->filePath();
     if (!filePath.isEmpty() && filePath.toFileInfo().isFile()) {
         Project *p = SessionManager::projectForFile(filePath);
         if (p && p->activeTarget()) {
@@ -48,7 +48,7 @@ IAssistProposal *CMakeFileCompletionAssist::perform(const AssistInterface *inter
     }
 
     setKeywords(kw);
-    return KeywordsCompletionAssistProcessor::perform(interface);
+    return KeywordsCompletionAssistProcessor::performAsync();
 }
 
 IAssistProcessor *CMakeFileCompletionAssistProvider::createProcessor(const AssistInterface *) const
