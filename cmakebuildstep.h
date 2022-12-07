@@ -77,7 +77,7 @@ signals:
 private:
     Utils::CommandLine cmakeCommand() const;
 
-    void processFinished(int exitCode, QProcess::ExitStatus status) override;
+    void processFinished(bool success) override;
     bool fromMap(const QVariantMap &map) override;
 
     bool init() override;
@@ -102,7 +102,6 @@ private:
     Utils::StringAspect *m_cmakeArguments = nullptr;
     Utils::StringAspect *m_toolArguments = nullptr;
     Utils::BoolAspect *m_useiOSAutomaticProvisioningUpdates = nullptr;
-    bool m_waiting = false;
 
     QString m_allTarget = "all";
     QString m_installTarget = "install";
