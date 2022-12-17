@@ -70,6 +70,10 @@ For example, all actions runs in directory `/tmp/qt-creator`
     sudo cmake --install . --component Devel
     # Devel strongly are needed
     ```
+  - Latest QtC missed `tl_expected` packages, copy it manually
+    ```bash
+    cp -a "$qtc_source/src/libs/3rdparty/tl_expected" "$PREFIX/include/qtcreator/src/libs/3rdparty/"
+    ```
 
 Also, refer to the next page for more details:
 
