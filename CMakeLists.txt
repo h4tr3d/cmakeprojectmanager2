@@ -7,7 +7,7 @@ set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 set(CMAKE_CXX_STANDARD 17)
 
-find_package(QtCreator REQUIRED COMPONENTS Core CppEditor TextEditor QtSupport)
+find_package(QtCreator REQUIRED COMPONENTS Core CppEditor ProjectExplorer TextEditor QtSupport)
 find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Widgets)
 #find_package(QT NAMES Qt5 REQUIRED COMPONENTS Widgets)
 set(QtX Qt${QT_VERSION_MAJOR})
@@ -20,6 +20,7 @@ add_qtc_plugin(CMakeProjectManager2
     QtCreator::app_version
   PLUGIN_DEPENDS 
     QtCreator::CppEditor
+    QtCreator::ProjectExplorer
     QtCreator::TextEditor
     QtCreator::QtSupport
   SOURCES
