@@ -26,6 +26,7 @@ add_qtc_plugin(CMakeProjectManager2
   SOURCES
     builddirparameters.cpp builddirparameters.h
     cmake_global.h
+    cmakeabstractprocessstep.cpp cmakeabstractprocessstep.h
     cmakeautocompleter.cpp cmakeautocompleter.h
     cmakebuildconfiguration.cpp cmakebuildconfiguration.h
     cmakebuildsystem.cpp cmakebuildsystem.h
@@ -38,6 +39,7 @@ add_qtc_plugin(CMakeProjectManager2
     cmakeformatteroptionspage.cpp cmakeformatteroptionspage.h
     cmakeformattersettings.cpp cmakeformattersettings.h
     cmakeindenter.cpp cmakeindenter.h
+    cmakeinstallstep.cpp cmakeinstallstep.h
     cmakekitinformation.cpp cmakekitinformation.h
     cmakelocatorfilter.cpp cmakelocatorfilter.h
     cmakeparser.cpp cmakeparser.h
