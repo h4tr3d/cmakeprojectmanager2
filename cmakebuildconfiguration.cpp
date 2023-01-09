@@ -1,5 +1,5 @@
 // Copyright (C) 2016 The Qt Company Ltd.
-// SPDX-License-Identifier: LicenseRef-Qt-Commercial OR GPL-3.0+ OR GPL-3.0 WITH Qt-GPL-exception-1.0
+// SPDX-License-Identifier: LicenseRef-Qt-Commercial OR GPL-3.0-only WITH Qt-GPL-exception-1.0
 
 #include "cmakebuildconfiguration.h"
 
@@ -1479,7 +1479,7 @@ CMakeBuildConfiguration::CMakeBuildConfiguration(Target *target, Id id)
         if (DeviceTypeKitAspect::deviceTypeId(k) == Android::Constants::ANDROID_DEVICE_TYPE) {
             buildSteps()->appendStep(Android::Constants::ANDROID_BUILD_APK_ID);
             const auto &bs = buildSteps()->steps().constLast();
-            cmd.addArg("-DANDROID_NATIVE_API_LEVEL:STRING="
+            cmd.addArg("-DANDROID_PLATFORM:STRING="
                    + bs->data(Android::Constants::AndroidNdkPlatform).toString());
             auto ndkLocation = bs->data(Android::Constants::NdkLocation).value<FilePath>();
             cmd.addArg("-DANDROID_NDK:PATH=" + ndkLocation.path());

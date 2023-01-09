@@ -1,5 +1,5 @@
 // Copyright (C) 2016 The Qt Company Ltd.
-// SPDX-License-Identifier: LicenseRef-Qt-Commercial OR GPL-3.0+ OR GPL-3.0 WITH Qt-GPL-exception-1.0
+// SPDX-License-Identifier: LicenseRef-Qt-Commercial OR GPL-3.0-only WITH Qt-GPL-exception-1.0
 
 #include "cmakebuildstep.h"
 
@@ -682,10 +682,10 @@ QString CMakeBuildStep::baseEnvironmentText() const
         return Tr::tr("System Environment");
 }
 
-void CMakeBuildStep::processFinished(bool success)
+void CMakeBuildStep::finish(ProcessResult result)
 {
-    Q_UNUSED(success)
     emit progress(100, {});
+    AbstractProcessStep::finish(result);
 }
 
 // CMakeBuildStepFactory

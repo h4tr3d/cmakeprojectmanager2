@@ -1,5 +1,5 @@
 // Copyright (C) 2016 The Qt Company Ltd.
-// SPDX-License-Identifier: LicenseRef-Qt-Commercial OR GPL-3.0+ OR GPL-3.0 WITH Qt-GPL-exception-1.0
+// SPDX-License-Identifier: LicenseRef-Qt-Commercial OR GPL-3.0-only WITH Qt-GPL-exception-1.0
 
 #include "cmakebuildsystem.h"
 
@@ -1074,8 +1074,8 @@ void CMakeBuildSystem::wireUpConnections()
 
     connect(project(), &Project::projectFileIsDirty, this, [this] {
         if (buildConfiguration()->isActive() && !isParsing()) {
-            const auto cmake = CMakeKitAspect::cmakeTool(kit());
-            if (cmake && cmake->isAutoRun()) {
+            auto settings = CMakeProjectPlugin::projectTypeSpecificSettings();
+            if (settings->autorunCMake.value()) {
                 qCDebug(cmakeBuildSystemLog) << "Requesting parse due to dirty project file";
                 reparse(CMakeBuildSystem::REPARSE_FORCE_CMAKE_RUN);
             }

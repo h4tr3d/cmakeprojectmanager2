@@ -1,5 +1,5 @@
 // Copyright (C) 2018 The Qt Company Ltd.
-// SPDX-License-Identifier: LicenseRef-Qt-Commercial OR GPL-3.0+ OR GPL-3.0 WITH Qt-GPL-exception-1.0
+// SPDX-License-Identifier: LicenseRef-Qt-Commercial OR GPL-3.0-only WITH Qt-GPL-exception-1.0
 
 #include "cmakespecificsettings.h"
 
@@ -22,6 +22,13 @@ CMakeSpecificSettings::CMakeSpecificSettings()
 
     setSettingsGroup("CMakeSpecificSettings");
     setAutoApply(false);
+
+    registerAspect(&autorunCMake);
+    autorunCMake.setSettingsKey("AutorunCMake");
+    autorunCMake.setDefaultValue(true);
+    autorunCMake.setLabelText(::CMakeProjectManager::Tr::tr("Autorun CMake"));
+    autorunCMake.setToolTip(::CMakeProjectManager::Tr::tr(
+        "Automatically run CMake after changes to CMake project files."));
 
     registerAspect(&afterAddFileSetting);
     afterAddFileSetting.setSettingsKey("ProjectPopupSetting");
@@ -85,6 +92,7 @@ CMakeSpecificSettingsPage::CMakeSpecificSettingsPage(CMakeSpecificSettings *sett
                 title(::CMakeProjectManager::Tr::tr("Adding Files")),
                 Column { s.afterAddFileSetting }
             },
+            s.autorunCMake,
             s.packageManagerAutoSetup,
             s.askBeforeReConfigureInitialParams,
             s.showSourceSubFolders,

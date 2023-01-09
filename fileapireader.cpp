@@ -1,10 +1,12 @@
 // Copyright (C) 2016 The Qt Company Ltd.
-// SPDX-License-Identifier: LicenseRef-Qt-Commercial OR GPL-3.0+ OR GPL-3.0 WITH Qt-GPL-exception-1.0
+// SPDX-License-Identifier: LicenseRef-Qt-Commercial OR GPL-3.0-only WITH Qt-GPL-exception-1.0
 
 #include "fileapireader.h"
 
 #include "cmakeprocess.h"
 #include "cmakeprojectmanagertr.h"
+#include "cmakeprojectplugin.h"
+#include "cmakespecificsettings.h"
 #include "fileapidataextractor.h"
 #include "fileapiparser.h"
 
@@ -106,7 +108,8 @@ void FileApiReader::parse(bool forceCMakeRun,
     //  * A query file is newer than the reply file
     const bool hasArguments = !args.isEmpty();
     const bool replyFileMissing = !replyFile.exists();
-    const bool cmakeFilesChanged = m_parameters.cmakeTool() && m_parameters.cmakeTool()->isAutoRun()
+    const auto settings = CMakeProjectPlugin::projectTypeSpecificSettings();
+    const bool cmakeFilesChanged = m_parameters.cmakeTool() && settings->autorunCMake.value()
                                    && anyOf(m_cmakeFiles, [&replyFile](const CMakeFileInfo &info) {
                                           return !info.isGenerated
                                                  && info.path.lastModified() > replyFile.lastModified();

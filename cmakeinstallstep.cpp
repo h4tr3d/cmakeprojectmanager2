@@ -1,5 +1,5 @@
 // Copyright (C) 2022 The Qt Company Ltd.
-// SPDX-License-Identifier: LicenseRef-Qt-Commercial OR GPL-3.0+ OR GPL-3.0 WITH Qt-GPL-exception-1.0
+// SPDX-License-Identifier: LicenseRef-Qt-Commercial OR GPL-3.0-only WITH Qt-GPL-exception-1.0
 
 #include "cmakeinstallstep.h"
 
@@ -36,7 +36,7 @@ public:
 private:
     CommandLine cmakeCommand() const;
 
-    void processFinished(bool success) override;
+    void finish(ProcessResult result) override;
 
     void setupOutputFormatter(OutputFormatter *formatter) override;
     QWidget *createConfigWidget() override;
@@ -88,12 +88,11 @@ CommandLine CMakeInstallStep::cmakeCommand() const
     return cmd;
 }
 
-void CMakeInstallStep::processFinished(bool success)
+void CMakeInstallStep::finish(ProcessResult result)
 {
-    Q_UNUSED(success)
     emit progress(100, {});
+    AbstractProcessStep::finish(result);
 }
-
 QWidget *CMakeInstallStep::createConfigWidget()
 {
     auto updateDetails = [this] {
