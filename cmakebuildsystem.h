@@ -128,6 +128,9 @@ signals:
     void warningOccurred(const QString &message);
 
 private:
+    QList<QPair<Utils::Id, QString>> generators() const override;
+    void runGenerator(Utils::Id id) override;
+
     bool addFilesPriv(const Utils::FilePaths &filePaths);
     bool eraseFilesPriv(const Utils::FilePaths &filePaths);
     bool renameFilePriv(const Utils::FilePath &filePath, const Utils::FilePath &newFilePath);
