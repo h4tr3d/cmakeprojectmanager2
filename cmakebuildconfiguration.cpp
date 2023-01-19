@@ -25,6 +25,7 @@
 #include <qnx/qnxconstants.h>
 #include <webassembly/webassemblyconstants.h>
 
+#include <coreplugin/fileutils.h>
 #include <coreplugin/find/itemviewfind.h>
 #include <coreplugin/icore.h>
 
@@ -317,6 +318,12 @@ CMakeBuildSettingsWidget::CMakeBuildSettingsWidget(CMakeBuildSystem *bs) :
     envWidget->setBaseEnvironment(cbc->baseConfigureEnvironment());
     envWidget->setBaseEnvironmentText(cbc->baseConfigureEnvironmentText());
     envWidget->setUserChanges(cbc->userConfigureEnvironmentChanges());
+
+    const EnvironmentWidget::OpenTerminalFunc openTerminalFunc
+            = [bc](const Utils::Environment &env) {
+        Core::FileUtils::openTerminal(bc->buildDirectory(), env);
+    };
+    envWidget->setOpenTerminalFunc(openTerminalFunc);
 
     connect(envWidget, &EnvironmentWidget::userChangesChanged, this, [cbc, envWidget] {
         cbc->setUserConfigureEnvironmentChanges(envWidget->userChanges());
@@ -2170,8 +2177,8 @@ Environment CMakeBuildConfiguration::baseConfigureEnvironment() const
         ProjectExplorer::IDevice::ConstPtr devicePtr = BuildDeviceKitAspect::device(kit());
         result = devicePtr ? devicePtr->systemEnvironment() : Environment::systemEnvironment();
     }
-    addToEnvironment(result);
     kit()->addToBuildEnvironment(result);
+    addToEnvironment(result);
     result.modify(project()->additionalEnvironment());
     return result;
 }
