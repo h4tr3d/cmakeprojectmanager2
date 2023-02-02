@@ -74,7 +74,7 @@ public:
     };
 
     CMakeSettingsPage settingsPage;
-    CMakeSpecificSettingsPage specificSettings{CMakeProjectPlugin::projectTypeSpecificSettings()};
+    CMakeSpecificSettingsPage specificSettings;
 
     CMakeManager manager;
     CMakeBuildStepFactory buildStepFactory;
@@ -138,23 +138,15 @@ void CMakeProjectPluginPrivate::autoFormatOnSave(Core::IDocument *document)
         TextEditor::formatEditor(widget, command);
 }
 
-CMakeSpecificSettings *CMakeProjectPlugin::projectTypeSpecificSettings()
-{
-    static CMakeSpecificSettings theSettings;
-    return &theSettings;
-}
-
 CMakeProjectPlugin::~CMakeProjectPlugin()
 {
     delete d;
 }
 
-bool CMakeProjectPlugin::initialize(const QStringList & /*arguments*/, QString *errorMessage)
+void CMakeProjectPlugin::initialize()
 {
-    Q_UNUSED(errorMessage)
-
     d = new CMakeProjectPluginPrivate;
-    projectTypeSpecificSettings()->readSettings(ICore::settings());
+    CMakeSpecificSettings::instance()->readSettings(ICore::settings());
 
     const Context projectContext{CMakeProjectManager::Constants::CMAKE_PROJECT_ID};
 
@@ -195,8 +187,6 @@ bool CMakeProjectPlugin::initialize(const QStringList & /*arguments*/, QString *
 
     d->cmakeFormatter.initialize();
     d->updateActions();
-
-    return true;
 }
 
 void CMakeProjectPlugin::extensionsInitialized()

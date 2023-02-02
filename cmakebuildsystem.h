@@ -130,6 +130,8 @@ signals:
 private:
     QList<QPair<Utils::Id, QString>> generators() const override;
     void runGenerator(Utils::Id id) override;
+    ProjectExplorer::ExtraCompiler *findExtraCompiler(
+            const ExtraCompilerFilter &filter) const override;
 
     bool addFilesPriv(const Utils::FilePaths &filePaths);
     bool eraseFilesPriv(const Utils::FilePaths &filePaths);

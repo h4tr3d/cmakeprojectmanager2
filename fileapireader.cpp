@@ -108,7 +108,7 @@ void FileApiReader::parse(bool forceCMakeRun,
     //  * A query file is newer than the reply file
     const bool hasArguments = !args.isEmpty();
     const bool replyFileMissing = !replyFile.exists();
-    const auto settings = CMakeProjectPlugin::projectTypeSpecificSettings();
+    const auto settings = CMakeSpecificSettings::instance();
     const bool cmakeFilesChanged = m_parameters.cmakeTool() && settings->autorunCMake.value()
                                    && anyOf(m_cmakeFiles, [&replyFile](const CMakeFileInfo &info) {
                                           return !info.isGenerated
@@ -346,8 +346,8 @@ void FileApiReader::startCMakeState(const QStringList &configurationArguments)
 
     qCDebug(cmakeFileApiMode) << ">>>>>> Running cmake with arguments:" << configurationArguments;
     // Reset watcher:
-    m_watcher.removeFiles(m_watcher.files());
-    m_watcher.removeDirectories(m_watcher.directories());
+    m_watcher.removeFiles(m_watcher.filePaths());
+    m_watcher.removeDirectories(m_watcher.directoryPaths());
 
     makeBackupConfiguration(true);
     writeConfigurationIntoBuildDirectory(configurationArguments);

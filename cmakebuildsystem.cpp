@@ -11,7 +11,6 @@
 #include "cmakeproject.h"
 #include "cmakeprojectconstants.h"
 #include "cmakeprojectmanagertr.h"
-#include "cmakeprojectplugin.h"
 #include "cmakespecificsettings.h"
 #include "projecttreehelper.h"
 
@@ -82,7 +81,7 @@ static void noAutoAdditionNotify(const FilePaths &filePaths, const ProjectNode *
     });
 
     if (!srcPaths.empty()) {
-        CMakeSpecificSettings *settings = CMakeProjectPlugin::projectTypeSpecificSettings();
+        auto settings = CMakeSpecificSettings::instance();
         switch (settings->afterAddFileSetting.value()) {
         case AskUser: {
             bool checkValue{false};
@@ -990,8 +989,8 @@ void CMakeBuildSystem::handleParsingSucceeded(bool restoredFromBackup)
         checkAndReportError(errorMessage);
     }
 
-    const CMakeTool *tool = m_parameters.cmakeTool();
-    m_ctestPath = tool->cmakeExecutable().withNewPath(m_reader.ctestPath());
+    if (const CMakeTool *tool = m_parameters.cmakeTool())
+        m_ctestPath = tool->cmakeExecutable().withNewPath(m_reader.ctestPath());
 
     setApplicationTargets(appTargets());
     setDeploymentData(deploymentData());
@@ -1067,7 +1066,7 @@ void CMakeBuildSystem::wireUpConnections()
 
     connect(project(), &Project::projectFileIsDirty, this, [this] {
         if (buildConfiguration()->isActive() && !isParsing()) {
-            auto settings = CMakeProjectPlugin::projectTypeSpecificSettings();
+            auto settings = CMakeSpecificSettings::instance();
             if (settings->autorunCMake.value()) {
                 qCDebug(cmakeBuildSystemLog) << "Requesting parse due to dirty project file";
                 reparse(CMakeBuildSystem::REPARSE_FORCE_CMAKE_RUN);
@@ -1645,6 +1644,11 @@ void CMakeBuildSystem::runGenerator(Id id)
     Core::MessageManager::writeFlashing(Tr::tr("Running in %1: %2")
                                         .arg(outDir.toUserOutput(), cmdLine.toUserOutput()));
     proc->start();
+}
+
+ExtraCompiler *CMakeBuildSystem::findExtraCompiler(const ExtraCompilerFilter &filter) const
+{
+    return Utils::findOrDefault(m_extraCompilers, filter);
 }
 
 } // CMakeProjectManager::Internal
