@@ -41,7 +41,7 @@
 #include <projectexplorer/projectexplorer.h>
 #include <projectexplorer/projectexplorerconstants.h>
 #include <projectexplorer/projectexplorertr.h>
-#include <projectexplorer/session.h>
+#include <projectexplorer/projectmanager.h>
 #include <projectexplorer/target.h>
 #include <projectexplorer/taskhub.h>
 
@@ -502,6 +502,10 @@ CMakeBuildSettingsWidget::CMakeBuildSettingsWidget(CMakeBuildSystem *bs) :
         updateInitialCMakeArguments();
     });
 
+    connect(m_buildSystem->target()->project(), &Project::aboutToSaveSettings, this, [this] {
+        updateInitialCMakeArguments();
+    });
+
     connect(bc->aspect<InitialCMakeArgumentsAspect>(),
             &Utils::BaseAspect::labelLinkActivated,
             this,
@@ -639,7 +643,7 @@ void CMakeBuildSettingsWidget::updateInitialCMakeArguments()
     // As the user would expect to have e.g. "--preset" from "Initial Configuration"
     // to "Current Configuration" as additional parameters
     m_buildSystem->setAdditionalCMakeArguments(ProcessArgs::splitArgs(
-        bc->aspect<InitialCMakeArgumentsAspect>()->value()));
+        bc->aspect<InitialCMakeArgumentsAspect>()->value(), HostOsInfo::hostOs()));
 }
 
 void CMakeBuildSettingsWidget::kitCMakeConfiguration()
@@ -819,9 +823,10 @@ void CMakeBuildSettingsWidget::updateFromKit()
 
     // Then the additional parameters
     const QStringList additionalKitCMake = ProcessArgs::splitArgs(
-        CMakeConfigurationKitAspect::additionalConfiguration(k));
+        CMakeConfigurationKitAspect::additionalConfiguration(k), HostOsInfo::hostOs());
     const QStringList additionalInitialCMake = ProcessArgs::splitArgs(
-        m_buildSystem->buildConfiguration()->aspect<InitialCMakeArgumentsAspect>()->value());
+        m_buildSystem->buildConfiguration()->aspect<InitialCMakeArgumentsAspect>()->value(),
+        HostOsInfo::hostOs());
 
     QStringList mergedArgumentList;
     std::set_union(additionalInitialCMake.begin(),
@@ -1721,7 +1726,8 @@ void CMakeBuildSystem::setInitialCMakeArguments(const QStringList &args)
 
 QStringList CMakeBuildSystem::additionalCMakeArguments() const
 {
-    return ProcessArgs::splitArgs(buildConfiguration()->aspect<AdditionalCMakeOptionsAspect>()->value());
+    return ProcessArgs::splitArgs(buildConfiguration()->aspect<AdditionalCMakeOptionsAspect>()->value(),
+                                  HostOsInfo::hostOs());
 }
 
 void CMakeBuildSystem::setAdditionalCMakeArguments(const QStringList &args)
@@ -1744,7 +1750,8 @@ void CMakeBuildSystem::filterConfigArgumentsFromAdditionalCMakeArguments()
     // which is already part of the CMake variables and should not be also
     // in the addtional CMake options
     const QStringList arguments = ProcessArgs::splitArgs(
-        buildConfiguration()->aspect<AdditionalCMakeOptionsAspect>()->value());
+        buildConfiguration()->aspect<AdditionalCMakeOptionsAspect>()->value(),
+        HostOsInfo::hostOs());
     QStringList unknownOptions;
     const CMakeConfig config = CMakeConfig::fromArguments(arguments, unknownOptions);
 
@@ -2140,7 +2147,7 @@ const QStringList InitialCMakeArgumentsAspect::allValues() const
                                                              return ci.toArgument(nullptr);
                                                          });
 
-    initialCMakeArguments.append(ProcessArgs::splitArgs(value()));
+    initialCMakeArguments.append(ProcessArgs::splitArgs(value(), HostOsInfo::hostOs()));
 
     return initialCMakeArguments;
 }
