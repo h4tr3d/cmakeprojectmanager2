@@ -989,7 +989,11 @@ void CMakeBuildSystem::handleParsingSucceeded(bool restoredFromBackup)
         m_ctestPath = tool->cmakeExecutable().withNewPath(m_reader.ctestPath());
 
     setApplicationTargets(appTargets());
-    setDeploymentData(deploymentData());
+
+    // Note: This is practically always wrong and resulting in an empty view.
+    // Setting the real data is triggered from a successful run of a
+    // MakeInstallStep.
+    setDeploymentData(deploymentDataFromFile());
 
     QTC_ASSERT(m_waitingForParse, return );
     m_waitingForParse = false;
@@ -1307,7 +1311,7 @@ CommandLine CMakeBuildSystem::commandLineForTests(const QList<QString> &tests,
     return {m_ctestPath, args};
 }
 
-DeploymentData CMakeBuildSystem::deploymentData() const
+DeploymentData CMakeBuildSystem::deploymentDataFromFile() const
 {
     DeploymentData result;
 
