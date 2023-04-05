@@ -74,7 +74,7 @@ CommandLine CMakeInstallStep::cmakeCommand() const
     if (buildConfiguration())
         buildDirectory = buildConfiguration()->buildDirectory();
 
-    cmd.addArgs({"--install", buildDirectory.onDevice(cmd.executable()).path()});
+    cmd.addArgs({"--install", buildDirectory.path()});
 
     auto bs = qobject_cast<CMakeBuildSystem *>(buildSystem());
     if (bs && bs->isMultiConfigReader()) {
