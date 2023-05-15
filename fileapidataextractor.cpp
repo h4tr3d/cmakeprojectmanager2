@@ -14,8 +14,8 @@
 
 #include <utils/algorithm.h>
 #include <utils/mimeutils.h>
+#include <utils/process.h>
 #include <utils/qtcassert.h>
-#include <utils/qtcprocess.h>
 #include <utils/utilsicons.h>
 
 #include <projectexplorer/projecttree.h>
@@ -710,6 +710,9 @@ std::unique_ptr<CMakeProjectNode> generateRootProjectNode(
                        std::move(data.cmakeNodesSource),
                        std::move(data.cmakeNodesBuild),
                        std::move(data.cmakeNodesOther));
+
+
+    addCMakePresets(result.get(), sourceDirectory);
 
     data.cmakeNodesSource.clear(); // Remove all the nullptr in the vector...
     data.cmakeNodesBuild.clear();  // Remove all the nullptr in the vector...

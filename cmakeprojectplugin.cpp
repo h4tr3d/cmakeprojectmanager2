@@ -23,7 +23,6 @@
 
 #include <coreplugin/actionmanager/actioncontainer.h>
 #include <coreplugin/actionmanager/actionmanager.h>
-#include <coreplugin/icore.h>
 
 #include <projectexplorer/projectexplorerconstants.h>
 #include <projectexplorer/projectmanager.h>
@@ -74,15 +73,15 @@ public:
     };
 
     CMakeSettingsPage settingsPage;
-    CMakeSpecificSettingsPage specificSettings;
+    CMakeSpecificSettings specificSettings;
 
     CMakeManager manager;
     CMakeBuildStepFactory buildStepFactory;
     CMakeBuildConfigurationFactory buildConfigFactory;
     CMakeEditorFactory editorFactor;
     CMakeInstallStepFactory installStepFactory;
-    BuildCMakeTargetLocatorFilter buildCMakeTargetLocatorFilter;
-    OpenCMakeTargetLocatorFilter openCMakeTargetLocationFilter;
+    CMakeBuildTargetFilter cMakeBuildTargetFilter;
+    CMakeOpenTargetFilter cMakeOpenTargetFilter;
 
     CMakeKitAspect cmakeKitAspect;
     CMakeGeneratorKitAspect cmakeGeneratorKitAspect;
@@ -146,7 +145,6 @@ CMakeProjectPlugin::~CMakeProjectPlugin()
 void CMakeProjectPlugin::initialize()
 {
     d = new CMakeProjectPluginPrivate;
-    CMakeSpecificSettings::instance()->readSettings(ICore::settings());
 
     const Context projectContext{CMakeProjectManager::Constants::CMAKE_PROJECT_ID};
 
