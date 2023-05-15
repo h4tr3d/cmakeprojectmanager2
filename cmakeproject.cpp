@@ -37,7 +37,11 @@ CMakeProject::CMakeProject(const FilePath &fileName)
     setProjectLanguages(Core::Context(ProjectExplorer::Constants::CXX_LANGUAGE_ID));
     setDisplayName(projectDirectory().fileName());
     setCanBuildProducts();
-    setHasMakeInstallEquivalent(true);
+
+    // This only influences whether 'Install into temporary host directory'
+    // will show up by default enabled in some remote deploy configurations.
+    // We rely on staging via the actual cmake build step.
+    setHasMakeInstallEquivalent(false);
 
     readPresets();
 }
@@ -101,7 +105,9 @@ Internal::PresetsData CMakeProject::combinePresets(Internal::PresetsData &cmakeP
 
         auto resolveInherits = [](auto &presetsHash, auto &presetsList) {
             Utils::sort(presetsList, [](const auto &left, const auto &right) {
-                if (!left.inherits || left.inherits.value().contains(right.name))
+                const bool sameInheritance = left.inherits && right.inherits
+                                             && left.inherits.value() == right.inherits.value();
+                if (!left.inherits || left.inherits.value().contains(right.name) || sameInheritance)
                     return false;
                 return true;
             });

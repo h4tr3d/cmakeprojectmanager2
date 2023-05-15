@@ -3,6 +3,7 @@
 
 #include "fileapidataextractor.h"
 
+#include "cmakeprojectconstants.h"
 #include "cmakeprojectmanagertr.h"
 #include "cmakeprojectplugin.h"
 #include "cmakespecificsettings.h"
@@ -26,6 +27,8 @@ using namespace Utils;
 using namespace CMakeProjectManager::Internal::FileApiDetails;
 
 namespace CMakeProjectManager::Internal {
+
+static Q_LOGGING_CATEGORY(cmakeLogger, "qtc.cmake.fileApiExtractor", QtWarningMsg);
 
 // --------------------------------------------------------------------
 // Helpers:
@@ -53,7 +56,24 @@ CMakeFileResult extractCMakeFilesData(const std::vector<CMakeFileInfo> &cmakefil
         const int oldCount = result.cmakeFiles.count();
         CMakeFileInfo absolute(info);
         absolute.path = sfn;
+
+        const auto mimeType = Utils::mimeTypeForFile(info.path);
+        if (mimeType.matchesName(Constants::CMAKE_MIMETYPE)
+            || mimeType.matchesName(Constants::CMAKE_PROJECT_MIMETYPE)) {
+            expected_str<QByteArray> fileContent = sfn.fileContents();
+            std::string errorString;
+            if (fileContent) {
+                fileContent = fileContent->replace("\r\n", "\n");
+                if (!absolute.cmakeListFile.ParseString(fileContent->toStdString(),
+                                                        sfn.fileName().toStdString(),
+                                                        errorString))
+                    qCWarning(cmakeLogger)
+                        << "Failed to parse:" << sfn.path() << QString::fromLatin1(errorString);
+            }
+        }
+
         result.cmakeFiles.insert(absolute);
+
         if (oldCount < result.cmakeFiles.count()) {
             if (info.isCMake && !info.isCMakeListsDotTxt) {
                 // Skip files that cmake considers to be part of the installation -- but include
@@ -264,7 +284,7 @@ QList<CMakeBuildTarget> generateBuildTargets(const PreprocessedData &input,
                             continue;
 
                         const FilePath buildDir = haveLibrariesRelativeToBuildDirectory ? buildDirectory : currentBuildDir;
-                        FilePath tmp = buildDir.resolvePath(buildDir.withNewPath(part));
+                        FilePath tmp = buildDir.resolvePath(part);
 
                         if (f.role == "libraries")
                             tmp = tmp.parentDir();
@@ -391,7 +411,7 @@ RawProjectParts generateRawProjectParts(const PreprocessedData &input,
                         continue;
                     const auto mimeTypes = Utils::mimeTypesForFileName(si.path);
                     for (const auto &mime : mimeTypes)
-                        if (mime.name() == headerMimeType)
+                        if (mime.inherits(headerMimeType))
                             sources.push_back(sourceDir.absoluteFilePath(si.path));
                 }
             }
@@ -497,11 +517,8 @@ FolderNode *createSourceGroupNode(const QString &sourceGroupName,
         const QStringList parts = sourceGroupName.split("\\");
 
         for (const QString &p : parts) {
-            FolderNode *existingNode = Utils::findOrDefault(currentNode->folderNodes(),
-                                                            [&p](const FolderNode *fn) {
-                                                                return fn->displayName() == p;
-                                                            });
-
+            FolderNode *existingNode = currentNode->findChildFolderNode(
+                [&p](const FolderNode *fn) { return fn->displayName() == p; });
             if (!existingNode) {
                 auto node = createCMakeVFolder(sourceDirectory, Node::DefaultFolderPriority + 5, p);
                 node->setListInProject(false);

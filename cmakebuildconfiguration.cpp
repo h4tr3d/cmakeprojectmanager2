@@ -335,8 +335,8 @@ CMakeBuildSettingsWidget::CMakeBuildSettingsWidget(CMakeBuildSystem *bs) :
 
     Column {
         Form {
-            buildDirAspect,
-            bc->aspect<BuildTypeAspect>(),
+            buildDirAspect, br,
+            bc->aspect<BuildTypeAspect>(), br,
             qmlDebugAspect
         },
         m_warningMessageLabel,
@@ -347,19 +347,21 @@ CMakeBuildSettingsWidget::CMakeBuildSettingsWidget(CMakeBuildSystem *bs) :
                 Column {
                     cmakeConfiguration,
                     Row {
-                        bc->aspect<InitialCMakeArgumentsAspect>(),
+                        bc->aspect<InitialCMakeArgumentsAspect>(), br,
                         bc->aspect<AdditionalCMakeOptionsAspect>()
                     },
                     m_reconfigureButton,
                 }
             },
             configureEnvironmentAspectWidget
-        }
-    }.attachTo(details, WithoutMargins);
+        },
+        noMargin
+    }.attachTo(details);
 
     Column {
         m_configureDetailsWidget,
-    }.attachTo(this, WithoutMargins);
+        noMargin
+    }.attachTo(this);
 
     updateAdvancedCheckBox();
     setError(m_buildSystem->error());
@@ -663,17 +665,19 @@ void CMakeBuildSettingsWidget::kitCMakeConfiguration()
     CMakeGeneratorKitAspect generatorAspect;
     CMakeConfigurationKitAspect configurationKitAspect;
 
-    auto layout = new QGridLayout(dialog);
-
+    Layouting::Grid grid;
     KitAspectWidget *widget = kitAspect.createConfigWidget(m_buildSystem->kit());
     widget->setParent(dialog);
-    widget->addToLayoutWithLabel(layout->parentWidget());
+    widget->addToLayoutWithLabel(grid, dialog);
     widget = generatorAspect.createConfigWidget(m_buildSystem->kit());
     widget->setParent(dialog);
-    widget->addToLayoutWithLabel(layout->parentWidget());
+    widget->addToLayoutWithLabel(grid, dialog);
     widget = configurationKitAspect.createConfigWidget(m_buildSystem->kit());
     widget->setParent(dialog);
-    widget->addToLayoutWithLabel(layout->parentWidget());
+    widget->addToLayoutWithLabel(grid, dialog);
+    grid.attachTo(dialog);
+
+    auto layout = qobject_cast<QGridLayout *>(dialog->layout());
 
     layout->setColumnStretch(1, 1);
 
@@ -1256,6 +1260,12 @@ static void addCMakeConfigurePresetToInitialArguments(QStringList &initialArgume
         const QString presetItemArg = presetItem.toArgument();
         const QString presetItemArgNoType = presetItemArg.left(presetItemArg.indexOf(":"));
 
+        static QSet<QByteArray> defaultKitMacroValues{"CMAKE_C_COMPILER",
+                                                      "CMAKE_CXX_COMPILER",
+                                                      "QT_QMAKE_EXECUTABLE",
+                                                      "QT_HOST_PATH",
+                                                      "CMAKE_PROJECT_INCLUDE_BEFORE"};
+
         auto it = std::find_if(initialArguments.begin(),
                                initialArguments.end(),
                                [presetItemArgNoType](const QString &arg) {
@@ -1265,6 +1275,11 @@ static void addCMakeConfigurePresetToInitialArguments(QStringList &initialArgume
         if (it != initialArguments.end()) {
             QString &arg = *it;
             CMakeConfigItem argItem = CMakeConfigItem::fromString(arg.mid(2)); // skip -D
+
+            // These values have Qt Creator macro names pointing to the Kit values
+            // which are preset expanded values used when the Kit was created
+            if (defaultKitMacroValues.contains(argItem.key) && argItem.value.startsWith("%{"))
+                continue;
 
             // For multi value path variables append the non Qt path
             if (argItem.key == "CMAKE_PREFIX_PATH" || argItem.key == "CMAKE_FIND_ROOT_PATH") {
@@ -1276,7 +1291,7 @@ static void addCMakeConfigurePresetToInitialArguments(QStringList &initialArgume
                     QStringList argItemPaths = argItemExpandedValue.split(";");
                     for (const QString &argPath : argItemPaths) {
                         const FilePath argFilePath = FilePath::fromString(argPath);
-                        const FilePath presetFilePath = FilePath::fromString(presetPath);
+                        const FilePath presetFilePath = FilePath::fromUserInput(presetPath);
 
                         if (argFilePath == presetFilePath)
                             return true;
@@ -1291,12 +1306,10 @@ static void addCMakeConfigurePresetToInitialArguments(QStringList &initialArgume
                 }
 
                 arg = argItem.toArgument();
-            } else if (argItem.key == "CMAKE_C_COMPILER" || argItem.key == "CMAKE_CXX_COMPILER"
-                       || argItem.key == "QT_QMAKE_EXECUTABLE" || argItem.key == "QT_HOST_PATH"
-                       || argItem.key == "CMAKE_PROJECT_INCLUDE_BEFORE"
-                       || argItem.key == "CMAKE_TOOLCHAIN_FILE") {
+            } else if (argItem.key == "CMAKE_TOOLCHAIN_FILE") {
                 const FilePath argFilePath = FilePath::fromString(argItem.expandedValue(k));
-                const FilePath presetFilePath = FilePath::fromUtf8(presetItem.value);
+                const FilePath presetFilePath = FilePath::fromUserInput(
+                    QString::fromUtf8(presetItem.value));
 
                 if (argFilePath != presetFilePath)
                     arg = presetItem.toArgument();
@@ -1461,7 +1474,7 @@ CMakeBuildConfiguration::CMakeBuildConfiguration(Target *target, Id id)
         // Android magic:
         if (DeviceTypeKitAspect::deviceTypeId(k) == Android::Constants::ANDROID_DEVICE_TYPE) {
             buildSteps()->appendStep(Android::Constants::ANDROID_BUILD_APK_ID);
-            const auto &bs = buildSteps()->steps().constLast();
+            const auto bs = buildSteps()->steps().constLast();
             cmd.addArg("-DANDROID_PLATFORM:STRING="
                    + bs->data(Android::Constants::AndroidNdkPlatform).toString());
             auto ndkLocation = bs->data(Android::Constants::NdkLocation).value<FilePath>();
@@ -2275,6 +2288,7 @@ public:
 ConfigureEnvironmentAspect::ConfigureEnvironmentAspect(ProjectExplorer::Target *target)
 {
     setIsLocal(true);
+    setAllowPrintOnRun(false);
     setConfigWidgetCreator(
         [this, target] { return new ConfigureEnvironmentAspectWidget(this, target); });
     addSupportedBaseEnvironment(Tr::tr("Clean Environment"), {});

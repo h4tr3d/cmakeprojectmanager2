@@ -39,7 +39,7 @@ class CMakeBuildSystem final : public ProjectExplorer::BuildSystem
 public:
     explicit CMakeBuildSystem(CMakeBuildConfiguration *bc);
     ~CMakeBuildSystem() final;
-    
+
     void triggerParsing() final;
 
     bool supportsAction(ProjectExplorer::Node *context,
@@ -48,7 +48,20 @@ public:
 
     bool addFiles(ProjectExplorer::Node *context,
                   const Utils::FilePaths &filePaths, Utils::FilePaths *) final;
-    
+#if 0
+    ProjectExplorer::RemovedFilesFromProject removeFiles(ProjectExplorer::Node *context,
+                                                         const Utils::FilePaths &filePaths,
+                                                         Utils::FilePaths *notRemoved
+                                                         = nullptr) final;
+
+    bool canRenameFile(ProjectExplorer::Node *context,
+                       const Utils::FilePath &oldFilePath,
+                       const Utils::FilePath &newFilePath) final;
+    bool renameFile(ProjectExplorer::Node *context,
+                    const Utils::FilePath &oldFilePath,
+                    const Utils::FilePath &newFilePath) final;
+#endif
+
     Utils::FilePaths filesGeneratedFrom(const Utils::FilePath &sourceFile) const final;
     QString name() const final { return QLatin1String("cmake"); }
 
@@ -58,12 +71,13 @@ public:
     void runCMakeWithExtraArguments();
     void stopCMakeRun();
 
+#if 1
     bool deleteFiles(ProjectExplorer::Node *context,
                      const Utils::FilePaths &filePaths) final;
 
     bool canRenameFile(ProjectExplorer::Node *context, const Utils::FilePath &filePath, const Utils::FilePath &newFilePath) final;
     bool renameFile(ProjectExplorer::Node *context, const Utils::FilePath &filePath, const Utils::FilePath &newFilePath) final;
-                  
+#endif
 
     bool persistCMakeState();
     void clearCMakeCache();
@@ -199,6 +213,16 @@ private:
 
     void runCTest();
 
+    struct ProjectFileArgumentPosition
+    {
+        cmListFileArgument argumentPosition;
+        Utils::FilePath cmakeFile;
+        QString relativeFileName;
+        bool fromGlobbing = false;
+    };
+    std::optional<ProjectFileArgumentPosition> projectFileArgumentPosition(
+        const QString &targetName, const QString &fileName);
+
     ProjectExplorer::TreeScanner m_treeScanner;
     ProjectExplorer::TreeScanner::Result m_allFiles;
     QHash<QString, bool> m_mimeBinaryCache;
@@ -214,6 +238,9 @@ private:
     CppEditor::CppProjectUpdater *m_cppCodeModelUpdater = nullptr;
     QList<ProjectExplorer::ExtraCompiler *> m_extraCompilers;
     QList<CMakeBuildTarget> m_buildTargets;
+    QSet<CMakeFileInfo> m_cmakeFiles;
+
+    QHash<QString, ProjectFileArgumentPosition> m_filesToBeRenamed;
 
     // Parsing state:
     BuildDirParameters m_parameters;

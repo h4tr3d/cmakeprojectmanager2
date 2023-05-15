@@ -23,6 +23,7 @@ add_qtc_plugin(CMakeProjectManager2
     QtCreator::ProjectExplorer
     QtCreator::TextEditor
     QtCreator::QtSupport
+  INCLUDES 3dparty/cmake
   SOURCES
     builddirparameters.cpp builddirparameters.h
     cmake_global.h
@@ -49,6 +50,7 @@ add_qtc_plugin(CMakeProjectManager2
     cmakeprojectconstants.h
     cmakeprojectimporter.cpp cmakeprojectimporter.h
     cmakeprojectmanager.cpp cmakeprojectmanager.h
+    cmakeprojectmanagertr.h
     cmakeprojectnodes.cpp cmakeprojectnodes.h
     cmakeprojectplugin.cpp cmakeprojectplugin.h
     cmakesettingspage.cpp cmakesettingspage.h
@@ -65,6 +67,9 @@ add_qtc_plugin(CMakeProjectManager2
     presetsmacros.cpp presetsmacros.h
     projecttreehelper.cpp projecttreehelper.h
     simplefileapireader.cpp simplefileapireader.h
+    3rdparty/cmake/cmListFileCache.cxx
+    3rdparty/cmake/cmListFileLexer.c
+    3rdparty/cmake/cmListFileCache.h
 )
 
 

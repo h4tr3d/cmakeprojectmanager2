@@ -14,9 +14,8 @@
 #include <projectexplorer/projectexplorer.h>
 
 #include <utils/algorithm.h>
-#include <utils/asynctask.h>
+#include <utils/async.h>
 #include <utils/qtcassert.h>
-#include <utils/runextensions.h>
 
 #include <QLoggingCategory>
 
@@ -178,6 +177,13 @@ QList<CMakeBuildTarget> FileApiReader::takeBuildTargets(QString &errorMessage){
     Q_UNUSED(errorMessage)
 
     return std::exchange(m_buildTargets, {});
+}
+
+QSet<CMakeFileInfo> FileApiReader::takeCMakeFileInfos(QString &errorMessage)
+{
+    Q_UNUSED(errorMessage)
+
+    return std::exchange(m_cmakeFiles, {});
 }
 
 CMakeConfig FileApiReader::takeParsedConfiguration(QString &errorMessage)
