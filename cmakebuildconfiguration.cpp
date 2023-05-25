@@ -54,7 +54,6 @@
 #include <utils/checkablemessagebox.h>
 #include <utils/commandline.h>
 #include <utils/detailswidget.h>
-#include <utils/headerviewstretcher.h>
 #include <utils/infolabel.h>
 #include <utils/itemviews.h>
 #include <utils/layoutbuilder.h>
@@ -68,6 +67,7 @@
 #include <QDialogButtonBox>
 #include <QDir>
 #include <QGridLayout>
+#include <QHeaderView>
 #include <QLoggingCategory>
 #include <QMenu>
 #include <QMessageBox>
@@ -250,7 +250,7 @@ CMakeBuildSettingsWidget::CMakeBuildSettingsWidget(CMakeBuildSystem *bs) :
     m_configView->setUniformRowHeights(true);
     m_configView->setSortingEnabled(true);
     m_configView->sortByColumn(0, Qt::AscendingOrder);
-    (void) new HeaderViewStretcher(m_configView->header(), 0);
+    m_configView->header()->setSectionResizeMode(QHeaderView::Stretch);
     m_configView->setSelectionMode(QAbstractItemView::ExtendedSelection);
     m_configView->setSelectionBehavior(QAbstractItemView::SelectItems);
     m_configView->setAlternatingRowColors(true);
@@ -590,23 +590,18 @@ void CMakeBuildSettingsWidget::batchEditConfiguration()
 void CMakeBuildSettingsWidget::reconfigureWithInitialParameters()
 {
     auto settings = CMakeSpecificSettings::instance();
-    bool doNotAsk = !settings->askBeforeReConfigureInitialParams.value();
-    if (!doNotAsk) {
-        QDialogButtonBox::StandardButton reply = CheckableMessageBox::question(
-            Core::ICore::dialogParent(),
-            Tr::tr("Re-configure with Initial Parameters"),
-            Tr::tr("Clear CMake configuration and configure with initial parameters?"),
-            Tr::tr("Do not ask again"),
-            &doNotAsk,
-            QDialogButtonBox::Yes | QDialogButtonBox::No,
-            QDialogButtonBox::Yes);
+    QMessageBox::StandardButton reply = CheckableMessageBox::question(
+        Core::ICore::dialogParent(),
+        Tr::tr("Re-configure with Initial Parameters"),
+        Tr::tr("Clear CMake configuration and configure with initial parameters?"),
+        settings->askBeforeReConfigureInitialParams.checkableDecider(),
+        QMessageBox::Yes | QMessageBox::No,
+        QMessageBox::Yes);
 
-        settings->askBeforeReConfigureInitialParams.setValue(!doNotAsk);
-        settings->writeSettings(Core::ICore::settings());
+    settings->writeSettings(Core::ICore::settings());
 
-        if (reply != QDialogButtonBox::Yes) {
-            return;
-        }
+    if (reply != QMessageBox::Yes) {
+        return;
     }
 
     m_buildSystem->clearCMakeCache();
@@ -2084,8 +2079,8 @@ void CMakeBuildConfiguration::addToEnvironment(Utils::Environment &env) const
         return;
 
     auto settings = CMakeSpecificSettings::instance();
-    if (!settings->ninjaPath.filePath().isEmpty()) {
-        const Utils::FilePath ninja = settings->ninjaPath.filePath();
+    if (!settings->ninjaPath().isEmpty()) {
+        const Utils::FilePath ninja = settings->ninjaPath();
         env.appendOrSetPath(ninja.isFile() ? ninja.parentDir() : ninja);
     }
 }

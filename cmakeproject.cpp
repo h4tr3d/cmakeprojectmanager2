@@ -69,7 +69,7 @@ Tasks CMakeProject::projectIssues(const Kit *k) const
 ProjectImporter *CMakeProject::projectImporter() const
 {
     if (!m_projectImporter)
-        m_projectImporter = new CMakeProjectImporter(projectFilePath(), m_presetsData);
+        m_projectImporter = new CMakeProjectImporter(projectFilePath(), this);
     return m_projectImporter;
 }
 
@@ -307,6 +307,17 @@ void CMakeProject::configureAsExampleProject(ProjectExplorer::Kit *kit)
         }
     }
     setup(infoList);
+}
+
+void CMakeProjectManager::CMakeProject::setOldPresetKits(
+    const QList<ProjectExplorer::Kit *> &presetKits) const
+{
+    m_oldPresetKits = presetKits;
+}
+
+QList<Kit *> CMakeProject::oldPresetKits() const
+{
+    return m_oldPresetKits;
 }
 
 } // namespace CMakeProjectManager

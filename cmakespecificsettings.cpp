@@ -32,16 +32,17 @@ CMakeSpecificSettings::CMakeSpecificSettings()
     setCategory(Constants::Settings::CATEGORY);
     setCategoryIconPath(Constants::Icons::SETTINGS_CATEGORY);
 
-    setLayouter([this](QWidget *widget) {
+    setLayouter([this] {
         using namespace Layouting;
-        Column {
+        return Column {
             autorunCMake,
             packageManagerAutoSetup,
             askBeforeReConfigureInitialParams,
+            askBeforePresetsReload,
             showSourceSubFolders,
             showAdvancedOptionsByDefault,
             st
-        }.attachTo(widget);
+        };
     });
 
     // TODO: fixup of QTCREATORBUG-26289 , remove in Qt Creator 7 or so
@@ -77,6 +78,11 @@ CMakeSpecificSettings::CMakeSpecificSettings()
     askBeforeReConfigureInitialParams.setLabelText(::CMakeProjectManager::Tr::tr("Ask before re-configuring with "
         "initial parameters"));
 
+    registerAspect(&askBeforePresetsReload);
+    askBeforePresetsReload.setSettingsKey("AskBeforePresetsReload");
+    askBeforePresetsReload.setDefaultValue(true);
+    askBeforePresetsReload.setLabelText(::CMakeProjectManager::Tr::tr("Ask before reloading CMake Presets"));
+
     registerAspect(&showSourceSubFolders);
     showSourceSubFolders.setSettingsKey("ShowSourceSubFolders");
     showSourceSubFolders.setDefaultValue(true);
@@ -89,7 +95,7 @@ CMakeSpecificSettings::CMakeSpecificSettings()
     showAdvancedOptionsByDefault.setLabelText(
                 ::CMakeProjectManager::Tr::tr("Show advanced options by default"));
 
-    readSettings(Core::ICore::settings());
+    readSettings();
 }
 
 } // CMakeProjectManager::Internal
