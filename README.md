@@ -1,6 +1,8 @@
 CMakeProjectManager2
 ====================
 
+**CAUTION: brokken by the huge upstream changes**
+
 Alternative CMake support for Qt Creator.
 
 Main differents from original CMakeProject plugin:
@@ -8,11 +10,11 @@ Main differents from original CMakeProject plugin:
 * Project file list readed from file system instead of parsing .cbp (CodeBlocks) project file.
   It can be slow on big projects, but reloading initiating only during open project, run CMake,
   or user-initiated tree changes (add new files, erase files, rename file)
-* You can add new files from Qt Creator. Note, you can create file outside project tree,
+* ~You can add new files from Qt Creator. Note, you can create file outside project tree,
   but Qt Creator will display only files that present in project tree. Also, you should
-  manualy describe this files in CMakeLists.txt.
-* You can rename files in file system from Qt Creator now.
-* You can erase files from files system from Qt Creator now.
+  manualy describe this files in CMakeLists.txt~ *NOTE:* done in the more proper way in the upstream.
+* ~You can rename files in file system from Qt Creator now.~ *NOTE:* done in the more proper way in the upstream.
+* ~You can erase files from files system from Qt Creator now.~  *NOTE:* done in the more proper way in the upstream.
 * Classic tree view for CMake Server mode (uses automatically with CMake >= 3.7)
 
 This functionality is not compatible with QtC Project View idea: **Project View == Build System view**. So, upstream accepts only changes that can be done via build system tools and API.
