@@ -66,7 +66,7 @@ add_qtc_plugin(CMakeProjectManager2
     projecttreehelper.cpp projecttreehelper.h
     simplefileapireader.cpp simplefileapireader.h
     3rdparty/cmake/cmListFileCache.cxx
-    3rdparty/cmake/cmListFileLexer.c
+    3rdparty/cmake/cmListFileLexer.cxx
     3rdparty/cmake/cmListFileCache.h
 )
 
