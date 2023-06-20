@@ -1576,36 +1576,7 @@ QVariantMap CMakeBuildConfiguration::toMap() const
 
 bool CMakeBuildConfiguration::fromMap(const QVariantMap &map)
 {
-    if (!BuildConfiguration::fromMap(map))
-        return false;
-
-    const CMakeConfig conf
-            = Utils::filtered(Utils::transform(map.value(QLatin1String(CONFIGURATION_KEY)).toStringList(),
-                                               [](const QString &v) { return CMakeConfigItem::fromString(v); }),
-                              [](const CMakeConfigItem &c) { return !c.isNull(); });
-
-    // TODO: Upgrade from Qt Creator < 4.13: Remove when no longer supported!
-    const QString buildTypeName = [this] {
-        switch (buildType()) {
-        case Debug:
-            return QString("Debug");
-        case Profile:
-            return QString("RelWithDebInfo");
-        case Release:
-            return QString("Release");
-        case Unknown:
-        default:
-            return QString("");
-        }
-    }();
-    if (m_buildSystem->initialCMakeArguments().isEmpty()) {
-        CommandLine cmd = defaultInitialCMakeCommand(kit(), buildTypeName);
-        for (const CMakeConfigItem &item : conf)
-            cmd.addArg(item.toArgument(macroExpander()));
-        m_buildSystem->setInitialCMakeArguments(cmd.splitArguments());
-    }
-
-    return true;
+    return BuildConfiguration::fromMap(map);
 }
 
 FilePath CMakeBuildConfiguration::shadowBuildDirectory(const FilePath &projectFilePath,
@@ -2087,7 +2058,10 @@ void CMakeBuildConfiguration::addToEnvironment(Utils::Environment &env) const
 
 Environment CMakeBuildConfiguration::configureEnvironment() const
 {
-    return aspect<ConfigureEnvironmentAspect>()->environment();
+    Environment env = aspect<ConfigureEnvironmentAspect>()->environment();
+    addToEnvironment(env);
+
+    return env;
 }
 
 QString CMakeBuildSystem::cmakeBuildType() const
