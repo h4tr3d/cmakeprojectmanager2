@@ -12,6 +12,10 @@
 #include "cmakeprojectmanagertr.h"
 #include "cmaketool.h"
 
+#include <android/androidconstants.h>
+
+#include <ios/iosconstants.h>
+
 #include <coreplugin/find/itemviewfind.h>
 #include <projectexplorer/buildsteplist.h>
 #include <projectexplorer/devicesupport/idevice.h>
@@ -159,7 +163,7 @@ Qt::ItemFlags CMakeTargetItem::flags(int) const
 
 // CMakeBuildStep
 
-static QString initialStagingDir()
+static QString initialStagingDir(Kit *kit)
 {
     // Avoid actual file accesses.
     auto rg = QRandomGenerator::global();
@@ -167,16 +171,21 @@ static QString initialStagingDir()
     char buf[sizeof(rand)];
     memcpy(&buf, &rand, sizeof(rand));
     const QByteArray ba = QByteArray(buf, sizeof(buf)).toHex();
+    IDeviceConstPtr buildDevice = BuildDeviceKitAspect::device(kit);
+    if (buildDevice && buildDevice->type() == ProjectExplorer::Constants::DESKTOP_DEVICE_TYPE)
+        return TemporaryDirectory::masterDirectoryPath() + "/staging-" + ba;
     return QString::fromUtf8("/tmp/Qt-Creator-staging-" + ba);
 }
 
-static bool buildAndRunOnSameDevice(Kit *kit)
+static bool supportsStageForInstallation(const Kit *kit)
 {
     IDeviceConstPtr runDevice = DeviceKitAspect::device(kit);
     IDeviceConstPtr buildDevice = BuildDeviceKitAspect::device(kit);
     QTC_ASSERT(runDevice, return false);
     QTC_ASSERT(buildDevice, return false);
-    return runDevice->id() == buildDevice->id();
+    return runDevice->id() != buildDevice->id()
+           && runDevice->type() != Android::Constants::ANDROID_DEVICE_TYPE
+           && runDevice->type() != Ios::Constants::IOS_DEVICE_TYPE;
 }
 
 CMakeBuildStep::CMakeBuildStep(BuildStepList *bsl, Id id) :
@@ -195,12 +204,12 @@ CMakeBuildStep::CMakeBuildStep(BuildStepList *bsl, Id id) :
     m_useStaging = addAspect<BoolAspect>();
     m_useStaging->setSettingsKey(USE_STAGING_KEY);
     m_useStaging->setLabel(Tr::tr("Stage for installation"), BoolAspect::LabelPlacement::AtCheckBox);
-    m_useStaging->setDefaultValue(!buildAndRunOnSameDevice(kit()));
+    m_useStaging->setDefaultValue(supportsStageForInstallation(kit()));
 
     m_stagingDir = addAspect<FilePathAspect>();
     m_stagingDir->setSettingsKey(STAGING_DIR_KEY);
     m_stagingDir->setLabelText(Tr::tr("Staging directory:"));
-    m_stagingDir->setDefaultValue(initialStagingDir());
+    m_stagingDir->setDefaultValue(initialStagingDir(kit()));
 
     Kit *kit = buildConfiguration()->kit();
     if (CMakeBuildConfiguration::isIos(kit)) {
