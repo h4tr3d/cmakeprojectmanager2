@@ -121,7 +121,7 @@ public:
     AdditionalCMakeOptionsAspect();
 };
 
-class SourceDirectoryAspect final : public Utils::StringAspect
+class SourceDirectoryAspect final : public Utils::FilePathAspect
 {
     Q_OBJECT
 
@@ -135,7 +135,6 @@ class BuildTypeAspect final : public Utils::StringAspect
 
 public:
     BuildTypeAspect();
-    using Utils::StringAspect::update;
 };
 
 class ConfigureEnvironmentAspect final: public ProjectExplorer::EnvironmentAspect
