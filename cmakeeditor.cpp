@@ -13,6 +13,7 @@
 #include <coreplugin/coreplugintr.h>
 #include <texteditor/textdocument.h>
 #include <texteditor/texteditoractionhandler.h>
+#include <utils/textutils.h>
 
 #include <QDir>
 #include <QTextDocument>
@@ -92,7 +93,6 @@ public:
     ~CMakeEditorWidget() final = default;
 
 private:
-    bool save(const QString &fileName = QString());
     void findLinkAt(const QTextCursor &cursor,
                     const Utils::LinkHandler &processLinkCallback,
                     bool resolveTarget = true,

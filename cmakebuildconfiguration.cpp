@@ -594,7 +594,7 @@ void CMakeBuildSettingsWidget::reconfigureWithInitialParameters()
         Core::ICore::dialogParent(),
         Tr::tr("Re-configure with Initial Parameters"),
         Tr::tr("Clear CMake configuration and configure with initial parameters?"),
-        settings->askBeforeReConfigureInitialParams.checkableDecider(),
+        settings->askBeforeReConfigureInitialParams.askAgainCheckableDecider(),
         QMessageBox::Yes | QMessageBox::No,
         QMessageBox::Yes);
 
@@ -2042,7 +2042,7 @@ BuildSystem *CMakeBuildConfiguration::buildSystem() const
 
 void CMakeBuildConfiguration::setSourceDirectory(const FilePath &path)
 {
-    aspect<SourceDirectoryAspect>()->setFilePath(path);
+    aspect<SourceDirectoryAspect>()->setValue(path);
 }
 
 FilePath CMakeBuildConfiguration::sourceDirectory() const
