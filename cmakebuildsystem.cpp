@@ -1429,7 +1429,7 @@ void CMakeBuildSystem::wireUpConnections()
             const CMakeConfig config = CMakeConfig::fromFile(cmakeCacheTxt, &errorMessage);
             if (!config.isEmpty() && errorMessage.isEmpty()) {
                 QString cmakeBuildTypeName = config.stringValueOf("CMAKE_BUILD_TYPE");
-                setCMakeBuildType(cmakeBuildTypeName, true);
+                cmakeBuildConfiguration()->setCMakeBuildType(cmakeBuildTypeName, true);
             }
         }
         reparse(options);
@@ -1437,8 +1437,7 @@ void CMakeBuildSystem::wireUpConnections()
 
     connect(project(), &Project::projectFileIsDirty, this, [this] {
         if (buildConfiguration()->isActive() && !isParsing()) {
-            auto settings = CMakeSpecificSettings::instance();
-            if (settings->autorunCMake.value()) {
+            if (settings().autorunCMake()) {
                 qCDebug(cmakeBuildSystemLog) << "Requesting parse due to dirty project file";
                 reparse(CMakeBuildSystem::REPARSE_FORCE_CMAKE_RUN);
             }
@@ -1823,7 +1822,8 @@ void CMakeBuildSystem::updateQmlJSCodeModel(const QStringList &extraHeaderPaths,
 void CMakeBuildSystem::updateInitialCMakeExpandableVars()
 {
     const CMakeConfig &cm = configurationFromCMake();
-    const CMakeConfig &initialConfig = initialCMakeConfiguration();
+    const CMakeConfig &initialConfig =
+        cmakeBuildConfiguration()->initialCMakeArguments.cmakeConfiguration();
 
     CMakeConfig config;
 
@@ -1984,7 +1984,8 @@ void CMakeBuildSystem::runGenerator(Id id)
     QList<CMakeConfigItem> configItems = Utils::filtered(m_configurationChanges.toList(),
                                                          itemFilter);
     const QList<CMakeConfigItem> initialConfigItems
-            = Utils::filtered(initialCMakeConfiguration().toList(), itemFilter);
+            = Utils::filtered(cmakeBuildConfiguration()->initialCMakeArguments.cmakeConfiguration().toList(),
+                          itemFilter);
     for (const CMakeConfigItem &item : std::as_const(initialConfigItems)) {
         if (!Utils::contains(configItems, [&item](const CMakeConfigItem &existingItem) {
             return existingItem.key == item.key;
@@ -1994,10 +1995,9 @@ void CMakeBuildSystem::runGenerator(Id id)
     }
     for (const CMakeConfigItem &item : std::as_const(configItems))
         cmdLine.addArg(item.toArgument(buildConfiguration()->macroExpander()));
-    if (const auto optionsAspect = buildConfiguration()->aspect<AdditionalCMakeOptionsAspect>();
-            optionsAspect && !optionsAspect->value().isEmpty()) {
-        cmdLine.addArgs(optionsAspect->value(), CommandLine::Raw);
-    }
+
+    cmdLine.addArgs(cmakeBuildConfiguration()->additionalCMakeOptions(), CommandLine::Raw);
+
     const auto proc = new Process(this);
     connect(proc, &Process::done, proc, &Process::deleteLater);
     connect(proc, &Process::readyReadStandardOutput, this, [proc] {

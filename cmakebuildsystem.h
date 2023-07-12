@@ -111,7 +111,6 @@ public:
     CMakeProject *project() const;
 
     QString cmakeBuildType() const;
-    void setCMakeBuildType(const QString &cmakeBuildType, bool quiet = false);
     ProjectExplorer::BuildConfiguration::BuildType buildType() const;
 
     CMakeConfig configurationFromCMake() const;
@@ -119,18 +118,8 @@ public:
 
     QStringList configurationChangesArguments(bool initialParameters = false) const;
 
-    QStringList initialCMakeArguments() const;
-    CMakeConfig initialCMakeConfiguration() const;
-
-    QStringList additionalCMakeArguments() const;
-    void setAdditionalCMakeArguments(const QStringList &args);
-
-    void filterConfigArgumentsFromAdditionalCMakeArguments();
-
     void setConfigurationFromCMake(const CMakeConfig &config);
     void setConfigurationChanges(const CMakeConfig &config);
-
-    void setInitialCMakeArguments(const QStringList &args);
 
     QString error() const;
     QString warning() const;
@@ -142,6 +131,8 @@ signals:
     void warningOccurred(const QString &message);
 
 private:
+    CMakeConfig initialCMakeConfiguration() const;
+
     QList<QPair<Utils::Id, QString>> generators() const override;
     void runGenerator(Utils::Id id) override;
     ProjectExplorer::ExtraCompiler *findExtraCompiler(
