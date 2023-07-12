@@ -350,7 +350,7 @@ void CMakeBuildStep::setupOutputFormatter(Utils::OutputFormatter *formatter)
     CMakeAbstractProcessStep::setupOutputFormatter(formatter);
 }
 
-void CMakeBuildStep::doRun()
+Tasking::GroupItem CMakeBuildStep::runRecipe()
 {
     using namespace Tasking;
 
@@ -383,8 +383,7 @@ void CMakeBuildStep::doRun()
         onGroupDone(onEnd),
         onGroupError(onEnd)
     };
-
-    runTaskTree(root);
+    return root;
 }
 
 QString CMakeBuildStep::defaultBuildTarget() const
