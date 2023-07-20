@@ -41,6 +41,7 @@ public:
     ~CMakeBuildSystem() final;
 
     void triggerParsing() final;
+    void requestDebugging() final;
 
     bool supportsAction(ProjectExplorer::Node *context,
                         ProjectExplorer::ProjectAction action,
@@ -158,7 +159,8 @@ private:
         = (1 << 1), // Force initial configuration arguments to cmake
         REPARSE_FORCE_EXTRA_CONFIGURATION = (1 << 2), // Force extra configuration arguments to cmake
         REPARSE_URGENT = (1 << 3),                    // Do not delay the parser run by 1s
-        REPARSE_SCAN = (1 << 4),                      // Run filesystem scan
+        REPARSE_DEBUG = (1 << 4),                    // Start with debugging
+        REPARSE_SCAN = (1 << 5),                      // Run filesystem scan
     };
     void reparse(int reparseParameters);
     QString reparseParametersString(int reparseFlags);
