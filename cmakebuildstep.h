@@ -44,7 +44,7 @@ public:
     bool buildsBuildTarget(const QString &target) const;
     void setBuildsBuildTarget(const QString &target, bool on);
 
-    QVariantMap toMap() const override;
+    void toMap(QVariantMap &map) const override;
 
     QString cleanTarget() const;
     QString allTarget() const ;
@@ -83,7 +83,7 @@ signals:
 private:
     Utils::CommandLine cmakeCommand() const;
 
-    bool fromMap(const QVariantMap &map) override;
+    void fromMap(const QVariantMap &map) override;
 
     bool init() override;
     void setupOutputFormatter(Utils::OutputFormatter *formatter) override;

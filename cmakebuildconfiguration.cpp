@@ -83,7 +83,6 @@ namespace CMakeProjectManager {
 
 static Q_LOGGING_CATEGORY(cmakeBuildConfigurationLog, "qtc.cmake.bc", QtWarningMsg);
 
-const char CONFIGURATION_KEY[] = "CMake.Configuration";
 const char DEVELOPMENT_TEAM_FLAG[] = "Ios:DevelopmentTeam:Flag";
 const char PROVISIONING_PROFILE_FLAG[] = "Ios:ProvisioningProfile:Flag";
 const char CMAKE_OSX_ARCHITECTURES_FLAG[] = "CMAKE_OSX_ARCHITECTURES:DefaultFlag";
@@ -1562,24 +1561,13 @@ CMakeBuildConfiguration::~CMakeBuildConfiguration()
     delete m_buildSystem;
 }
 
-QVariantMap CMakeBuildConfiguration::toMap() const
-{
-    QVariantMap map(BuildConfiguration::toMap());
-    return map;
-}
-
-bool CMakeBuildConfiguration::fromMap(const QVariantMap &map)
-{
-    return BuildConfiguration::fromMap(map);
-}
-
 FilePath CMakeBuildConfiguration::shadowBuildDirectory(const FilePath &projectFilePath,
                                                        const Kit *k,
                                                        const QString &bcName,
                                                        BuildConfiguration::BuildType buildType)
 {
     if (projectFilePath.isEmpty())
-        return FilePath();
+        return {};
 
     const QString projectName = projectFilePath.parentDir().fileName();
     const FilePath projectDir = Project::projectDirectory(projectFilePath);
@@ -2083,10 +2071,7 @@ QString CMakeBuildSystem::cmakeBuildType() const
 
 void CMakeBuildConfiguration::setCMakeBuildType(const QString &cmakeBuildType, bool quiet)
 {
-    if (quiet)
-        buildTypeAspect.setValueQuietly(cmakeBuildType);
-    else
-        buildTypeAspect.setValue(cmakeBuildType);
+    buildTypeAspect.setValue(cmakeBuildType, quiet ? BaseAspect::BeQuiet : BaseAspect::DoEmit);
 }
 
 namespace Internal {
@@ -2146,7 +2131,7 @@ void InitialCMakeArgumentsAspect::setAllValues(const QString &values, QStringLis
 
     // Display the unknown arguments in "Additional CMake Options"
     const QString additionalOptionsValue = ProcessArgs::joinArgs(additionalOptions);
-    setValueQuietly(additionalOptionsValue);
+    setValue(additionalOptionsValue, BeQuiet);
 }
 
 void InitialCMakeArgumentsAspect::setCMakeConfiguration(const CMakeConfig &config)
