@@ -14,7 +14,6 @@
 #include <projectexplorer/projectexplorerconstants.h>
 #include <projectexplorer/taskhub.h>
 #include <projectexplorer/kitchooser.h>
-#include <projectexplorer/runcontrol.h>
 
 #include <extensionsystem/invoker.h>
 #include <extensionsystem/pluginmanager.h>
@@ -85,7 +84,7 @@ void CMakeProcess::run(const BuildDirParameters &parameters, const QStringList &
     }
 
     if (buildDirectory.needsDevice()) {
-        if (cmake->cmakeExecutable().host() != buildDirectory.host()) {
+        if (!cmake->cmakeExecutable().isSameDevice(buildDirectory)) {
             const QString msg = ::CMakeProjectManager::Tr::tr(
                   "CMake executable \"%1\" and build directory \"%2\" must be on the same device.")
                     .arg(cmake->cmakeExecutable().toUserOutput(), buildDirectory.toUserOutput());

@@ -34,7 +34,7 @@
 #include <projectexplorer/devicesupport/idevice.h>
 #include <projectexplorer/environmentaspectwidget.h>
 #include <projectexplorer/environmentwidget.h>
-#include <projectexplorer/kitinformation.h>
+#include <projectexplorer/kitaspects.h>
 #include <projectexplorer/namedwidget.h>
 #include <projectexplorer/processparameters.h>
 #include <projectexplorer/project.h>
@@ -47,7 +47,7 @@
 
 #include <qtsupport/baseqtversion.h>
 #include <qtsupport/qtbuildaspects.h>
-#include <qtsupport/qtkitinformation.h>
+#include <qtsupport/qtkitaspect.h>
 
 #include <utils/algorithm.h>
 #include <utils/categorysortfiltermodel.h>
@@ -646,18 +646,18 @@ void CMakeBuildSettingsWidget::kitCMakeConfiguration()
         m_buildConfig->kit()->unblockNotification();
     });
 
-    CMakeKitAspect kitAspect;
-    CMakeGeneratorKitAspect generatorAspect;
-    CMakeConfigurationKitAspect configurationKitAspect;
+    CMakeKitAspectFactory kitAspectFactory;
+    CMakeGeneratorKitAspectFactory generatorAspectFactory;
+    CMakeConfigurationKitAspectFactory configurationKitAspectFactory;
 
     Layouting::Grid grid;
-    KitAspectWidget *widget = kitAspect.createConfigWidget(m_buildConfig->kit());
+    KitAspect *widget = kitAspectFactory.createKitAspect(m_buildConfig->kit());
     widget->setParent(dialog);
     widget->addToLayoutWithLabel(grid, dialog);
-    widget = generatorAspect.createConfigWidget(m_buildConfig->kit());
+    widget = generatorAspectFactory.createKitAspect(m_buildConfig->kit());
     widget->setParent(dialog);
     widget->addToLayoutWithLabel(grid, dialog);
-    widget = configurationKitAspect.createConfigWidget(m_buildConfig->kit());
+    widget = configurationKitAspectFactory.createKitAspect(m_buildConfig->kit());
     widget->setParent(dialog);
     widget->addToLayoutWithLabel(grid, dialog);
     grid.attachTo(dialog);
