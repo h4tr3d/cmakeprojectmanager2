@@ -22,23 +22,12 @@ public:
     static CMakeTool *cmakeTool(const ProjectExplorer::Kit *k);
     static void setCMakeTool(ProjectExplorer::Kit *k, const Utils::Id id);
     static QString msgUnsupportedVersion(const QByteArray &versionString);
-};
 
-class CMAKE_EXPORT CMakeKitAspectFactory : public ProjectExplorer::KitAspectFactory
-{
-public:
-    CMakeKitAspectFactory();
+    static ProjectExplorer::KitAspect *createKitAspect(ProjectExplorer::Kit *k);
 
-    // KitAspect interface
-    ProjectExplorer::Tasks validate(const ProjectExplorer::Kit *k) const final;
-    void setup(ProjectExplorer::Kit *k) final;
-    void fix(ProjectExplorer::Kit *k) final;
-    ItemList toUserOutput(const ProjectExplorer::Kit *k) const final;
-    ProjectExplorer::KitAspect *createKitAspect(ProjectExplorer::Kit *k) const final;
-
-    void addToMacroExpander(ProjectExplorer::Kit *k, Utils::MacroExpander *expander) const final;
-
-    QSet<Utils::Id> availableFeatures(const ProjectExplorer::Kit *k) const final;
+private:
+    friend class CMakeToolManager;
+    static void createFactories();
 };
 
 class CMAKE_EXPORT CMakeGeneratorKitAspect
@@ -57,23 +46,8 @@ public:
     static QStringList generatorArguments(const ProjectExplorer::Kit *k);
     static CMakeConfig generatorCMakeConfig(const ProjectExplorer::Kit *k);
     static bool isMultiConfigGenerator(const ProjectExplorer::Kit *k);
-};
 
-class CMAKE_EXPORT CMakeGeneratorKitAspectFactory : public ProjectExplorer::KitAspectFactory
-{
-public:
-    CMakeGeneratorKitAspectFactory();
-
-    ProjectExplorer::Tasks validate(const ProjectExplorer::Kit *k) const final;
-    void setup(ProjectExplorer::Kit *k) final;
-    void fix(ProjectExplorer::Kit *k) final;
-    void upgrade(ProjectExplorer::Kit *k) final;
-    ItemList toUserOutput(const ProjectExplorer::Kit *k) const final;
-    ProjectExplorer::KitAspect *createKitAspect(ProjectExplorer::Kit *k) const final;
-    void addToBuildEnvironment(const ProjectExplorer::Kit *k, Utils::Environment &env) const final;
-
-private:
-    QVariant defaultValue(const ProjectExplorer::Kit *k) const;
+    static ProjectExplorer::KitAspect *createKitAspect(ProjectExplorer::Kit *k);
 };
 
 class CMAKE_EXPORT CMakeConfigurationKitAspect
@@ -94,22 +68,8 @@ public:
 
     static void setCMakePreset(ProjectExplorer::Kit *k, const QString &presetName);
     static CMakeConfigItem cmakePresetConfigItem(const ProjectExplorer::Kit *k);
-};
 
-class CMAKE_EXPORT CMakeConfigurationKitAspectFactory : public ProjectExplorer::KitAspectFactory
-{
-public:
-    CMakeConfigurationKitAspectFactory();
-
-    // KitAspect interface
-    ProjectExplorer::Tasks validate(const ProjectExplorer::Kit *k) const final;
-    void setup(ProjectExplorer::Kit *k) final;
-    void fix(ProjectExplorer::Kit *k) final;
-    ItemList toUserOutput(const ProjectExplorer::Kit *k) const final;
-    ProjectExplorer::KitAspect *createKitAspect(ProjectExplorer::Kit *k) const final;
-
-private:
-    QVariant defaultValue(const ProjectExplorer::Kit *k) const;
+    static ProjectExplorer::KitAspect *createKitAspect(ProjectExplorer::Kit *k);
 };
 
 } // CMakeProjectManager

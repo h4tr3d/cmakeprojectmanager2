@@ -9,7 +9,6 @@
 #include "cmakeeditor.h"
 #include "cmakeformatter.h"
 #include "cmakeinstallstep.h"
-#include "cmakekitinformation.h"
 #include "cmakelocatorfilter.h"
 #include "cmakeproject.h"
 #include "cmakeprojectconstants.h"
@@ -44,7 +43,8 @@ namespace CMakeProjectManager::Internal {
 class CMakeProjectPluginPrivate : public QObject
 {
 public:
-    CMakeToolManager cmakeToolManager; // have that before the first CMakeKitAspect
+    // This can't be stand-alone yet as it registers in the plugin object pool
+    CMakeToolManager cmakeToolManager;
 
     ParameterAction buildTargetContextAction{
         Tr::tr("Build"),
@@ -62,9 +62,6 @@ public:
     CMakeBuildTargetFilter cMakeBuildTargetFilter;
     CMakeOpenTargetFilter cMakeOpenTargetFilter;
 
-    CMakeKitAspectFactory cmakeKitAspectFactory;
-    CMakeGeneratorKitAspectFactory cmakeGeneratorKitAspectFactory;
-    CMakeConfigurationKitAspectFactory cmakeConfigurationKitAspectFactory;
     CMakeFormatter cmakeFormatter;
 };
 

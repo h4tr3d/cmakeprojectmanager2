@@ -7,8 +7,9 @@
 
 #include <texteditor/codeassist/keywordscompletionassist.h>
 
-#include <utils/fileutils.h>
+#include <utils/filepath.h>
 #include <utils/id.h>
+#include <utils/store.h>
 
 #include <optional>
 
@@ -51,7 +52,7 @@ public:
     using PathMapper = std::function<Utils::FilePath (const Utils::FilePath &)>;
 
     explicit CMakeTool(Detection d, const Utils::Id &id);
-    explicit CMakeTool(const QVariantMap &map, bool fromSdk);
+    explicit CMakeTool(const Utils::Store &map, bool fromSdk);
     ~CMakeTool();
 
     static Utils::Id createId();
@@ -59,7 +60,7 @@ public:
     bool isValid() const;
 
     Utils::Id id() const { return m_id; }
-    QVariantMap toMap () const;
+    Utils::Store toMap () const;
 
     void setAutorun(bool autoRun) { m_isAutoRun = autoRun; }
 

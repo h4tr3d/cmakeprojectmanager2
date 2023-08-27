@@ -23,7 +23,6 @@ add_qtc_plugin(CMakeProjectManager2
     QtCreator::ProjectExplorer
     QtCreator::TextEditor
     QtCreator::QtSupport
-  INCLUDES 3dparty/cmake
   SOURCES
     builddirparameters.cpp builddirparameters.h
     cmake_global.h
@@ -39,7 +38,7 @@ add_qtc_plugin(CMakeProjectManager2
     cmakeformatter.cpp cmakeformatter.h
     cmakeindenter.cpp cmakeindenter.h
     cmakeinstallstep.cpp cmakeinstallstep.h
-    cmakekitinformation.cpp cmakekitinformation.h
+    cmakekitaspect.cpp cmakekitaspect.h
     cmakelocatorfilter.cpp cmakelocatorfilter.h
     cmakeparser.cpp cmakeparser.h
     cmakeprocess.cpp cmakeprocess.h

@@ -1,7 +1,7 @@
 // Copyright (C) 2016 Canonical Ltd.
 // SPDX-License-Identifier: LicenseRef-Qt-Commercial OR GPL-3.0-only WITH Qt-GPL-exception-1.0
 
-#include "cmakekitinformation.h"
+#include "cmakekitaspect.h"
 
 #include "cmakeconfigitem.h"
 #include "cmakeprojectconstants.h"
@@ -63,6 +63,60 @@ static Id defaultCMakeToolId()
     return defaultTool ? defaultTool->id() : Id();
 }
 
+// Factories
+
+class CMakeKitAspectFactory : public KitAspectFactory
+{
+public:
+    CMakeKitAspectFactory();
+
+    // KitAspect interface
+    Tasks validate(const Kit *k) const final;
+    void setup(Kit *k) final;
+    void fix(Kit *k) final;
+    ItemList toUserOutput(const Kit *k) const final;
+    KitAspect *createKitAspect(Kit *k) const final;
+
+    void addToMacroExpander(Kit *k, Utils::MacroExpander *expander) const final;
+
+    QSet<Utils::Id> availableFeatures(const Kit *k) const final;
+};
+
+class CMakeGeneratorKitAspectFactory : public KitAspectFactory
+{
+public:
+    CMakeGeneratorKitAspectFactory();
+
+    Tasks validate(const Kit *k) const final;
+    void setup(Kit *k) final;
+    void fix(Kit *k) final;
+    void upgrade(Kit *k) final;
+    ItemList toUserOutput(const Kit *k) const final;
+    KitAspect *createKitAspect(Kit *k) const final;
+    void addToBuildEnvironment(const Kit *k, Utils::Environment &env) const final;
+
+private:
+    QVariant defaultValue(const Kit *k) const;
+};
+
+class CMakeConfigurationKitAspectFactory : public KitAspectFactory
+{
+public:
+    CMakeConfigurationKitAspectFactory();
+
+    // KitAspect interface
+    Tasks validate(const Kit *k) const final;
+    void setup(Kit *k) final;
+    void fix(Kit *k) final;
+    ItemList toUserOutput(const Kit *k) const final;
+    KitAspect *createKitAspect(Kit *k) const final;
+
+private:
+    QVariant defaultValue(const Kit *k) const;
+};
+
+// Implementations
+
 class CMakeKitAspectImpl final : public KitAspect
 {
 public:
@@ -95,7 +149,7 @@ private:
     // KitAspectWidget interface
     void makeReadOnly() override { m_comboBox->setEnabled(false); }
 
-    void addToLayout(Layouting::LayoutItem &builder) override
+    void addToLayoutImpl(Layouting::LayoutItem &builder) override
     {
         addMutableAction(m_comboBox);
         builder.addItem(m_comboBox);
@@ -164,7 +218,6 @@ private:
 
 CMakeKitAspectFactory::CMakeKitAspectFactory()
 {
-    setObjectName(QLatin1String("CMakeKitAspect"));
     setId(Constants::TOOL_ID);
     setDisplayName(Tr::tr("CMake Tool"));
     setDescription(Tr::tr("The CMake Tool to use when building a project with CMake.<br>"
@@ -320,7 +373,7 @@ private:
     // KitAspectWidget interface
     void makeReadOnly() override { m_changeButton->setEnabled(false); }
 
-    void addToLayout(Layouting::LayoutItem &parent) override
+    void addToLayoutImpl(Layouting::LayoutItem &parent) override
     {
         addMutableAction(m_label);
         parent.addItem(m_label);
@@ -514,7 +567,6 @@ static void setGeneratorInfo(Kit *k, const GeneratorInfo &info)
 
 CMakeGeneratorKitAspectFactory::CMakeGeneratorKitAspectFactory()
 {
-    setObjectName(QLatin1String("CMakeGeneratorKitAspect"));
     setId(GENERATOR_ID);
     setDisplayName(Tr::tr("CMake <a href=\"generator\">generator</a>"));
     setDescription(Tr::tr("CMake generator defines how a project is built when using CMake.<br>"
@@ -602,7 +654,7 @@ QStringList CMakeGeneratorKitAspect::generatorArguments(const Kit *k)
     return result;
 }
 
-CMakeConfig CMakeGeneratorKitAspect::generatorCMakeConfig(const ProjectExplorer::Kit *k)
+CMakeConfig CMakeGeneratorKitAspect::generatorCMakeConfig(const Kit *k)
 {
     CMakeConfig config;
 
@@ -860,7 +912,7 @@ public:
 
 private:
     // KitAspectWidget interface
-    void addToLayout(Layouting::LayoutItem &parent) override
+    void addToLayoutImpl(Layouting::LayoutItem &parent) override
     {
         addMutableAction(m_summaryLabel);
         parent.addItem(m_summaryLabel);
@@ -1004,7 +1056,6 @@ private:
 
 CMakeConfigurationKitAspectFactory::CMakeConfigurationKitAspectFactory()
 {
-    setObjectName(QLatin1String("CMakeConfigurationKitAspect"));
     setId(CONFIGURATION_ID);
     setDisplayName(Tr::tr("CMake Configuration"));
     setDescription(Tr::tr("Default configuration passed to CMake when setting up a project."));
@@ -1028,14 +1079,14 @@ void CMakeConfigurationKitAspect::setConfiguration(Kit *k, const CMakeConfig &co
     k->setValue(CONFIGURATION_ID, tmp);
 }
 
-QString CMakeConfigurationKitAspect::additionalConfiguration(const ProjectExplorer::Kit *k)
+QString CMakeConfigurationKitAspect::additionalConfiguration(const Kit *k)
 {
     if (!k)
         return QString();
     return k->value(ADDITIONAL_CONFIGURATION_ID).toString();
 }
 
-void CMakeConfigurationKitAspect::setAdditionalConfiguration(ProjectExplorer::Kit *k, const QString &config)
+void CMakeConfigurationKitAspect::setAdditionalConfiguration(Kit *k, const QString &config)
 {
     if (!k)
         return;
@@ -1095,7 +1146,7 @@ void CMakeConfigurationKitAspect::setCMakePreset(Kit *k, const QString &presetNa
     setConfiguration(k, config);
 }
 
-CMakeConfigItem CMakeConfigurationKitAspect::cmakePresetConfigItem(const ProjectExplorer::Kit *k)
+CMakeConfigItem CMakeConfigurationKitAspect::cmakePresetConfigItem(const Kit *k)
 {
     const CMakeConfig config = configuration(k);
     return Utils::findOrDefault(config, [](const CMakeConfigItem &item) {
@@ -1228,6 +1279,48 @@ KitAspect *CMakeConfigurationKitAspectFactory::createKitAspect(Kit *k) const
     if (!k)
         return nullptr;
     return new CMakeConfigurationKitAspectWidget(k, this);
+}
+
+// Factory instances;
+
+CMakeKitAspectFactory &cmakeKitAspectFactory()
+{
+    static CMakeKitAspectFactory theCMakeKitAspectFactory;
+    return theCMakeKitAspectFactory;
+}
+
+CMakeGeneratorKitAspectFactory &cmakeGeneratorKitAspectFactory()
+{
+    static CMakeGeneratorKitAspectFactory theCMakeGeneratorKitAspectFactory;
+    return theCMakeGeneratorKitAspectFactory;
+}
+
+static CMakeConfigurationKitAspectFactory &cmakeConfigurationKitAspectFactory()
+{
+    static CMakeConfigurationKitAspectFactory theCMakeConfigurationKitAspectFactory;
+    return theCMakeConfigurationKitAspectFactory;
+}
+
+KitAspect *CMakeKitAspect::createKitAspect(Kit *k)
+{
+    return cmakeKitAspectFactory().createKitAspect(k);
+}
+
+KitAspect *CMakeGeneratorKitAspect::createKitAspect(Kit *k)
+{
+    return cmakeGeneratorKitAspectFactory().createKitAspect(k);
+}
+
+KitAspect *CMakeConfigurationKitAspect::createKitAspect(Kit *k)
+{
+    return cmakeConfigurationKitAspectFactory().createKitAspect(k);
+}
+
+void CMakeKitAspect::createFactories()
+{
+    cmakeKitAspectFactory();
+    cmakeGeneratorKitAspectFactory();
+    cmakeConfigurationKitAspectFactory();
 }
 
 } // namespace CMakeProjectManager

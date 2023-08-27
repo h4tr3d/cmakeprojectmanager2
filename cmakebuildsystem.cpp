@@ -7,7 +7,7 @@
 #include "cmakebuildconfiguration.h"
 #include "cmakebuildstep.h"
 #include "cmakebuildtarget.h"
-#include "cmakekitinformation.h"
+#include "cmakekitaspect.h"
 #include "cmakeproject.h"
 #include "cmakeprojectconstants.h"
 #include "cmakeprojectmanagertr.h"
@@ -36,9 +36,11 @@
 #include <texteditor/textdocument.h>
 
 #include <qmljs/qmljsmodelmanagerinterface.h>
+
 #include <qmljstools/qmljstoolsconstants.h>
+
 #include <qtsupport/qtcppkitinfo.h>
-#include <qtsupport/qtkitaspect.h>
+#include <qtsupport/qtsupportconstants.h>
 
 #include <utils/algorithm.h>
 #include <utils/checkablemessagebox.h>
@@ -1239,7 +1241,7 @@ void CMakeBuildSystem::updateProjectData()
 
     {
         const bool mergedHeaderPathsAndQmlImportPaths = kit()->value(
-                    QtSupport::KitHasMergedHeaderPathsWithQmlImportPaths::id(), false).toBool();
+                    QtSupport::Constants::KIT_HAS_MERGED_HEADER_PATHS_WITH_QML_IMPORT_PATHS, false).toBool();
         QStringList extraHeaderPaths;
         QList<QByteArray> moduleMappings;
         for (const RawProjectPart &rpp : std::as_const(rpps)) {
@@ -1824,8 +1826,7 @@ void CMakeBuildSystem::updateQmlJSCodeModel(const QStringList &extraHeaderPaths,
 
     const CMakeConfig &cm = configurationFromCMake();
     addImports(cm.stringValueOf("QML_IMPORT_PATH"));
-
-    addImports(kit()->value(QtSupport::KitQmlImportPath::id()).toString());
+    addImports(kit()->value(QtSupport::Constants::KIT_QML_IMPORT_PATH).toString());
 
     for (const QString &extraHeaderPath : extraHeaderPaths)
         projectInfo.importPaths.maybeInsert(FilePath::fromString(extraHeaderPath),
