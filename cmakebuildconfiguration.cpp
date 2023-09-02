@@ -65,7 +65,6 @@
 #include <QCheckBox>
 #include <QDialog>
 #include <QDialogButtonBox>
-#include <QDir>
 #include <QGridLayout>
 #include <QHeaderView>
 #include <QLoggingCategory>
@@ -1352,7 +1351,10 @@ CMakeBuildConfiguration::CMakeBuildConfiguration(Target *target, Id id)
             if (oldDir.isEmpty())
                 return newDir;
 
-            if (QDir(oldDir).exists("CMakeCache.txt") && !QDir(newDir).exists("CMakeCache.txt")) {
+            const FilePath oldDirCMakeCache = FilePath::fromUserInput(oldDir).pathAppended("CMakeCache.txt");
+            const FilePath newDirCMakeCache = FilePath::fromUserInput(newDir).pathAppended("CMakeCache.txt");
+
+            if (oldDirCMakeCache.exists() && !newDirCMakeCache.exists()) {
                 if (QMessageBox::information(
                         Core::ICore::dialogParent(),
                         Tr::tr("Changing Build Directory"),
@@ -1433,7 +1435,7 @@ CMakeBuildConfiguration::CMakeBuildConfiguration(Target *target, Id id)
     setInitializer([this, target](const BuildInfo &info) {
         const Kit *k = target->kit();
         const QtSupport::QtVersion *qt = QtSupport::QtKitAspect::qtVersion(k);
-        const Store extraInfoMap = info.extraInfo.value<Store>();
+        const Store extraInfoMap = storeFromVariant(info.extraInfo);
         const QString buildType = extraInfoMap.contains(CMAKE_BUILD_TYPE)
                                       ? extraInfoMap.value(CMAKE_BUILD_TYPE).toString()
                                       : info.typeName;
@@ -1942,7 +1944,7 @@ BuildInfo CMakeBuildConfigurationFactory::createBuildInfo(BuildType buildType)
         Store extraInfo;
         // enable QML debugging by default
         extraInfo.insert(Constants::QML_DEBUG_SETTING, TriState::Enabled.toVariant());
-        info.extraInfo = QVariant::fromValue(extraInfo);
+        info.extraInfo = variantFromStore(extraInfo);
         break;
     }
     case BuildTypeRelease:
@@ -1969,7 +1971,7 @@ BuildInfo CMakeBuildConfigurationFactory::createBuildInfo(BuildType buildType)
         extraInfo.insert(CMAKE_BUILD_TYPE, "RelWithDebInfo");
         // enable QML debugging by default
         extraInfo.insert(Constants::QML_DEBUG_SETTING, TriState::Enabled.toVariant());
-        info.extraInfo = QVariant::fromValue(extraInfo);
+        info.extraInfo = variantFromStore(extraInfo);
         break;
     }
     default:
