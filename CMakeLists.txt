@@ -23,6 +23,7 @@ add_qtc_plugin(CMakeProjectManager2
     QtCreator::ProjectExplorer
     QtCreator::TextEditor
     QtCreator::QtSupport
+  SYSTEM_INCLUDES 3dparty/cmake
   SOURCES
     builddirparameters.cpp builddirparameters.h
     cmake_global.h
