@@ -19,6 +19,22 @@ namespace CMakeProjectManager {
 
 namespace Internal {  class IntrospectionData;  }
 
+struct CMAKE_EXPORT CMakeKeywords
+{
+    QSet<QString> variables;
+    QSet<QString> functions;
+    QSet<QString> properties;
+    QSet<QString> generatorExpressions;
+    QSet<QString> directoryProperties;
+    QSet<QString> sourceProperties;
+    QSet<QString> targetProperties;
+    QSet<QString> testProperties;
+    QSet<QString> includeStandardModules;
+    QSet<QString> findModules;
+    QSet<QString> policies;
+    QMap<QString, QStringList> functionArgs;
+};
+
 class CMAKE_EXPORT CMakeTool
 {
 public:
@@ -73,7 +89,7 @@ public:
     bool isAutoRun() const;
     bool autoCreateBuildDirectory() const;
     QList<Generator> supportedGenerators() const;
-    TextEditor::Keywords keywords();
+    CMakeKeywords keywords();
     bool hasFileApi(bool ignoreCache = false) const;
     Version version() const;
     QString versionDisplay() const;
@@ -101,6 +117,7 @@ private:
     void runCMake(Utils::Process &proc, const QStringList &args, int timeoutS = 1) const;
     void parseFunctionDetailsOutput(const QString &output);
     QStringList parseVariableOutput(const QString &output);
+    void parseSyntaxHighlightingXml();
 
     void fetchFromCapabilities(bool ignoreCache = false) const;
     void parseFromCapabilities(const QString &input) const;
