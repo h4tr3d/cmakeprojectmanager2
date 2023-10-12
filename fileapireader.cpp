@@ -84,7 +84,8 @@ void FileApiReader::resetData()
 void FileApiReader::parse(bool forceCMakeRun,
                           bool forceInitialConfiguration,
                           bool forceExtraConfiguration,
-                          bool debugging)
+                          bool debugging,
+                          bool profiling)
 {
     qCDebug(cmakeFileApiMode) << "Parse called with arguments: ForceCMakeRun:" << forceCMakeRun
                               << " - forceConfiguration:" << forceInitialConfiguration
@@ -107,6 +108,12 @@ void FileApiReader::parse(bool forceCMakeRun,
             args << "--debugger"
                  << "--debugger-pipe=" + file.path();
         }
+    }
+
+    if (profiling) {
+        const FilePath file = TemporaryDirectory::masterDirectoryFilePath() / "cmake-profile.json";
+        args << "--profiling-format=google-trace"
+             << "--profiling-output=" + file.path();
     }
 
     qCDebug(cmakeFileApiMode) << "Parameters request these CMake arguments:" << args;
@@ -297,8 +304,9 @@ void FileApiReader::makeBackupConfiguration(bool store)
             replyPrev.removeRecursively();
         QTC_CHECK(!replyPrev.exists());
         if (!reply.renameFile(replyPrev))
-            Core::MessageManager::writeFlashing(Tr::tr("Failed to rename \"%1\" to \"%2\".")
-                                                    .arg(reply.toString(), replyPrev.toString()));
+            Core::MessageManager::writeFlashing(
+                addCMakePrefix(Tr::tr("Failed to rename \"%1\" to \"%2\".")
+                                   .arg(reply.toString(), replyPrev.toString())));
     }
 
     FilePath cmakeCacheTxt = m_parameters.buildDirectory.pathAppended("CMakeCache.txt");
@@ -309,8 +317,8 @@ void FileApiReader::makeBackupConfiguration(bool store)
     if (cmakeCacheTxt.exists())
         if (!FileUtils::copyIfDifferent(cmakeCacheTxt, cmakeCacheTxtPrev))
             Core::MessageManager::writeFlashing(
-                Tr::tr("Failed to copy \"%1\" to \"%2\".")
-                    .arg(cmakeCacheTxt.toString(), cmakeCacheTxtPrev.toString()));
+                addCMakePrefix(Tr::tr("Failed to copy \"%1\" to \"%2\".")
+                                   .arg(cmakeCacheTxt.toString(), cmakeCacheTxtPrev.toString())));
 }
 
 void FileApiReader::writeConfigurationIntoBuildDirectory(const QStringList &configurationArguments)

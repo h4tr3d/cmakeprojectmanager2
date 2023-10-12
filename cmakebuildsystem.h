@@ -73,6 +73,7 @@ public:
     void runCMake();
     void runCMakeAndScanProjectTree();
     void runCMakeWithExtraArguments();
+    void runCMakeWithProfiling();
     void stopCMakeRun();
 
 #if 1
@@ -130,6 +131,10 @@ public:
 
     const QHash<QString, Utils::Link> &cmakeSymbolsHash() const { return m_cmakeSymbolsHash; }
     CMakeKeywords projectKeywords() const { return m_projectKeywords; }
+    QStringList projectImportedTargets() const { return m_projectImportedTargets; }
+    QStringList projectFindPackageVariables() const { return m_projectFindPackageVariables; }
+    const QHash<QString, Utils::Link> &dotCMakeFilesHash() const { return m_dotCMakeFilesHash; }
+    const QHash<QString, Utils::Link> &findPackagesFilesHash() const { return m_findPackagesFilesHash; }
 
 signals:
     void configurationCleared();
@@ -165,8 +170,9 @@ private:
         = (1 << 1), // Force initial configuration arguments to cmake
         REPARSE_FORCE_EXTRA_CONFIGURATION = (1 << 2), // Force extra configuration arguments to cmake
         REPARSE_URGENT = (1 << 3),                    // Do not delay the parser run by 1s
-        REPARSE_DEBUG = (1 << 4),                    // Start with debugging
-        REPARSE_SCAN = (1 << 5),                      // Run filesystem scan
+        REPARSE_DEBUG = (1 << 4),                     // Start with debugging
+        REPARSE_PROFILING = (1 << 5),                 // Start profiling
+        REPARSE_SCAN = (1 << 6),                      // Run filesystem scan
     };
     void reparse(int reparseParameters);
     QString reparseParametersString(int reparseFlags);
@@ -241,7 +247,11 @@ private:
     QList<CMakeBuildTarget> m_buildTargets;
     QSet<CMakeFileInfo> m_cmakeFiles;
     QHash<QString, Utils::Link> m_cmakeSymbolsHash;
+    QHash<QString, Utils::Link> m_dotCMakeFilesHash;
+    QHash<QString, Utils::Link> m_findPackagesFilesHash;
     CMakeKeywords m_projectKeywords;
+    QStringList m_projectImportedTargets;
+    QStringList m_projectFindPackageVariables;
 
     QHash<QString, ProjectFileArgumentPosition> m_filesToBeRenamed;
 

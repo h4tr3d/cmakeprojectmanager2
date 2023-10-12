@@ -14,6 +14,7 @@
 #include <utils/persistentcachestore.h>
 #include <utils/process.h>
 #include <utils/qtcassert.h>
+#include <utils/temporarydirectory.h>
 
 #include <QDir>
 #include <QJsonDocument>
@@ -86,22 +87,13 @@ class IntrospectionData
 {
 public:
     bool m_didAttemptToRun = false;
-    bool m_didRun = true;
+    bool m_haveCapabilitites = true;
+    bool m_haveKeywords = false;
 
     QList<CMakeTool::Generator> m_generators;
-    QMap<QString, QStringList> m_functionArgs;
+    CMakeKeywords m_keywords;
+    QMutex m_keywordsMutex;
     QVector<FileApi> m_fileApis;
-    QStringList m_variables;
-    QStringList m_functions;
-    QStringList m_properties;
-    QStringList m_generatorExpressions;
-    QStringList m_directoryProperties;
-    QStringList m_sourceProperties;
-    QStringList m_targetProperties;
-    QStringList m_testProperties;
-    QStringList m_includeStandardModules;
-    QStringList m_findModules;
-    QStringList m_policies;
     CMakeTool::Version m_version;
 };
 
@@ -172,7 +164,7 @@ bool CMakeTool::isValid(bool ignoreCache) const
     if (!m_introspection->m_didAttemptToRun)
         readInformation(ignoreCache);
 
-    return m_introspection->m_didRun && !m_introspection->m_fileApis.isEmpty();
+    return m_introspection->m_haveCapabilitites && !m_introspection->m_fileApis.isEmpty();
 }
 
 void CMakeTool::runCMake(Process &cmake, const QStringList &args, int timeoutS) const
@@ -260,47 +252,77 @@ CMakeKeywords CMakeTool::keywords()
     if (!isValid())
         return {};
 
-    if (m_introspection->m_functions.isEmpty() && m_introspection->m_didRun) {
+    if (!m_introspection->m_haveKeywords && m_introspection->m_haveCapabilitites) {
+        QMutexLocker locker(&m_introspection->m_keywordsMutex);
+        if (m_introspection->m_haveKeywords)
+            return m_introspection->m_keywords;
+
         Process proc;
-        runCMake(proc, {"--help-command-list"}, 5);
-        if (proc.result() == ProcessResult::FinishedWithSuccess)
-            m_introspection->m_functions = Utils::filtered(proc.cleanedStdOut().split('\n'),
-                                                           std::not_fn(&QString::isEmpty));
 
-        runCMake(proc, {"--help-property-list"}, 5);
-        if (proc.result() == ProcessResult::FinishedWithSuccess)
-            m_introspection->m_properties = parseVariableOutput(proc.cleanedStdOut());
+        const FilePath findCMakeRoot = TemporaryDirectory::masterDirectoryFilePath()
+                                       / "find-root.cmake";
+        findCMakeRoot.writeFileContents("message(${CMAKE_ROOT})");
 
-        runCMake(proc, {"--help-variable-list"}, 5);
+        FilePath cmakeRoot;
+        runCMake(proc, {"-P", findCMakeRoot.nativePath()}, 5);
         if (proc.result() == ProcessResult::FinishedWithSuccess) {
-            m_introspection->m_variables = Utils::filteredUnique(
-                parseVariableOutput(proc.cleanedStdOut()));
-            Utils::sort(m_introspection->m_variables);
+            QStringList output = filtered(proc.allOutput().split('\n'),
+                                          std::not_fn(&QString::isEmpty));
+            if (output.size() > 0)
+                cmakeRoot = FilePath::fromString(output[0]);
         }
 
-        runCMake(proc, {"--help-policy-list"}, 5);
-        if (proc.result() == ProcessResult::FinishedWithSuccess)
-            m_introspection->m_policies = Utils::filtered(proc.cleanedStdOut().split('\n'),
-                                                          std::not_fn(&QString::isEmpty));
+        const struct
+        {
+            const QString helpPath;
+            QMap<QString, FilePath> &targetMap;
+        } introspections[] = {
+            // Functions
+            {"Help/command", m_introspection->m_keywords.functions},
+            // Properties
+            {"Help/prop_dir", m_introspection->m_keywords.directoryProperties},
+            {"Help/prop_sf", m_introspection->m_keywords.sourceProperties},
+            {"Help/prop_test", m_introspection->m_keywords.testProperties},
+            {"Help/prop_tgt", m_introspection->m_keywords.targetProperties},
+            {"Help/prop_gbl", m_introspection->m_keywords.properties},
+            // Variables
+            {"Help/variable", m_introspection->m_keywords.variables},
+            // Policies
+            {"Help/policy", m_introspection->m_keywords.policies},
+        };
+        for (auto &i : introspections) {
+            const FilePaths files = cmakeRoot.pathAppended(i.helpPath)
+                                        .dirEntries({{"*.rst"}, QDir::Files}, QDir::Name);
+            for (const auto &filePath : files)
+                i.targetMap[filePath.completeBaseName()] = filePath;
+        }
 
-        parseSyntaxHighlightingXml();
+        for (const auto &map : {m_introspection->m_keywords.directoryProperties,
+                                m_introspection->m_keywords.sourceProperties,
+                                m_introspection->m_keywords.testProperties,
+                                m_introspection->m_keywords.targetProperties}) {
+            m_introspection->m_keywords.properties.insert(map);
+        }
+
+        // Modules
+        const FilePaths files
+            = cmakeRoot.pathAppended("Help/module").dirEntries({{"*.rst"}, QDir::Files}, QDir::Name);
+        for (const FilePath &filePath : files) {
+            const QString fileName = filePath.completeBaseName();
+            if (fileName.startsWith("Find"))
+                m_introspection->m_keywords.findModules[fileName.mid(4)] = filePath;
+            else
+                m_introspection->m_keywords.includeStandardModules[fileName] = filePath;
+        }
+
+        const QStringList moduleFunctions = parseSyntaxHighlightingXml();
+        for (const auto &function : moduleFunctions)
+            m_introspection->m_keywords.functions[function] = FilePath();
+
+        m_introspection->m_haveKeywords = true;
     }
 
-    CMakeKeywords keywords;
-    keywords.functions = Utils::toSet(m_introspection->m_functions);
-    keywords.variables = Utils::toSet(m_introspection->m_variables);
-    keywords.functionArgs = m_introspection->m_functionArgs;
-    keywords.properties = Utils::toSet(m_introspection->m_properties);
-    keywords.generatorExpressions = Utils::toSet(m_introspection->m_generatorExpressions);
-    keywords.directoryProperties = Utils::toSet(m_introspection->m_directoryProperties);
-    keywords.sourceProperties = Utils::toSet(m_introspection->m_sourceProperties);
-    keywords.targetProperties = Utils::toSet(m_introspection->m_targetProperties);
-    keywords.testProperties = Utils::toSet(m_introspection->m_testProperties);
-    keywords.includeStandardModules = Utils::toSet(m_introspection->m_includeStandardModules);
-    keywords.findModules = Utils::toSet(m_introspection->m_findModules);
-    keywords.policies = Utils::toSet(m_introspection->m_policies);
-
-    return keywords;
+    return m_introspection->m_keywords;
 }
 
 bool CMakeTool::hasFileApi(bool ignoreCache) const
@@ -420,7 +442,7 @@ void CMakeTool::openCMakeHelpUrl(const CMakeTool *tool, const QString &linkUrl)
 void CMakeTool::readInformation(bool ignoreCache) const
 {
     QTC_ASSERT(m_introspection, return );
-    if (!m_introspection->m_didRun && m_introspection->m_didAttemptToRun)
+    if (!m_introspection->m_haveCapabilitites && m_introspection->m_didAttemptToRun)
         return;
 
     m_introspection->m_didAttemptToRun = true;
@@ -462,8 +484,6 @@ static QStringList parseDefinition(const QString &definition)
 
 void CMakeTool::parseFunctionDetailsOutput(const QString &output)
 {
-    const QSet<QString> functionSet = Utils::toSet(m_introspection->m_functions);
-
     bool expectDefinition = false;
     QString currentDefinition;
 
@@ -482,14 +502,15 @@ void CMakeTool::parseFunctionDetailsOutput(const QString &output)
                 QStringList words = parseDefinition(currentDefinition);
                 if (!words.isEmpty()) {
                     const QString command = words.takeFirst();
-                    if (functionSet.contains(command)) {
+                    if (m_introspection->m_keywords.functions.contains(command)) {
                         const QStringList tmp = Utils::sorted(
-                            words + m_introspection->m_functionArgs[command]);
-                        m_introspection->m_functionArgs[command] = Utils::filteredUnique(tmp);
+                            words + m_introspection->m_keywords.functionArgs[command]);
+                        m_introspection->m_keywords.functionArgs[command] = Utils::filteredUnique(
+                            tmp);
                     }
                 }
-                if (!words.isEmpty() && functionSet.contains(words.at(0)))
-                    m_introspection->m_functionArgs[words.at(0)];
+                if (!words.isEmpty() && m_introspection->m_keywords.functions.contains(words.at(0)))
+                    m_introspection->m_keywords.functionArgs[words.at(0)];
                 currentDefinition.clear();
             } else {
                 currentDefinition.append(line.trimmed() + ' ');
@@ -527,9 +548,9 @@ QStringList CMakeTool::parseVariableOutput(const QString &output)
     return result;
 }
 
-void CMakeTool::parseSyntaxHighlightingXml()
+QStringList CMakeTool::parseSyntaxHighlightingXml()
 {
-    QSet<QString> functionSet = Utils::toSet(m_introspection->m_functions);
+    QStringList moduleFunctions;
 
     const FilePath cmakeXml = Core::ICore::resourcePath("generic-highlighter/syntax/cmake.xml");
     QXmlStreamReader reader(cmakeXml.fileContents().value_or(QByteArray()));
@@ -555,31 +576,19 @@ void CMakeTool::parseSyntaxHighlightingXml()
                     const auto functionName = name.left(name.length() - 6);
                     QStringList arguments = readItemList(reader);
 
-                    if (m_introspection->m_functionArgs.contains(functionName))
-                        arguments.append(m_introspection->m_functionArgs.value(functionName));
+                    if (m_introspection->m_keywords.functionArgs.contains(functionName))
+                        arguments.append(
+                            m_introspection->m_keywords.functionArgs.value(functionName));
 
-                    m_introspection->m_functionArgs[functionName] = arguments;
+                    m_introspection->m_keywords.functionArgs[functionName] = arguments;
 
                     // Functions that are part of CMake modules like ExternalProject_Add
                     // which are not reported by cmake --help-list-commands
-                    if (!functionSet.contains(functionName)) {
-                        functionSet.insert(functionName);
-                        m_introspection->m_functions.append(functionName);
+                    if (!m_introspection->m_keywords.functions.contains(functionName)) {
+                        moduleFunctions << functionName;
                     }
                 } else if (name == u"generator-expressions") {
-                    m_introspection->m_generatorExpressions = readItemList(reader);
-                } else if (name == u"directory-properties") {
-                    m_introspection->m_directoryProperties = readItemList(reader);
-                } else if (name == u"source-properties") {
-                    m_introspection->m_sourceProperties = readItemList(reader);
-                } else if (name == u"target-properties") {
-                    m_introspection->m_targetProperties = readItemList(reader);
-                } else if (name == u"test-properties") {
-                    m_introspection->m_testProperties = readItemList(reader);
-                } else if (name == u"standard-modules") {
-                    m_introspection->m_includeStandardModules = readItemList(reader);
-                } else if (name == u"standard-finder-modules") {
-                    m_introspection->m_findModules = readItemList(reader);
+                    m_introspection->m_keywords.generatorExpressions = toSet(readItemList(reader));
                 } else {
                     reader.skipCurrentElement();
                 }
@@ -602,16 +611,19 @@ void CMakeTool::parseSyntaxHighlightingXml()
                                           {"set_target_properties", "set_directory_properties"},
                                           {"set_tests_properties", "set_directory_properties"}};
     for (const auto &pair : std::as_const(functionPairs)) {
-        if (!m_introspection->m_functionArgs.contains(pair.first))
-            m_introspection->m_functionArgs[pair.first] = m_introspection->m_functionArgs.value(
-                pair.second);
+        if (!m_introspection->m_keywords.functionArgs.contains(pair.first))
+            m_introspection->m_keywords.functionArgs[pair.first]
+                = m_introspection->m_keywords.functionArgs.value(pair.second);
     }
 
     // Special case for cmake_print_variables, which will print the names and values for variables
     // and needs to be as a known function
     const QString cmakePrintVariables("cmake_print_variables");
-    m_introspection->m_functionArgs[cmakePrintVariables] = {};
-    m_introspection->m_functions.append(cmakePrintVariables);
+    m_introspection->m_keywords.functionArgs[cmakePrintVariables] = {};
+    moduleFunctions << cmakePrintVariables;
+
+    moduleFunctions.removeDuplicates();
+    return moduleFunctions;
 }
 
 void CMakeTool::fetchFromCapabilities(bool ignoreCache) const
@@ -620,7 +632,7 @@ void CMakeTool::fetchFromCapabilities(bool ignoreCache) const
         keyFromString("CMake_" + cmakeExecutable().toUserOutput()));
 
     if (cache && !ignoreCache) {
-        m_introspection->m_didRun = true;
+        m_introspection->m_haveCapabilitites = true;
         parseFromCapabilities(cache->value("CleanedStdOut").toString());
         return;
     }
@@ -629,11 +641,11 @@ void CMakeTool::fetchFromCapabilities(bool ignoreCache) const
     runCMake(cmake, {"-E", "capabilities"});
 
     if (cmake.result() == ProcessResult::FinishedWithSuccess) {
-        m_introspection->m_didRun = true;
+        m_introspection->m_haveCapabilitites = true;
         parseFromCapabilities(cmake.cleanedStdOut());
     } else {
         qCCritical(cmakeToolLog) << "Fetching capabilities failed: " << cmake.allOutput() << cmake.error();
-        m_introspection->m_didRun = false;
+        m_introspection->m_haveCapabilitites = false;
     }
 
     Store newData{{"CleanedStdOut", cmake.cleanedStdOut()}};
