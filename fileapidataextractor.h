@@ -52,9 +52,8 @@ public:
     bool usesAllCapsTargets = false;
 };
 
-FileApiQtcData extractData(FileApiData &data,
-                           const Utils::FilePath &sourceDirectory,
-                           const Utils::FilePath &buildDirectory,
+FileApiQtcData extractData(const QFuture<void> &cancelFuture, FileApiData &input,
+                           const Utils::FilePath &sourceDir, const Utils::FilePath &buildDir,
                            bool plain = false);
 
 } // CMakeProjectManager::Internal

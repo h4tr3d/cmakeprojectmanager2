@@ -25,6 +25,7 @@ struct CMAKE_EXPORT CMakeKeywords
     QMap<QString, Utils::FilePath> functions;
     QMap<QString, Utils::FilePath> properties;
     QSet<QString> generatorExpressions;
+    QMap<QString, Utils::FilePath> environmentVariables;
     QMap<QString, Utils::FilePath> directoryProperties;
     QMap<QString, Utils::FilePath> sourceProperties;
     QMap<QString, Utils::FilePath> targetProperties;
@@ -62,7 +63,7 @@ public:
         bool supportsPlatform = true;
         bool supportsToolset = true;
 
-        bool matches(const QString &n, const QString &ex = QString()) const;
+        bool matches(const QString &n) const;
     };
 
     using PathMapper = std::function<Utils::FilePath (const Utils::FilePath &)>;

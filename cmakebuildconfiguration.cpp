@@ -57,6 +57,7 @@
 #include <utils/infolabel.h>
 #include <utils/itemviews.h>
 #include <utils/layoutbuilder.h>
+#include <utils/mimeconstants.h>
 #include <utils/progressindicator.h>
 #include <utils/qtcassert.h>
 #include <utils/stringutils.h>
@@ -171,8 +172,6 @@ CMakeBuildSettingsWidget::CMakeBuildSettingsWidget(CMakeBuildConfiguration *bc) 
     m_configFilterModel(new CategorySortFilterModel(this)),
     m_configTextFilterModel(new CategorySortFilterModel(this))
 {
-    QTC_ASSERT(m_buildConfig, return);
-
     m_configureDetailsWidget = new DetailsWidget;
 
     updateConfigureDetailsWidgetsSummary();
@@ -682,7 +681,7 @@ void CMakeBuildSettingsWidget::updateConfigureDetailsWidgetsSummary(
     const CMakeTool *tool = CMakeKitAspect::cmakeTool(m_buildConfig->kit());
     cmd.setExecutable(tool ? tool->cmakeExecutable() : "cmake");
 
-    const FilePath buildDirectory = m_buildConfig ? m_buildConfig->buildDirectory() : ".";
+    const FilePath buildDirectory = m_buildConfig->buildDirectory();
 
     cmd.addArgs({"-S", m_buildConfig->project()->projectDirectory().path()});
     cmd.addArgs({"-B", buildDirectory.path()});
@@ -1092,7 +1091,7 @@ static bool isQnx(const Kit *k)
 
 static bool isWindowsARM64(const Kit *k)
 {
-    ToolChain *toolchain = ToolChainKitAspect::cxxToolChain(k);
+    Toolchain *toolchain = ToolchainKitAspect::cxxToolChain(k);
     if (!toolchain)
         return false;
     const Abi targetAbi = toolchain->targetAbi();
@@ -1100,7 +1099,7 @@ static bool isWindowsARM64(const Kit *k)
            && targetAbi.wordWidth() == 64;
 }
 
-static CommandLine defaultInitialCMakeCommand(const Kit *k, const QString buildType)
+static CommandLine defaultInitialCMakeCommand(const Kit *k, const QString &buildType)
 {
     // Generator:
     CMakeTool *tool = CMakeKitAspect::cmakeTool(k);
@@ -1125,7 +1124,7 @@ static CommandLine defaultInitialCMakeCommand(const Kit *k, const QString buildT
         const QString sysRoot = SysRootKitAspect::sysRoot(k).path();
         if (!sysRoot.isEmpty()) {
             cmd.addArg("-DCMAKE_SYSROOT:PATH=" + sysRoot);
-            if (ToolChain *tc = ToolChainKitAspect::cxxToolChain(k)) {
+            if (Toolchain *tc = ToolchainKitAspect::cxxToolChain(k)) {
                 const QString targetTriple = tc->originalTargetTriple();
                 cmd.addArg("-DCMAKE_C_COMPILER_TARGET:STRING=" + targetTriple);
                 cmd.addArg("-DCMAKE_CXX_COMPILER_TARGET:STRING=" + targetTriple);
@@ -1877,7 +1876,7 @@ CMakeBuildConfigurationFactory::CMakeBuildConfigurationFactory()
     registerBuildConfiguration<CMakeBuildConfiguration>(Constants::CMAKE_BUILDCONFIGURATION_ID);
 
     setSupportedProjectType(CMakeProjectManager::Constants::CMAKE_PROJECT_ID);
-    setSupportedProjectMimeTypeName(Constants::CMAKE_PROJECT_MIMETYPE);
+    setSupportedProjectMimeTypeName(Utils::Constants::CMAKE_PROJECT_MIMETYPE);
 
     setBuildGenerator([](const Kit *k, const FilePath &projectPath, bool forSetup) {
         QList<BuildInfo> result;

@@ -120,10 +120,10 @@ private:
 class CMakeKitAspectImpl final : public KitAspect
 {
 public:
-    CMakeKitAspectImpl(Kit *kit, const KitAspectFactory *factory) : KitAspect(kit, factory),
-        m_comboBox(createSubWidget<QComboBox>()),
-        m_manageButton(createManageButton(Constants::Settings::TOOLS_ID))
+    CMakeKitAspectImpl(Kit *kit, const KitAspectFactory *factory)
+        : KitAspect(kit, factory), m_comboBox(createSubWidget<QComboBox>())
     {
+        setManagingPage(Constants::Settings::TOOLS_ID);
         m_comboBox->setSizePolicy(QSizePolicy::Ignored, m_comboBox->sizePolicy().verticalPolicy());
         m_comboBox->setEnabled(false);
         m_comboBox->setToolTip(factory->description());
@@ -142,7 +142,6 @@ public:
     ~CMakeKitAspectImpl() override
     {
         delete m_comboBox;
-        delete m_manageButton;
     }
 
 private:
@@ -153,7 +152,6 @@ private:
     {
         addMutableAction(m_comboBox);
         builder.addItem(m_comboBox);
-        builder.addItem(m_manageButton);
     }
 
     void refresh() override
@@ -213,7 +211,6 @@ private:
 
     Guard m_ignoreChanges;
     QComboBox *m_comboBox;
-    QWidget *m_manageButton;
 };
 
 CMakeKitAspectFactory::CMakeKitAspectFactory()
@@ -503,11 +500,9 @@ class GeneratorInfo
 public:
     GeneratorInfo() = default;
     GeneratorInfo(const QString &generator_,
-                  const QString &extraGenerator_ = QString(),
                   const QString &platform_ = QString(),
                   const QString &toolset_ = QString())
         : generator(generator_)
-        , extraGenerator(extraGenerator_)
         , platform(platform_)
         , toolset(toolset_)
     {}
@@ -686,7 +681,7 @@ QVariant CMakeGeneratorKitAspectFactory::defaultValue(const Kit *k) const
 
     if (tool->filePath().osType() == OsTypeWindows) {
         // *sigh* Windows with its zoo of incompatible stuff again...
-        ToolChain *tc = ToolChainKitAspect::cxxToolChain(k);
+        Toolchain *tc = ToolchainKitAspect::cxxToolChain(k);
         if (tc && tc->typeId() == ProjectExplorer::Constants::MINGW_TOOLCHAIN_TYPEID) {
             it = std::find_if(known.constBegin(),
                               known.constEnd(),
@@ -747,7 +742,7 @@ Tasks CMakeGeneratorKitAspectFactory::validate(const Kit *k) const
         const GeneratorInfo info = generatorInfo(k);
         QList<CMakeTool::Generator> known = tool->supportedGenerators();
         auto it = std::find_if(known.constBegin(), known.constEnd(), [info](const CMakeTool::Generator &g) {
-            return g.matches(info.generator, info.extraGenerator);
+            return g.matches(info.generator);
         });
         if (it == known.constEnd()) {
             addWarning(Tr::tr("CMake Tool does not support the configured generator."));
@@ -786,7 +781,7 @@ void CMakeGeneratorKitAspectFactory::fix(Kit *k)
     QList<CMakeTool::Generator> known = tool->supportedGenerators();
     auto it = std::find_if(known.constBegin(), known.constEnd(),
                            [info](const CMakeTool::Generator &g) {
-        return g.matches(info.generator, info.extraGenerator);
+        return g.matches(info.generator);
     });
     if (it == known.constEnd()) {
         GeneratorInfo dv;
@@ -794,7 +789,6 @@ void CMakeGeneratorKitAspectFactory::fix(Kit *k)
         setGeneratorInfo(k, dv);
     } else {
         const GeneratorInfo dv(isIos(k) ? QString("Xcode") : info.generator,
-                               info.extraGenerator,
                                it->supportsPlatform ? info.platform : QString(),
                                it->supportsToolset ? info.toolset : QString());
         setGeneratorInfo(k, dv);
@@ -1087,7 +1081,7 @@ QStringList CMakeConfigurationKitAspect::toArgumentsList(const Kit *k)
                                            [](const CMakeConfigItem &i) {
                                                return i.toArgument(nullptr);
                                            });
-    current = Utils::filtered(current, [](const QString &s) { return s != "-D" || s != "-U"; });
+    current = Utils::filtered(current, [](const QString &s) { return s != "-D" && s != "-U"; });
     return current;
 }
 
@@ -1141,8 +1135,8 @@ Tasks CMakeConfigurationKitAspectFactory::validate(const Kit *k) const
         return Tasks();
 
     const QtSupport::QtVersion *const version = QtSupport::QtKitAspect::qtVersion(k);
-    const ToolChain *const tcC = ToolChainKitAspect::cToolChain(k);
-    const ToolChain *const tcCxx = ToolChainKitAspect::cxxToolChain(k);
+    const Toolchain *const tcC = ToolchainKitAspect::cToolChain(k);
+    const Toolchain *const tcCxx = ToolchainKitAspect::cxxToolChain(k);
     const CMakeConfig config = CMakeConfigurationKitAspect::configuration(k);
 
     const bool isQt4 = version && version->qtVersion() < QVersionNumber(5, 0, 0);

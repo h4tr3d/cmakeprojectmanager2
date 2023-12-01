@@ -45,9 +45,9 @@ const char CMAKE_INFORMATION_AUTODETECTED[] = "AutoDetected";
 const char CMAKE_INFORMATION_DETECTIONSOURCE[] = "DetectionSource";
 const char CMAKE_INFORMATION_READERTYPE[] = "ReaderType";
 
-bool CMakeTool::Generator::matches(const QString &n, const QString &ex) const
+bool CMakeTool::Generator::matches(const QString &n) const
 {
-    return n == name && (ex.isEmpty() || extraGenerators.contains(ex));
+    return n == name;
 }
 
 namespace Internal {
@@ -229,7 +229,7 @@ FilePath CMakeTool::cmakeExecutable(const FilePath &path)
         }
     }
 
-    const FilePath resolvedPath = path.canonicalPath();
+    FilePath resolvedPath = path.canonicalPath();
     // Evil hack to make snap-packages of CMake work. See QTCREATORBUG-23376
     if (path.osType() == OsTypeLinux && resolvedPath.fileName() == "snap")
         return path;
@@ -289,6 +289,8 @@ CMakeKeywords CMakeTool::keywords()
             {"Help/variable", m_introspection->m_keywords.variables},
             // Policies
             {"Help/policy", m_introspection->m_keywords.policies},
+            // Environment Variables
+            {"Help/envvar", m_introspection->m_keywords.environmentVariables},
         };
         for (auto &i : introspections) {
             const FilePaths files = cmakeRoot.pathAppended(i.helpPath)
@@ -489,7 +491,7 @@ void CMakeTool::parseFunctionDetailsOutput(const QString &output)
 
     const QStringList lines = output.split('\n');
     for (int i = 0; i < lines.count(); ++i) {
-        const QString line = lines.at(i);
+        const QString &line = lines.at(i);
 
         if (line == "::") {
             expectDefinition = true;
@@ -655,7 +657,7 @@ void CMakeTool::fetchFromCapabilities(bool ignoreCache) const
     QTC_ASSERT_EXPECTED(result, return);
 }
 
-static int getVersion(const QVariantMap &obj, const QString value)
+static int getVersion(const QVariantMap &obj, const QString &value)
 {
     bool ok;
     int result = obj.value(value).toInt(&ok);

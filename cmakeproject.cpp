@@ -18,8 +18,11 @@
 #include <projectexplorer/projectnodes.h>
 #include <projectexplorer/target.h>
 #include <projectexplorer/taskhub.h>
+
 #include <qtsupport/qtkitaspect.h>
 #include <QMessageBox>
+
+#include <utils/mimeconstants.h>
 
 using namespace ProjectExplorer;
 using namespace Utils;
@@ -31,7 +34,7 @@ namespace CMakeProjectManager {
   \class CMakeProject
 */
 CMakeProject::CMakeProject(const FilePath &fileName)
-    : Project(Constants::CMAKE_MIMETYPE, fileName)
+    : Project(Utils::Constants::CMAKE_MIMETYPE, fileName)
 {
     setId(CMakeProjectManager::Constants::CMAKE_PROJECT_ID);
     setProjectLanguages(Core::Context(ProjectExplorer::Constants::CXX_LANGUAGE_ID));
@@ -57,7 +60,7 @@ Tasks CMakeProject::projectIssues(const Kit *k) const
 
     if (!CMakeKitAspect::cmakeTool(k))
         result.append(createProjectTask(Task::TaskType::Error, Tr::tr("No cmake tool set.")));
-    if (ToolChainKitAspect::toolChains(k).isEmpty())
+    if (ToolchainKitAspect::toolChains(k).isEmpty())
         result.append(createProjectTask(Task::TaskType::Warning, Tr::tr("No compilers set in kit.")));
 
     result.append(m_issues);

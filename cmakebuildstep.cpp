@@ -68,10 +68,12 @@ public:
     void start() final {
         Target *target = *task();
         if (!target) {
-            emit done(false);
+            emit done(DoneResult::Error);
             return;
         }
-        connect(target, &Target::parsingFinished, this, &TaskInterface::done);
+        connect(target, &Target::parsingFinished, this, [this](bool success) {
+            emit done(toDoneResult(success));
+        });
     }
 };
 
@@ -261,6 +263,8 @@ CMakeBuildStep::CMakeBuildStep(BuildStepList *bsl, Id id) :
             env.set("NINJA_STATUS", ninjaProgressString + "%o/sec] ");
         env.modify(m_userEnvironmentChanges);
 
+        env.setFallback("CLICOLOR_FORCE", "1");
+
         if (useStaging())
             env.set("DESTDIR", stagingDir().path());
     });
@@ -331,7 +335,7 @@ void CMakeBuildStep::setupOutputFormatter(Utils::OutputFormatter *formatter)
     formatter->addLineParser(progressParser);
     cmakeParser->setSourceDirectory(project()->projectDirectory());
     formatter->addLineParsers({cmakeParser, new GnuMakeParser});
-    ToolChain *tc = ToolChainKitAspect::cxxToolChain(kit());
+    Toolchain *tc = ToolchainKitAspect::cxxToolChain(kit());
     OutputTaskParser *xcodeBuildParser = nullptr;
     if (tc && tc->targetAbi().os() == Abi::DarwinOS) {
         xcodeBuildParser = new XcodebuildParser;
@@ -358,24 +362,20 @@ GroupItem CMakeBuildStep::runRecipe()
         else if (bs->isWaitingForParse())
             message = Tr::tr("Running CMake in preparation to build...");
         else
-            return SetupResult::StopWithDone;
+            return SetupResult::StopWithSuccess;
         emit addOutput(message, OutputFormat::NormalMessage);
         parseTarget = target();
         return SetupResult::Continue;
     };
-    const auto onParserError = [this](const QPointer<Target> &) {
+    const auto onParserError = [this] {
         emit addOutput(Tr::tr("Project did not parse successfully, cannot build."),
                        OutputFormat::ErrorMessage);
     };
-    const auto onEnd = [this] {
-        updateDeploymentData();
-    };
-    const Group root {
-        ignoreReturnValue() ? finishAllAndDone : stopOnError,
-        ProjectParserTask(onParserSetup, {}, onParserError),
+    Group root {
+        ignoreReturnValue() ? finishAllAndSuccess : stopOnError,
+        ProjectParserTask(onParserSetup, onParserError, CallDoneIf::Error),
         defaultProcessTask(),
-        onGroupDone(onEnd),
-        onGroupError(onEnd)
+        onGroupDone([this] { updateDeploymentData(); })
     };
     return root;
 }
@@ -773,22 +773,26 @@ void CMakeBuildStep::updateDeploymentData()
     DeploymentData deploymentData;
     deploymentData.setLocalInstallRoot(rootDir);
 
-    IDeviceConstPtr device = BuildDeviceKitAspect::device(buildSystem()->kit());
+    IDeviceConstPtr runDevice = DeviceKitAspect::device(buildSystem()->kit());
+
+    if (!runDevice)
+        return;
 
     const auto appFileNames = transform<QSet<QString>>(buildSystem()->applicationTargets(),
            [](const BuildTargetInfo &appTarget) { return appTarget.targetFilePath.fileName(); });
 
-    auto handleFile = [&appFileNames, rootDir, &deploymentData, device](const FilePath &filePath) {
-        const DeployableFile::Type type = appFileNames.contains(filePath.fileName())
-            ? DeployableFile::TypeExecutable
-            : DeployableFile::TypeNormal;
+    auto handleFile =
+        [&appFileNames, rootDir, &deploymentData, runDevice](const FilePath &filePath) {
+            const DeployableFile::Type type = appFileNames.contains(filePath.fileName())
+                                                  ? DeployableFile::TypeExecutable
+                                                  : DeployableFile::TypeNormal;
 
-        FilePath targetDirPath = filePath.parentDir().relativePathFrom(rootDir);
+            FilePath targetDirPath = filePath.parentDir().relativePathFrom(rootDir);
 
-        const FilePath targetDir = device->rootPath().pathAppended(targetDirPath.path());
-        deploymentData.addFile(filePath, targetDir.nativePath(), type);
-        return IterationPolicy::Continue;
-    };
+            const FilePath targetDir = runDevice->rootPath().pathAppended(targetDirPath.path());
+            deploymentData.addFile(filePath, targetDir.nativePath(), type);
+            return IterationPolicy::Continue;
+        };
 
     rootDir.iterateDirectory(handleFile,
                              {{}, QDir::Files | QDir::Hidden, QDirIterator::Subdirectories});
