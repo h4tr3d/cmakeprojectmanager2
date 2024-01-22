@@ -1,7 +1,7 @@
 CMakeProjectManager2
 ====================
 
-**CAUTION: brokken by the huge upstream changes**
+**NOTE: Project are discontinued and repository will be frozen. Use upstream plugin that started to be more usable that this one.**
 
 Alternative CMake support for Qt Creator.
 
