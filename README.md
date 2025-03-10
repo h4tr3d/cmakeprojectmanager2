@@ -1,7 +1,10 @@
 CMakeProjectManager2
 ====================
 
-**NOTE: Project are discontinued and repository will be frozen. Use upstream plugin that started to be more usable that this one.**
+**NOTE: Project are discontinued and repository will be frozen. Use upstream plugin that started to be more usable that this one. Now it contains next killer features:**
+- **Edit target sources when new files added**
+- **It still does not display all files, but it can be simple work arounded via adding needed files (without impact existing project structure): [https://github.com/h4tr3d/qtc-other-files-helper](https://github.com/h4tr3d/qtc-other-files-helper?tab=readme-ov-file#per-project-configuration-without-any-ide-impact) ([short description in Russian](https://htrd.su/blog/2023/08/18/qtc-other-files-helper/))**
+- **Vcpkg integration**
 
 Alternative CMake support for Qt Creator.
 
